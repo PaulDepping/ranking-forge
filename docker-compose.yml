@@ -1,0 +1,60 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: rankingforge
+      POSTGRES_PASSWORD: rankingforge
+      POSTGRES_DB: rankingforge
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rankingforge"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      target: api
+    environment:
+      DATABASE_URL: postgres://rankingforge:rankingforge@db:5432/rankingforge
+      PORT: 3000
+      RUST_LOG: info
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      target: worker
+    environment:
+      DATABASE_URL: postgres://rankingforge:rankingforge@db:5432/rankingforge
+      STARTGG_API_KEY: ${STARTGG_API_KEY}
+      RUST_LOG: info
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    image: node:22-slim
+    working_dir: /app
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+    command: sh -c "npm install && npm run dev -- --host"
+    environment:
+      PUBLIC_API_URL: http://localhost:3000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:

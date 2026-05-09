@@ -1,0 +1,727 @@
+openapi: 3.1.0
+info:
+  title: RankingForge API
+  version: 0.1.0
+  description: >
+    REST API for RankingForge. Authentication is via HttpOnly session cookies
+    set on login. All endpoints except /auth/* require a valid session.
+
+servers:
+  - url: http://localhost:3000
+
+components:
+  schemas:
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    User:
+      type: object
+      required: [id, username, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Project:
+      type: object
+      required: [id, name, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        game_id:
+          type: integer
+          nullable: true
+        game_name:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    Player:
+      type: object
+      required: [id, project_id, name, created_at, accounts]
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        accounts:
+          type: array
+          items:
+            $ref: '#/components/schemas/StartggAccount'
+
+    StartggAccount:
+      type: object
+      required: [id, startgg_user_id, slug]
+      properties:
+        id:
+          type: string
+          format: uuid
+        startgg_user_id:
+          type: integer
+        slug:
+          type: string
+        display_name:
+          type: string
+          nullable: true
+
+    Tournament:
+      type: object
+      required: [id, name, slug, online, events]
+      properties:
+        id:
+          type: string
+          format: uuid
+        startgg_id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        city:
+          type: string
+          nullable: true
+        addr_state:
+          type: string
+          nullable: true
+        country_code:
+          type: string
+          nullable: true
+        venue_name:
+          type: string
+          nullable: true
+        online:
+          type: boolean
+        start_at:
+          type: string
+          format: date-time
+          nullable: true
+        end_at:
+          type: string
+          format: date-time
+          nullable: true
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectEvent'
+
+    ProjectEvent:
+      type: object
+      required: [id, name, included]
+      properties:
+        id:
+          type: string
+          format: uuid
+        startgg_id:
+          type: integer
+        name:
+          type: string
+        game_name:
+          type: string
+          nullable: true
+        num_entrants:
+          type: integer
+          nullable: true
+        start_at:
+          type: string
+          format: date-time
+          nullable: true
+        included:
+          type: boolean
+
+    ImportStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [pending, running, done, failed]
+        error:
+          type: string
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+
+    PlayerStats:
+      type: object
+      required: [player_id, name, wins, losses, upset_factor]
+      properties:
+        player_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        wins:
+          type: integer
+        losses:
+          type: integer
+        upset_factor:
+          type: number
+          description: Aggregate upset factor across all counted sets
+
+    HeadToHeadEntry:
+      type: object
+      required: [player_id, opponent_id, wins, losses]
+      properties:
+        player_id:
+          type: string
+          format: uuid
+        opponent_id:
+          type: string
+          format: uuid
+        wins:
+          type: integer
+        losses:
+          type: integer
+
+    Game:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        display_name:
+          type: string
+          nullable: true
+
+  responses:
+    Unauthorized:
+      description: Not authenticated
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    UnprocessableEntity:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+paths:
+  # ── Auth ────────────────────────────────────────────────────────────────────
+
+  /auth/register:
+    post:
+      summary: Create a new user account
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                  minLength: 3
+                password:
+                  type: string
+                  minLength: 8
+      responses:
+        '201':
+          description: Account created; session cookie set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /auth/login:
+    post:
+      summary: Log in and receive a session cookie
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful; session cookie set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      summary: Destroy the current session
+      tags: [Auth]
+      responses:
+        '204':
+          description: Logged out
+
+  # ── Projects ────────────────────────────────────────────────────────────────
+
+  /projects:
+    get:
+      summary: List all ranking projects for the authenticated user
+      tags: [Projects]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Create a new ranking project
+      tags: [Projects]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                game_id:
+                  type: integer
+                  nullable: true
+                game_name:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /projects/{project_id}:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: Get a project by ID
+      tags: [Projects]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete a project
+      tags: [Projects]
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Players ─────────────────────────────────────────────────────────────────
+
+  /projects/{project_id}/players:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: List all players in a project
+      tags: [Players]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Player'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      summary: Add a player to the project
+      tags: [Players]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Player'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/players/{player_id}:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: player_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    delete:
+      summary: Remove a player from the project
+      tags: [Players]
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/players/{player_id}/accounts:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: player_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      summary: Link a start.gg account to a player
+      tags: [Players]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slug]
+              properties:
+                slug:
+                  type: string
+                  description: start.gg user slug, e.g. "user/abc123"
+      responses:
+        '201':
+          description: Account linked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartggAccount'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /projects/{project_id}/players/{player_id}/accounts/{account_id}:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: player_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: account_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    delete:
+      summary: Unlink a start.gg account from a player
+      tags: [Players]
+      responses:
+        '204':
+          description: Unlinked
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Import ──────────────────────────────────────────────────────────────────
+
+  /projects/{project_id}/import:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      summary: Enqueue a tournament import job for this project
+      description: >
+        Creates a job that the background worker will pick up. The worker queries
+        start.gg for all tournaments any of the project's players have entered,
+        then stores them in the database.
+      tags: [Import]
+      responses:
+        '202':
+          description: Job enqueued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    get:
+      summary: Get the status of the most recent import job for this project
+      tags: [Import]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Tournaments / Events ─────────────────────────────────────────────────────
+
+  /projects/{project_id}/tournaments:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: List tournaments and their events for this project
+      description: >
+        Each event includes an `included` flag showing whether it counts toward
+        stats. All events default to included after import.
+      tags: [Tournaments]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tournament'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/events/{event_id}:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: event_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    patch:
+      summary: Toggle whether an event is included in this project's stats
+      tags: [Tournaments]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [included]
+              properties:
+                included:
+                  type: boolean
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectEvent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Stats ────────────────────────────────────────────────────────────────────
+
+  /projects/{project_id}/stats:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: Get player stats ordered by aggregate upset factor
+      description: >
+        Only counts sets from included events where both the winner and loser
+        are tracked players in this project.
+      tags: [Stats]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlayerStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/head-to-head:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: Get head-to-head set records between all tracked players
+      tags: [Stats]
+      responses:
+        '200':
+          description: Array of (player, opponent, wins, losses) records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HeadToHeadEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Games ────────────────────────────────────────────────────────────────────
+
+  /games:
+    get:
+      summary: Search start.gg video games by name
+      tags: [Games]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query (proxied to start.gg API)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Game'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
