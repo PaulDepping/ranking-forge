@@ -1,3 +1,5 @@
+use std::net::{IpAddr, Ipv4Addr};
+
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -9,16 +11,12 @@ pub struct Config {
     #[arg(long, env = "PORT", default_value = "3000")]
     pub port: u16,
 
-    #[arg(long, env = "BIND_ADDR", default_value = "127.0.0.1")]
-    pub bind_addr: String,
+    #[arg(long, env = "BIND_ADDR", default_value_t = Ipv4Addr::new(0, 0, 0, 0).into())]
+    pub bind_addr: IpAddr,
 
     /// Secret key used to sign session cookies. Must be at least 32 bytes.
     /// Override in production — the default is not secure.
-    #[arg(
-        long,
-        env = "SESSION_SECRET",
-        default_value = "change-me-in-production-not-secure-at-all"
-    )]
+    #[arg(long, env = "SESSION_SECRET")]
     pub session_secret: String,
 
     /// start.gg API bearer token — used for the /games proxy endpoint.

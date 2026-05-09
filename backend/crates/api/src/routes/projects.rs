@@ -1,0 +1,145 @@
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+    routing::get,
+    Json, Router,
+};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
+use uuid::Uuid;
+
+use crate::{
+    error::{AppError, Result},
+    routes::auth::AuthUser,
+    state::AppState,
+};
+use common::models::Project;
+
+// ── Request / response types ──────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct CreateProjectRequest {
+    pub name: String,
+    pub game_id: Option<i64>,
+    pub game_name: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct ProjectResponse {
+    pub id: Uuid,
+    pub name: String,
+    pub game_id: Option<i64>,
+    pub game_name: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<Project> for ProjectResponse {
+    fn from(p: Project) -> Self {
+        ProjectResponse {
+            id: p.id,
+            name: p.name,
+            game_id: p.game_id,
+            game_name: p.game_name,
+            created_at: p.created_at,
+        }
+    }
+}
+
+// ── Ownership helper ──────────────────────────────────────────────────────────
+
+pub async fn require_project(db: &PgPool, project_id: Uuid, user_id: Uuid) -> Result<Project> {
+    sqlx::query_as!(
+        Project,
+        "SELECT id, user_id, name, game_id, game_name, created_at
+         FROM ranking_projects
+         WHERE id = $1 AND user_id = $2",
+        project_id,
+        user_id,
+    )
+    .fetch_optional(db)
+    .await?
+    .ok_or(AppError::NotFound)
+}
+
+// ── Handlers ──────────────────────────────────────────────────────────────────
+
+async fn list_projects(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+) -> Result<impl IntoResponse> {
+    let projects = sqlx::query_as!(
+        Project,
+        "SELECT id, user_id, name, game_id, game_name, created_at
+         FROM ranking_projects
+         WHERE user_id = $1
+         ORDER BY created_at DESC",
+        user.id,
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let resp: Vec<ProjectResponse> = projects.into_iter().map(ProjectResponse::from).collect();
+    Ok(Json(resp))
+}
+
+async fn create_project(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Json(body): Json<CreateProjectRequest>,
+) -> Result<impl IntoResponse> {
+    if body.name.trim().is_empty() {
+        return Err(AppError::UnprocessableEntity("name must not be empty".into()));
+    }
+
+    let project = sqlx::query_as!(
+        Project,
+        "INSERT INTO ranking_projects (user_id, name, game_id, game_name)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, user_id, name, game_id, game_name, created_at",
+        user.id,
+        body.name,
+        body.game_id,
+        body.game_name,
+    )
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok((StatusCode::CREATED, Json(ProjectResponse::from(project))))
+}
+
+async fn get_project(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path(project_id): Path<Uuid>,
+) -> Result<impl IntoResponse> {
+    let project = require_project(&state.db, project_id, user.id).await?;
+    Ok(Json(ProjectResponse::from(project)))
+}
+
+async fn delete_project(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path(project_id): Path<Uuid>,
+) -> Result<impl IntoResponse> {
+    require_project(&state.db, project_id, user.id).await?;
+
+    sqlx::query!(
+        "DELETE FROM ranking_projects WHERE id = $1",
+        project_id,
+    )
+    .execute(&state.db)
+    .await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ── Router ────────────────────────────────────────────────────────────────────
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/", get(list_projects).post(create_project))
+        .route("/{id}", get(get_project).delete(delete_project))
+        .nest("/{id}/players", crate::routes::players::router())
+}

@@ -13,8 +13,8 @@ _Last updated: 2026-05-09_
 | DB schema + migrations | ✅ Done |
 | API: AppState, router, CORS | ✅ Done |
 | API: Auth endpoints (`/auth/*`) + `AuthUser` extractor | ✅ Done |
-| API: Projects/Players CRUD | ⬜ Phase 2 |
-| start.gg GraphQL client | ⬜ Phase 3 |
+| API: Projects/Players CRUD | ✅ Done |
+| start.gg GraphQL client | ✅ Done |
 | Import worker | ⬜ Phase 4 |
 | API: Tournament deselection + stats | ⬜ Phase 5 |
 | Frontend (SvelteKit) | ⬜ Phase 6 |
@@ -73,6 +73,21 @@ REST over HTTP with JSON bodies. Session authentication via HttpOnly cookies (se
 * Workspace with two binaries: `api` and `worker`, sharing a common `db` library crate.
 * PostgreSQL as the database.
 * sqlx compile-time query checking (`sqlx::query!`) — the schema is the source of truth for Rust types.
+
+## Testing
+
+Two separate test suites, run independently:
+
+| Suite | Command | What it covers |
+|---|---|---|
+| `cargo test -p common` | No DB needed | Unit tests for pure logic; wiremock-based tests for `StartggClient` operations |
+| `cargo test -p api` | Needs `DATABASE_URL` | Integration tests: real isolated DB per test (`#[sqlx::test]`), wiremock for start.gg calls |
+
+Key design decisions that make this work:
+
+- **`StartggClient::new_with_base_url`** — any code that calls start.gg goes through `StartggClient`, never inline `reqwest`. Tests construct the client with a wiremock URL, so no real network calls are made.
+- **No DB mocks** — `#[sqlx::test]` spins up a fresh schema per test. Mocking sqlx would add complexity and miss schema mismatches that compile-time query checking doesn't catch (e.g. constraint violations, NULL handling).
+- **Self-contained tests** — each test registers its own users, creates its own data. No shared fixtures, no ordering dependencies.
 
 ## Frontend
 

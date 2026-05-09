@@ -1,16 +1,12 @@
-use axum::http::{header, HeaderValue, Method};
+use axum::http::{HeaderValue, Method, header};
 use clap::Parser;
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
-mod config;
-mod error;
-mod routes;
-mod state;
-
-use config::Config;
-use state::AppState;
+use api::config::Config;
+use api::state::AppState;
+use common::startgg::StartggClient;
 
 #[tokio::main]
 async fn main() {
@@ -30,11 +26,6 @@ async fn main() {
         .await
         .expect("failed to run migrations");
 
-    let http = reqwest::Client::builder()
-        .user_agent("rankingforge/0.1")
-        .build()
-        .expect("failed to build reqwest client");
-
     let cors_origin: HeaderValue = config
         .cors_origin
         .parse()
@@ -42,7 +33,7 @@ async fn main() {
 
     let state = AppState {
         db: pool,
-        http,
+        startgg: StartggClient::new(&config.startgg_api_key),
         session_secret: config.session_secret,
         cors_origin: config.cors_origin,
     };
@@ -53,14 +44,12 @@ async fn main() {
         .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
         .allow_headers([header::CONTENT_TYPE]);
 
-    let app = routes::router()
+    let app = api::routes::router()
         .layer(TraceLayer::new_for_http())
         .layer(cors)
         .with_state(state);
 
-    let addr: SocketAddr = format!("{}:{}", config.bind_addr, config.port)
-        .parse()
-        .expect("invalid bind address");
+    let addr = SocketAddr::new(config.bind_addr, config.port);
 
     tracing::info!("API listening on {addr}");
 

@@ -8,11 +8,13 @@
 |---|---|
 | 1a — AppState, router, CORS | ✅ Done |
 | 1b — Auth endpoints + AuthUser extractor | ✅ Done |
-| 2 — Core CRUD API | ⬜ Next |
-| 3 — start.gg GraphQL client | ⬜ |
-| 4 — Import worker | ⬜ |
+| 2 — Core CRUD API | ✅ Done |
+| 3 — start.gg GraphQL client | ✅ Done |
+| 4 — Import worker | ⬜ Next |
 | 5 — Tournament deselection + stats | ⬜ |
 | 6 — Frontend | ⬜ |
+
+**Phase 3 complete** (2026-05-09). Next: Phase 4 (Import worker).
 
 What exists and compiles:
 - `backend/` — Rust workspace with working `api` binary; `worker` still a stub
@@ -20,6 +22,7 @@ What exists and compiles:
 - `backend/migrations/001_initial.sql` — full schema (run via `sqlx::migrate!` at startup)
 - `backend/openapi.yaml` — full REST API contract
 - `backend/.sqlx/` — offline query cache (committed; required for `SQLX_OFFLINE=true` builds)
+- `backend/crates/common/src/startgg/` — `StartggClient` with all 5 GraphQL operations; `AppState` uses it instead of raw reqwest fields
 - `docker-compose.yml` — all services defined; `initdb.d` mount removed (sqlx is the migration runner)
 
 Implementation notes from Phase 1:
@@ -259,6 +262,34 @@ Build pages in this order (each depends on the previous API phase being done):
 Use SvelteKit `load` functions for server-side data fetching.
 
 Before writing any page, create `src/lib/api.ts` — a thin wrapper around `fetch` that sets `credentials: 'include'` and prefixes the correct base URL (`PUBLIC_API_URL` client-side, `INTERNAL_API_URL` server-side). Every API call goes through this wrapper.
+
+---
+
+## Testing strategy
+
+Write tests alongside each phase, before moving to the next. There are two distinct testing contexts:
+
+### `crates/common` — no database required
+
+Run with `cargo test -p common`.
+
+- **Unit tests** for pure logic (helper methods, data transformations): inline `#[cfg(test)] mod tests` at the bottom of the relevant source file.
+- **HTTP client tests** for `StartggClient` operations: use wiremock to stand up a local mock server, then construct the client with `StartggClient::new_with_base_url("test-key", &mock.uri())`. Assert on the returned Rust types, not on raw JSON. Cover happy path, empty/null responses (e.g. user not found), GraphQL-level errors, and HTTP errors.
+
+### `crates/api` — requires a running PostgreSQL server
+
+Run with `DATABASE_URL=postgres://... cargo test -p api`.
+
+- **Integration tests** in `crates/api/tests/api.rs`: use `#[sqlx::test(migrations = "../../migrations")]` which spins up a fresh isolated DB per test.
+- Construct the Axum app via `make_app(pool, startgg_base_url)` — the `startgg_base_url` parameter lets tests point at a wiremock mock server for any endpoint that calls start.gg.
+- Use `tower::ServiceExt::oneshot` to fire requests and assert on HTTP status codes and JSON bodies.
+- Every new route needs at least: happy path, auth-required (no cookie → 401), ownership enforcement (wrong user → 404), and invalid input (→ 422).
+
+### General rules
+
+- `new_with_base_url` on `StartggClient` exists specifically for testing — any code that calls start.gg must go through the client (never inline `reqwest` calls in routes) so the mock URL can be injected.
+- Do not mock the database. `#[sqlx::test]` gives you a real isolated schema with no overhead; mocking sqlx adds complexity and hides schema mismatches.
+- Keep each test self-contained: register its own users, create its own projects. Shared fixtures cause test ordering dependencies.
 
 ---
 
