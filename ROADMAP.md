@@ -2,12 +2,30 @@
 
 ## Current state
 
-Scaffold is complete and compiles:
-- `backend/` — Rust workspace (`common`, `api`, `worker` crates) with stubs
-- `web/` — SvelteKit + TypeScript skeleton
-- `backend/migrations/001_initial.sql` — full schema
+**Phase 1 complete** (2026-05-09). Next: Phase 2 (Core CRUD API).
+
+| Phase | Status |
+|---|---|
+| 1a — AppState, router, CORS | ✅ Done |
+| 1b — Auth endpoints + AuthUser extractor | ✅ Done |
+| 2 — Core CRUD API | ⬜ Next |
+| 3 — start.gg GraphQL client | ⬜ |
+| 4 — Import worker | ⬜ |
+| 5 — Tournament deselection + stats | ⬜ |
+| 6 — Frontend | ⬜ |
+
+What exists and compiles:
+- `backend/` — Rust workspace with working `api` binary; `worker` still a stub
+- `web/` — SvelteKit + TypeScript skeleton (untouched)
+- `backend/migrations/001_initial.sql` — full schema (run via `sqlx::migrate!` at startup)
 - `backend/openapi.yaml` — full REST API contract
-- `docker-compose.yml` — all four services defined
+- `backend/.sqlx/` — offline query cache (committed; required for `SQLX_OFFLINE=true` builds)
+- `docker-compose.yml` — all services defined; `initdb.d` mount removed (sqlx is the migration runner)
+
+Implementation notes from Phase 1:
+- `CORS_ORIGIN` is a config field (env var, default prod URL) — set to `http://localhost:5173` in `.env` for local dev
+- Axum 0.8 `FromRequestParts` uses native `async fn` — `#[async_trait]` must not be used
+- `cookie` must be a direct dep to access `cookie::time::Duration` for `max_age`
 
 ---
 

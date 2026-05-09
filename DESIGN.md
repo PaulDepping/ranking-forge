@@ -4,6 +4,23 @@ A platform for creating and managing rankings of players.
 
 This platform serves a common use case in the smash scene: helping TOs and other figureheads create Power Rankings of their players.
 
+## Implementation Status
+
+_Last updated: 2026-05-09_
+
+| Component | Status |
+|---|---|
+| DB schema + migrations | ✅ Done |
+| API: AppState, router, CORS | ✅ Done |
+| API: Auth endpoints (`/auth/*`) + `AuthUser` extractor | ✅ Done |
+| API: Projects/Players CRUD | ⬜ Phase 2 |
+| start.gg GraphQL client | ⬜ Phase 3 |
+| Import worker | ⬜ Phase 4 |
+| API: Tournament deselection + stats | ⬜ Phase 5 |
+| Frontend (SvelteKit) | ⬜ Phase 6 |
+
+See `ROADMAP.md` for the detailed phase breakdown and implementation notes.
+
 ## Scope
 
 The initial POC covers data collection and display only. Publishing rankings and allowing guests to view the underlying stats is planned but out of scope for now.

@@ -7,7 +7,6 @@ services:
       POSTGRES_DB: rankingforge
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/migrations:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
     healthcheck:
@@ -23,6 +22,9 @@ services:
     environment:
       DATABASE_URL: postgres://rankingforge:rankingforge@db:5432/rankingforge
       PORT: 3000
+      BIND_ADDR: "0.0.0.0"
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-prod}
+      STARTGG_API_KEY: ${STARTGG_API_KEY}
       RUST_LOG: info
     ports:
       - "3000:3000"
