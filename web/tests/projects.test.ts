@@ -72,7 +72,7 @@ test('import page shows retry button when last import failed', async ({ page }) 
 	await expect(page.getByRole('button', { name: 'Re-import' })).toBeVisible();
 });
 
-test('retry button re-enqueues import with same params', async ({ page }) => {
+test('retry button transitions import status to pending', async ({ page }) => {
 	await page.goto('/projects/proj-failed/import');
 	await page.waitForLoadState('networkidle');
 	await page.getByRole('button', { name: 'Retry' }).click();
