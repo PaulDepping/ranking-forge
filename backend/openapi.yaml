@@ -159,6 +159,16 @@ components:
         error:
           type: string
           nullable: true
+        after_date:
+          type: string
+          format: date
+          nullable: true
+          description: Lower bound of the import date filter (inclusive), if set.
+        before_date:
+          type: string
+          format: date
+          nullable: true
+          description: Upper bound of the import date filter (inclusive), if set.
         updated_at:
           type: string
           format: date-time
