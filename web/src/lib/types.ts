@@ -64,6 +64,8 @@ export interface SetRecord {
 	opponent_id: string;
 	opponent_name: string;
 	upset_factor: number;
+	winner_score: number | null;
+	loser_score: number | null;
 }
 
 export interface PlayerStats {

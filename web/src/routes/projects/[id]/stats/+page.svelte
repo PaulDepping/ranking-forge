@@ -51,16 +51,21 @@
 							</td>
 						</tr>
 						{#if expanded[player.player_id]}
-							{@const sets = expanded[player.player_id] === 'wins' ? player.wins : player.losses}
-							{@const label = expanded[player.player_id] === 'wins' ? 'Wins' : 'Losses'}
+							{@const isWins = expanded[player.player_id] === 'wins'}
+							{@const sets = isWins ? player.wins : player.losses}
+							{@const label = isWins ? 'Wins' : 'Losses'}
 							<tr class="border-b border-border bg-muted/30">
 								<td colspan={5} class="px-8 py-3">
 									<p class="mb-2 text-xs font-semibold text-muted-foreground">{label}</p>
 									<div class="space-y-1">
 										{#each sets as set (set.opponent_id + set.upset_factor)}
+											{@const ps = isWins ? set.winner_score : set.loser_score}
+											{@const os = isWins ? set.loser_score : set.winner_score}
 											<div class="flex justify-between text-xs">
 												<span>{set.opponent_name}</span>
-												<span class="tabular-nums text-muted-foreground">UF {set.upset_factor.toFixed(1)}</span>
+												<span class="tabular-nums text-muted-foreground">
+													{#if ps !== null && os !== null}{ps}–{os} · {/if}UF {set.upset_factor.toFixed(1)}
+												</span>
 											</div>
 										{/each}
 									</div>
