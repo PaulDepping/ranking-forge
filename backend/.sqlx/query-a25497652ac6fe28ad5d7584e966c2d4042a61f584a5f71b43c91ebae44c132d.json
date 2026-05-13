@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            we.player_id AS \"winner_player_id!: Uuid\",\n            le.player_id AS \"loser_player_id!: Uuid\",\n            COUNT(*)     AS \"count!: i64\"\n        FROM sets s\n        JOIN entrants we ON we.id = s.winner_entrant_id\n        JOIN entrants le ON le.id = s.loser_entrant_id\n        JOIN players  wp ON wp.id = we.player_id AND wp.project_id = $1\n        JOIN players  lp ON lp.id = le.player_id AND lp.project_id = $1\n        JOIN project_events pe ON pe.event_id = s.event_id AND pe.project_id = $1\n        WHERE pe.included = true\n          AND s.is_dq    = false\n        GROUP BY we.player_id, le.player_id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "winner_player_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "loser_player_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "count!: i64",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "a25497652ac6fe28ad5d7584e966c2d4042a61f584a5f71b43c91ebae44c132d"
+}

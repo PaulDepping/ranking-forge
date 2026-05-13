@@ -163,9 +163,22 @@ components:
           type: string
           format: date-time
 
+    SetRecord:
+      type: object
+      required: [opponent_id, opponent_name, upset_factor]
+      properties:
+        opponent_id:
+          type: string
+          format: uuid
+        opponent_name:
+          type: string
+        upset_factor:
+          type: integer
+          description: Upset factor of this individual set (winner's projected round minus loser's)
+
     PlayerStats:
       type: object
-      required: [player_id, name, wins, losses, upset_factor]
+      required: [player_id, name, wins, losses]
       properties:
         player_id:
           type: string
@@ -173,12 +186,15 @@ components:
         name:
           type: string
         wins:
-          type: integer
+          type: array
+          description: Individual wins, sorted by upset_factor descending
+          items:
+            $ref: '#/components/schemas/SetRecord'
         losses:
-          type: integer
-        upset_factor:
-          type: number
-          description: Aggregate upset factor across all counted sets
+          type: array
+          description: Individual losses, sorted by upset_factor descending
+          items:
+            $ref: '#/components/schemas/SetRecord'
 
     HeadToHeadEntry:
       type: object

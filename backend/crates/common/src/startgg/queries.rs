@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(test)]
 mod tests;
 
-
 // ── GraphQL envelope ──────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
@@ -276,7 +275,9 @@ impl SetNode {
         let mut winner_score = None;
         let mut loser_score = None;
         for slot in &self.slots {
-            let Some(entrant) = &slot.entrant else { continue };
+            let Some(entrant) = &slot.entrant else {
+                continue;
+            };
             let score = slot
                 .standing
                 .as_ref()

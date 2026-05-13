@@ -1,7 +1,7 @@
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use common::startgg::StartggError;
 
@@ -49,18 +49,20 @@ impl IntoResponse for AppError {
             AppError::Db(sqlx::Error::RowNotFound) => (StatusCode::NOT_FOUND, "not found".into()),
             AppError::Db(e) => {
                 tracing::error!("database error: {e}");
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal server error".into())
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal server error".into(),
+                )
             }
-            AppError::PasswordHash => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal server error".into())
-            }
+            AppError::PasswordHash => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal server error".into(),
+            ),
             AppError::ExternalApi(e) => {
                 tracing::error!("external API error: {e}");
                 (StatusCode::BAD_GATEWAY, "upstream API error".into())
             }
-            AppError::ExternalApiError => {
-                (StatusCode::BAD_GATEWAY, "upstream API error".into())
-            }
+            AppError::ExternalApiError => (StatusCode::BAD_GATEWAY, "upstream API error".into()),
         };
         (status, Json(serde_json::json!({ "message": msg }))).into_response()
     }

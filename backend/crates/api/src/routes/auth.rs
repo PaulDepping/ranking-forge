@@ -1,16 +1,16 @@
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 use axum::{
+    Json, Router,
     extract::{FromRequestParts, State},
-    http::{request::Parts, StatusCode},
+    http::{StatusCode, request::Parts},
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
 };
-use axum_extra::extract::cookie::{Cookie, SameSite};
 use axum_extra::extract::CookieJar;
+use axum_extra::extract::cookie::{Cookie, SameSite};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -169,9 +169,7 @@ async fn register(
     .fetch_one(&state.db)
     .await
     .map_err(|e| match e {
-        sqlx::Error::Database(ref db_err)
-            if db_err.constraint() == Some("users_username_key") =>
-        {
+        sqlx::Error::Database(ref db_err) if db_err.constraint() == Some("users_username_key") => {
             AppError::UnprocessableEntity("username already taken".into())
         }
         other => AppError::Db(other),
@@ -205,10 +203,7 @@ async fn login(
     Ok((jar, Json(UserResponse::from(user))))
 }
 
-async fn logout(
-    State(state): State<AppState>,
-    jar: CookieJar,
-) -> Result<impl IntoResponse> {
+async fn logout(State(state): State<AppState>, jar: CookieJar) -> Result<impl IntoResponse> {
     if let Some(cookie) = jar.get("session_id") {
         if let Ok(session_id) = cookie.value().parse::<Uuid>() {
             sqlx::query!("DELETE FROM sessions WHERE id = $1", session_id)

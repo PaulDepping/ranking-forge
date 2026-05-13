@@ -1,7 +1,7 @@
 use axum::{
+    Json,
     extract::{Query, State},
     response::IntoResponse,
-    Json,
 };
 use serde::{Deserialize, Serialize};
 
@@ -37,7 +37,11 @@ pub async fn search_games(
         .search_games(&params.q)
         .await?
         .into_iter()
-        .map(|g| GameResponse { id: g.id, name: g.name, display_name: g.display_name })
+        .map(|g| GameResponse {
+            id: g.id,
+            name: g.name,
+            display_name: g.display_name,
+        })
         .collect::<Vec<_>>();
 
     Ok(Json(games))

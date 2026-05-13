@@ -1,12 +1,12 @@
 services:
   db:
-    image: postgres:17
+    image: postgres:18
     environment:
       POSTGRES_USER: rankingforge
       POSTGRES_PASSWORD: rankingforge
       POSTGRES_DB: rankingforge
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./postgres_data:/var/lib/postgresql
     ports:
       - "5432:5432"
     healthcheck:
@@ -17,7 +17,7 @@ services:
 
   api:
     build:
-      context: .
+      context: ./backend
       target: api
     environment:
       DATABASE_URL: postgres://rankingforge:rankingforge@db:5432/rankingforge
@@ -34,7 +34,7 @@ services:
 
   worker:
     build:
-      context: .
+      context: ./backend
       target: worker
     environment:
       DATABASE_URL: postgres://rankingforge:rankingforge@db:5432/rankingforge
@@ -45,16 +45,15 @@ services:
         condition: service_healthy
 
   web:
-    image: node:22-slim
-    working_dir: /app
-    volumes:
-      - ./web:/app
-      - /app/node_modules
-    command: sh -c "npm install && npm run dev -- --host"
+    build:
+      context: ./web
+      args:
+        PUBLIC_API_URL: http://localhost:3000
+        INTERNAL_API_URL: http://api:3000
     environment:
-      PUBLIC_API_URL: http://localhost:3000
+      ORIGIN: http://localhost:5173
     ports:
-      - "5173:5173"
+      - "5173:3000"
     depends_on:
       - api
 

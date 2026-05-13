@@ -1,6 +1,6 @@
 use super::queries::{
-    EntrantPage, EventEntrantsData, EventEntrantsVars, EventSetsData, EventSetsVars,
-    GameNode, GameSearchData, GameSearchVars, SetPage, TournamentPage, TournamentsByUserData,
+    EntrantPage, EventEntrantsData, EventEntrantsVars, EventSetsData, EventSetsVars, GameNode,
+    GameSearchData, GameSearchVars, SetPage, TournamentPage, TournamentsByUserData,
     TournamentsByUserVars, UserBySlugData, UserBySlugVars, UserNode,
 };
 use super::{StartggClient, StartggError};
@@ -12,8 +12,7 @@ const GAME_SEARCH_QUERY: &str = r#"
         }
     }"#;
 
-const USER_BY_SLUG_QUERY: &str =
-    "query($slug: String) { user(slug: $slug) { id name } }";
+const USER_BY_SLUG_QUERY: &str = "query($slug: String) { user(slug: $slug) { id name } }";
 
 const TOURNAMENTS_BY_USER_QUERY: &str = r#"
     query($userId: ID!, $gameId: ID!, $page: Int!, $perPage: Int!) {
@@ -72,14 +71,24 @@ const EVENT_SETS_QUERY: &str = r#"
 impl StartggClient {
     pub async fn search_games(&self, name: &str) -> Result<Vec<GameNode>, StartggError> {
         let data: GameSearchData = self
-            .gql(GAME_SEARCH_QUERY, GameSearchVars { name: name.to_string() })
+            .gql(
+                GAME_SEARCH_QUERY,
+                GameSearchVars {
+                    name: name.to_string(),
+                },
+            )
             .await?;
         Ok(data.videogames.nodes)
     }
 
     pub async fn user_by_slug(&self, slug: &str) -> Result<Option<UserNode>, StartggError> {
         let data: UserBySlugData = self
-            .gql(USER_BY_SLUG_QUERY, UserBySlugVars { slug: slug.to_string() })
+            .gql(
+                USER_BY_SLUG_QUERY,
+                UserBySlugVars {
+                    slug: slug.to_string(),
+                },
+            )
             .await?;
         Ok(data.user)
     }
@@ -94,13 +103,21 @@ impl StartggClient {
         let data: TournamentsByUserData = self
             .gql(
                 TOURNAMENTS_BY_USER_QUERY,
-                TournamentsByUserVars { user_id, game_id, page, per_page },
+                TournamentsByUserVars {
+                    user_id,
+                    game_id,
+                    page,
+                    per_page,
+                },
             )
             .await?;
         Ok(data
             .user
             .map(|u| u.tournaments)
-            .unwrap_or_else(|| TournamentPage { page_info: None, nodes: vec![] }))
+            .unwrap_or_else(|| TournamentPage {
+                page_info: None,
+                nodes: vec![],
+            }))
     }
 
     pub async fn event_entrants(
@@ -112,13 +129,20 @@ impl StartggClient {
         let data: EventEntrantsData = self
             .gql(
                 EVENT_ENTRANTS_QUERY,
-                EventEntrantsVars { event_id, page, per_page },
+                EventEntrantsVars {
+                    event_id,
+                    page,
+                    per_page,
+                },
             )
             .await?;
         Ok(data
             .event
             .map(|e| e.entrants)
-            .unwrap_or_else(|| EntrantPage { page_info: None, nodes: vec![] }))
+            .unwrap_or_else(|| EntrantPage {
+                page_info: None,
+                nodes: vec![],
+            }))
     }
 
     pub async fn event_sets(
@@ -130,12 +154,16 @@ impl StartggClient {
         let data: EventSetsData = self
             .gql(
                 EVENT_SETS_QUERY,
-                EventSetsVars { event_id, page, per_page },
+                EventSetsVars {
+                    event_id,
+                    page,
+                    per_page,
+                },
             )
             .await?;
-        Ok(data
-            .event
-            .map(|e| e.sets)
-            .unwrap_or_else(|| SetPage { page_info: None, nodes: vec![] }))
+        Ok(data.event.map(|e| e.sets).unwrap_or_else(|| SetPage {
+            page_info: None,
+            nodes: vec![],
+        }))
     }
 }

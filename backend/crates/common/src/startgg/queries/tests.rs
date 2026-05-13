@@ -6,7 +6,9 @@ fn make_slot(entrant_id: i64, score: Option<f64>) -> SetSlot {
     SetSlot {
         entrant: Some(SlotEntrant { id: entrant_id }),
         standing: score.map(|v| SlotStanding {
-            stats: Some(SlotStats { score: Some(ScoreValue { value: Some(v) }) }),
+            stats: Some(SlotStats {
+                score: Some(ScoreValue { value: Some(v) }),
+            }),
         }),
     }
 }
@@ -26,34 +28,55 @@ fn make_set(winner_id: Option<i64>, slots: Vec<SetSlot>) -> SetNode {
 
 #[test]
 fn set_node_is_dq_false_for_normal_scores() {
-    let set = make_set(Some(10), vec![make_slot(10, Some(3.0)), make_slot(20, Some(1.0))]);
+    let set = make_set(
+        Some(10),
+        vec![make_slot(10, Some(3.0)), make_slot(20, Some(1.0))],
+    );
     assert!(!set.is_dq());
 }
 
 #[test]
 fn set_node_is_dq_true_when_any_score_negative() {
-    let set = make_set(Some(10), vec![make_slot(10, Some(3.0)), make_slot(20, Some(-1.0))]);
+    let set = make_set(
+        Some(10),
+        vec![make_slot(10, Some(3.0)), make_slot(20, Some(-1.0))],
+    );
     assert!(set.is_dq());
 }
 
 #[test]
 fn set_node_is_dq_false_when_no_scores() {
-    let set = make_set(Some(10), vec![
-        SetSlot { entrant: Some(SlotEntrant { id: 10 }), standing: None },
-        SetSlot { entrant: Some(SlotEntrant { id: 20 }), standing: None },
-    ]);
+    let set = make_set(
+        Some(10),
+        vec![
+            SetSlot {
+                entrant: Some(SlotEntrant { id: 10 }),
+                standing: None,
+            },
+            SetSlot {
+                entrant: Some(SlotEntrant { id: 20 }),
+                standing: None,
+            },
+        ],
+    );
     assert!(!set.is_dq());
 }
 
 #[test]
 fn set_node_loser_id_returns_non_winner_entrant() {
-    let set = make_set(Some(10), vec![make_slot(10, Some(3.0)), make_slot(20, Some(1.0))]);
+    let set = make_set(
+        Some(10),
+        vec![make_slot(10, Some(3.0)), make_slot(20, Some(1.0))],
+    );
     assert_eq!(set.loser_id(), Some(20));
 }
 
 #[test]
 fn set_node_loser_id_none_when_no_winner_id() {
-    let set = make_set(None, vec![make_slot(10, Some(3.0)), make_slot(20, Some(1.0))]);
+    let set = make_set(
+        None,
+        vec![make_slot(10, Some(3.0)), make_slot(20, Some(1.0))],
+    );
     assert_eq!(set.loser_id(), None);
 }
 
@@ -65,22 +88,37 @@ fn set_node_loser_id_none_when_no_other_entrant() {
 
 #[test]
 fn set_node_scores_normal() {
-    let set = make_set(Some(10), vec![make_slot(10, Some(3.0)), make_slot(20, Some(1.0))]);
+    let set = make_set(
+        Some(10),
+        vec![make_slot(10, Some(3.0)), make_slot(20, Some(1.0))],
+    );
     assert_eq!(set.scores(), (Some(3), Some(1)));
 }
 
 #[test]
 fn set_node_scores_none_when_no_winner_id() {
-    let set = make_set(None, vec![make_slot(10, Some(3.0)), make_slot(20, Some(1.0))]);
+    let set = make_set(
+        None,
+        vec![make_slot(10, Some(3.0)), make_slot(20, Some(1.0))],
+    );
     assert_eq!(set.scores(), (None, None));
 }
 
 #[test]
 fn set_node_scores_missing_when_no_standing() {
-    let set = make_set(Some(10), vec![
-        SetSlot { entrant: Some(SlotEntrant { id: 10 }), standing: None },
-        SetSlot { entrant: Some(SlotEntrant { id: 20 }), standing: None },
-    ]);
+    let set = make_set(
+        Some(10),
+        vec![
+            SetSlot {
+                entrant: Some(SlotEntrant { id: 10 }),
+                standing: None,
+            },
+            SetSlot {
+                entrant: Some(SlotEntrant { id: 20 }),
+                standing: None,
+            },
+        ],
+    );
     assert_eq!(set.scores(), (None, None));
 }
 
@@ -105,7 +143,10 @@ fn make_entrant(participants: Vec<Participant>) -> EntrantNode {
 
 #[test]
 fn entrant_node_display_name_from_first_participant() {
-    let e = make_entrant(vec![make_participant("Mango", Some(1)), make_participant("Other", Some(2))]);
+    let e = make_entrant(vec![
+        make_participant("Mango", Some(1)),
+        make_participant("Other", Some(2)),
+    ]);
     assert_eq!(e.display_name(), "Mango");
 }
 

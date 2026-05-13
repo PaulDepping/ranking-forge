@@ -1,9 +1,9 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::get,
-    Json, Router,
+    routing::{get, patch, post},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -90,7 +90,9 @@ async fn create_project(
     Json(body): Json<CreateProjectRequest>,
 ) -> Result<impl IntoResponse> {
     if body.name.trim().is_empty() {
-        return Err(AppError::UnprocessableEntity("name must not be empty".into()));
+        return Err(AppError::UnprocessableEntity(
+            "name must not be empty".into(),
+        ));
     }
 
     let project = sqlx::query_as!(
@@ -125,12 +127,9 @@ async fn delete_project(
 ) -> Result<impl IntoResponse> {
     require_project(&state.db, project_id, user.id).await?;
 
-    sqlx::query!(
-        "DELETE FROM ranking_projects WHERE id = $1",
-        project_id,
-    )
-    .execute(&state.db)
-    .await?;
+    sqlx::query!("DELETE FROM ranking_projects WHERE id = $1", project_id,)
+        .execute(&state.db)
+        .await?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -138,8 +137,17 @@ async fn delete_project(
 // ── Router ────────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
+    use crate::routes::tournaments as t;
     Router::new()
         .route("/", get(list_projects).post(create_project))
         .route("/{id}", get(get_project).delete(delete_project))
         .nest("/{id}/players", crate::routes::players::router())
+        .route(
+            "/{id}/import",
+            post(crate::routes::import::start_import).get(crate::routes::import::get_import_status),
+        )
+        .route("/{id}/tournaments", get(t::list_tournaments))
+        .route("/{id}/events/{eid}", patch(t::patch_event))
+        .route("/{id}/stats", get(t::get_stats))
+        .route("/{id}/head-to-head", get(t::get_head_to_head))
 }

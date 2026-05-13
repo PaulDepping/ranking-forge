@@ -6,7 +6,7 @@ This platform serves a common use case in the smash scene: helping TOs and other
 
 ## Implementation Status
 
-_Last updated: 2026-05-09_
+_Last updated: 2026-05-13 (Phase 6 complete)_
 
 | Component | Status |
 |---|---|
@@ -15,9 +15,10 @@ _Last updated: 2026-05-09_
 | API: Auth endpoints (`/auth/*`) + `AuthUser` extractor | ✅ Done |
 | API: Projects/Players CRUD | ✅ Done |
 | start.gg GraphQL client | ✅ Done |
-| Import worker | ⬜ Phase 4 |
-| API: Tournament deselection + stats | ⬜ Phase 5 |
-| Frontend (SvelteKit) | ⬜ Phase 6 |
+| Import worker | ✅ Done |
+| API: Tournament deselection + stats | ✅ Done |
+| End-to-end regression tests (`crates/e2e`) | ✅ Done |
+| Frontend (SvelteKit) | ✅ Done |
 
 See `ROADMAP.md` for the detailed phase breakdown and implementation notes.
 
@@ -38,7 +39,7 @@ Out of scope for POC:
 3. I insert/select a list of relevant, eligible players, together with their start.gg accounts (a player may have zero or more start.gg accounts).
 4. I select a video game that start.gg supports.
 5. The server queries all start.gg tournaments that any of those players have entered. I am shown a list of those tournaments and their relevant events, and can manually deselect any I do not want to count.
-6. I get an overview of that list of players: ordered by upset factor, the wins and losses of each player, and a head-to-head table of set records between each player.
+6. I get an overview of that list of players: each player's individual wins and losses as separate lists (each sorted by upset factor), with the player list ordered by aggregate upset factor. I also get a head-to-head table of set records between each player.
 
 ## Architecture
 
@@ -76,22 +77,39 @@ REST over HTTP with JSON bodies. Session authentication via HttpOnly cookies (se
 
 ## Testing
 
-Two separate test suites, run independently:
+### Backend
 
 | Suite | Command | What it covers |
 |---|---|---|
 | `cargo test -p common` | No DB needed | Unit tests for pure logic; wiremock-based tests for `StartggClient` operations |
 | `cargo test -p api` | Needs `DATABASE_URL` | Integration tests: real isolated DB per test (`#[sqlx::test]`), wiremock for start.gg calls |
+| `cargo test -p e2e` | Needs `DATABASE_URL` | End-to-end: full register→import→stats pipeline through the real Axum router and `worker::import::run` |
 
-Key design decisions that make this work:
+Key design decisions:
 
 - **`StartggClient::new_with_base_url`** — any code that calls start.gg goes through `StartggClient`, never inline `reqwest`. Tests construct the client with a wiremock URL, so no real network calls are made.
 - **No DB mocks** — `#[sqlx::test]` spins up a fresh schema per test. Mocking sqlx would add complexity and miss schema mismatches that compile-time query checking doesn't catch (e.g. constraint violations, NULL handling).
 - **Self-contained tests** — each test registers its own users, creates its own data. No shared fixtures, no ordering dependencies.
 
+### Frontend (run from `web/`)
+
+| Suite | Command | What it covers |
+|---|---|---|
+| Vitest unit + component | `npm run test:unit` | `makeApi` factory logic; H2H grid rendering; Stats table rendering and expand/collapse |
+| Playwright E2E | `npm run test:e2e` | Auth pages, unauthenticated redirect, project/H2H/stats pages against a mock API |
+
+Key design decisions:
+
+- **Vitest uses `svelte()` (not `sveltekit()`) with `conditions: ['browser']`** — the `sveltekit()` Vite plugin resolves Svelte to its SSR build; the plain `svelte()` plugin with browser conditions resolves to the client build, so `mount()` is available in jsdom.
+- **Playwright starts two `webServer` processes** — a lightweight Node.js mock API (`tests/mock-api.js`) on port 9999, and the SvelteKit dev server on port 5174 with `INTERNAL_API_URL=http://localhost:9999`. Both are started automatically; no manual setup needed.
+- **Mock API uses a test cookie** — `tests/mock-api.js` returns 200 from `GET /auth/me` only when `session_id=test-session` is present, enabling the unauthenticated redirect test to work without a real backend. Authenticated E2E tests pre-set this cookie via `page.context().addCookies()`.
+- **Known limitation: login cookie persistence** — SvelteKit's `event.fetch` does not forward `Set-Cookie` headers from cross-origin API responses to the browser. The login→session→redirect flow therefore cannot be fully E2E tested without modifying the SvelteKit login action to re-set the cookie via `event.cookies.set()`. Workaround: the test verifies that correct credentials don't produce an error, and authenticated page access is covered by the pre-set cookie fixture.
+
 ## Frontend
 
-Written in Svelte with shadcn/ui components. Talks to the `api` over REST.
+Written in Svelte 5 (runes mode) with shadcn-svelte components and Tailwind CSS v4. Talks to the `api` over REST via a thin `src/lib/api.ts` wrapper that sets `credentials: 'include'` on every request. Built with adapter-node for Docker deployment.
+
+Route protection lives in `src/hooks.server.ts`: calls `GET /auth/me` on every request, redirects to `/login` on 401. Server-side `load` functions use `INTERNAL_API_URL` (Docker-internal); client-side fetches use `PUBLIC_API_URL`.
 
 ## Data Model
 
@@ -151,7 +169,9 @@ The common smash-community algorithm is:
    Example: Top 48 → projected losers round 11.
 4. Subtract the higher-seeded player's projected round from the lower-seeded winner's projected round.
 
-A positive result means the lower-seeded player performed better than expected (an upset). The aggregate upset factor for a player is the sum of their upset factor across all counted sets.
+A positive result means the lower-seeded player performed better than expected (an upset).
+
+`GET /projects/:id/stats` returns each player's wins and losses as separate lists of individual set records, each record carrying its own upset factor. Within each list the sets are sorted by upset factor descending (biggest upsets first). The outer player list is ordered by aggregate upset factor (sum of all the player's wins' upset factors) descending.
 
 ## Infrastructure
 

@@ -29,16 +29,20 @@ pub struct StartggClient {
 }
 
 impl StartggClient {
-    pub fn new(api_key: impl Into<String>) -> Self {
-        Self::new_with_base_url(api_key, STARTGG_BASE_URL)
+    pub fn new(api_key: String) -> Self {
+        Self::new_with_base_url(api_key, STARTGG_BASE_URL.into())
     }
 
-    pub fn new_with_base_url(api_key: impl Into<String>, base_url: impl Into<String>) -> Self {
+    pub fn new_with_base_url(api_key: String, base_url: String) -> Self {
         let http = Client::builder()
             .user_agent("rankingforge/0.1")
             .build()
             .expect("failed to build HTTP client");
-        StartggClient { http, api_key: api_key.into(), base_url: base_url.into() }
+        StartggClient {
+            http,
+            api_key: api_key.into(),
+            base_url: base_url.into(),
+        }
     }
 
     async fn gql<V, T>(&self, query: &'static str, variables: V) -> Result<T, StartggError>
@@ -60,7 +64,11 @@ impl StartggClient {
             .await?;
 
         if let Some(errors) = resp.errors {
-            let msg = errors.into_iter().map(|e| e.message).collect::<Vec<_>>().join("; ");
+            let msg = errors
+                .into_iter()
+                .map(|e| e.message)
+                .collect::<Vec<_>>()
+                .join("; ");
             return Err(StartggError::GraphQL(msg));
         }
 
@@ -77,7 +85,7 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn client(base_url: &str) -> StartggClient {
-        StartggClient::new_with_base_url("test-key", base_url)
+        StartggClient::new_with_base_url("test-key".into(), base_url.into())
     }
 
     fn mock_ok(body: serde_json::Value) -> ResponseTemplate {
@@ -166,7 +174,10 @@ mod tests {
             .mount(&mock)
             .await;
 
-        let user = client(&mock.uri()).user_by_slug("user/mango").await.unwrap();
+        let user = client(&mock.uri())
+            .user_by_slug("user/mango")
+            .await
+            .unwrap();
         let user = user.expect("expected Some(user)");
         assert_eq!(user.id, 12345);
         assert_eq!(user.name, "Mango");
@@ -182,7 +193,10 @@ mod tests {
             .mount(&mock)
             .await;
 
-        let user = client(&mock.uri()).user_by_slug("user/nobody").await.unwrap();
+        let user = client(&mock.uri())
+            .user_by_slug("user/nobody")
+            .await
+            .unwrap();
         assert!(user.is_none());
     }
 
@@ -197,7 +211,10 @@ mod tests {
             .mount(&mock)
             .await;
 
-        let err = client(&mock.uri()).user_by_slug("user/x").await.unwrap_err();
+        let err = client(&mock.uri())
+            .user_by_slug("user/x")
+            .await
+            .unwrap_err();
         match err {
             StartggError::GraphQL(msg) => {
                 assert!(msg.contains("not authorized"));
@@ -243,7 +260,10 @@ mod tests {
             .mount(&mock)
             .await;
 
-        let page = client(&mock.uri()).tournaments_by_user(99, 1, 1, 25).await.unwrap();
+        let page = client(&mock.uri())
+            .tournaments_by_user(99, 1, 1, 25)
+            .await
+            .unwrap();
 
         assert_eq!(page.page_info.as_ref().unwrap().total, Some(1));
         assert_eq!(page.nodes.len(), 1);
@@ -277,7 +297,10 @@ mod tests {
             .mount(&mock)
             .await;
 
-        let page = client(&mock.uri()).tournaments_by_user(0, 1, 1, 25).await.unwrap();
+        let page = client(&mock.uri())
+            .tournaments_by_user(0, 1, 1, 25)
+            .await
+            .unwrap();
         assert!(page.nodes.is_empty());
         assert!(page.page_info.is_none());
     }
@@ -316,7 +339,10 @@ mod tests {
             .mount(&mock)
             .await;
 
-        let page = client(&mock.uri()).event_entrants(200, 1, 25).await.unwrap();
+        let page = client(&mock.uri())
+            .event_entrants(200, 1, 25)
+            .await
+            .unwrap();
 
         assert_eq!(page.page_info.as_ref().unwrap().total, Some(2));
         assert_eq!(page.nodes.len(), 2);

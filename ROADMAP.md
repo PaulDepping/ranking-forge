@@ -10,19 +10,20 @@
 | 1b — Auth endpoints + AuthUser extractor | ✅ Done |
 | 2 — Core CRUD API | ✅ Done |
 | 3 — start.gg GraphQL client | ✅ Done |
-| 4 — Import worker | ⬜ Next |
-| 5 — Tournament deselection + stats | ⬜ |
-| 6 — Frontend | ⬜ |
+| 4 — Import worker | ✅ Done |
+| 5 — Tournament deselection + stats | ✅ Done |
+| 6 — Frontend | ✅ Done |
 
-**Phase 3 complete** (2026-05-09). Next: Phase 4 (Import worker).
+**Phase 6 complete** (2026-05-13). All phases done.
 
 What exists and compiles:
-- `backend/` — Rust workspace with working `api` binary; `worker` still a stub
-- `web/` — SvelteKit + TypeScript skeleton (untouched)
+- `backend/` — Rust workspace with working `api` and `worker` binaries
+- `web/` — SvelteKit 5 + TypeScript frontend, fully implemented
 - `backend/migrations/001_initial.sql` — full schema (run via `sqlx::migrate!` at startup)
 - `backend/openapi.yaml` — full REST API contract
 - `backend/.sqlx/` — offline query cache (committed; required for `SQLX_OFFLINE=true` builds)
 - `backend/crates/common/src/startgg/` — `StartggClient` with all 5 GraphQL operations; `AppState` uses it instead of raw reqwest fields
+- `backend/crates/e2e/` — end-to-end regression test crate; `tests/full_flow.rs` runs the full register→import→stats pipeline against a wiremock start.gg
 - `docker-compose.yml` — all services defined; `initdb.d` mount removed (sqlx is the migration runner)
 
 Implementation notes from Phase 1:
@@ -224,14 +225,15 @@ Run a real import against a known player's start.gg account (use the key from `.
 
 Implement the smash-community seed → losers-round conversion tables in `crates/common/src/upset.rs`.
 
-The pipeline (can run as a single SQL query + Rust post-processing, or pure SQL CTEs):
+The pipeline:
 
 1. Select all sets from included events where both entrants have a non-null `player_id` and `is_dq = false`
-2. For each set: look up `winner.seed` and `loser.seed` → compute each player's projected losers round → subtract to get set upset factor
-3. Aggregate per player: `SUM(upset_factor)`, `COUNT wins`, `COUNT losses`
-4. Sort descending by aggregate upset factor
+2. For each set: look up `winner.seed` and `loser.seed` → compute each player's projected losers round → subtract to get per-set upset factor
+3. Build per-player win and loss lists, each as individual `SetRecord` objects `{ opponent_id, opponent_name, upset_factor }`
+4. Sort each player's win/loss lists by upset factor descending
+5. Sort the outer player list by aggregate upset factor (sum of wins' upset factors) descending
 
-`GET /projects/:id/stats` — returns this sorted list.
+`GET /projects/:id/stats` — returns the player list, each entry with `wins: [SetRecord]` and `losses: [SetRecord]`.
 
 `GET /projects/:id/head-to-head` — for each (player_a, player_b) pair, count sets where player_a won vs. lost. A single aggregation query over the same filtered sets.
 
@@ -263,6 +265,18 @@ Use SvelteKit `load` functions for server-side data fetching.
 
 Before writing any page, create `src/lib/api.ts` — a thin wrapper around `fetch` that sets `credentials: 'include'` and prefixes the correct base URL (`PUBLIC_API_URL` client-side, `INTERNAL_API_URL` server-side). Every API call goes through this wrapper.
 
+### Implementation notes from Phase 6
+
+- shadcn-svelte v1.2.7 requires Tailwind CSS v4 (`tailwindcss` + `@tailwindcss/vite`) — install both before running `npx shadcn-svelte@latest init`
+- Tailwind v4 uses the Vite plugin (`@tailwindcss/vite`) instead of a PostCSS plugin; add it to `vite.config.ts` before shadcn init
+- Use `adapter-node` (not `adapter-auto`) for Docker — produces `build/index.js` run with `node`
+- `makeApi(fetch, baseUrl)` factory in `src/lib/api.ts` — callers pass `event.fetch` + `INTERNAL_API_URL` server-side, or `globalThis.fetch` + `PUBLIC_API_URL` client-side
+- Svelte 5 warns when `$state(data.foo)` captures a prop value — this is intentional for local mutable copies (tournaments optimistic updates, import job polling); the warning is benign
+- Import polling: client-side `setInterval` at 3s, clears itself when status reaches `done` or `failed`
+- Tournament toggle: optimistic UI update applied immediately, then synced from the PATCH response
+- `src/hooks.server.ts` redirects all non-`/login`/`/register` routes to `/login` on 401 from `GET /auth/me`
+- Dev env vars (`web/.env`): `PUBLIC_API_URL=http://localhost:8080`, `INTERNAL_API_URL=http://localhost:8080`
+
 ---
 
 ## Testing strategy
@@ -284,6 +298,31 @@ Run with `DATABASE_URL=postgres://... cargo test -p api`.
 - Construct the Axum app via `make_app(pool, startgg_base_url)` — the `startgg_base_url` parameter lets tests point at a wiremock mock server for any endpoint that calls start.gg.
 - Use `tower::ServiceExt::oneshot` to fire requests and assert on HTTP status codes and JSON bodies.
 - Every new route needs at least: happy path, auth-required (no cookie → 401), ownership enforcement (wrong user → 404), and invalid input (→ 422).
+
+### `web/` — frontend
+
+Run from `web/`.
+
+**Unit + component tests** (`npm run test:unit`, no server needed):
+
+- `src/lib/api.test.ts` — `makeApi` factory: verifies `credentials: 'include'` on every method, JSON body/header handling, URL construction, response passthrough.
+- `src/routes/projects/[id]/h2h/h2h.test.ts` — H2H grid renders W–L records, empty state, diagonal dashes.
+- `src/routes/projects/[id]/stats/stats.test.ts` — Stats table renders player order, aggregate UF, win/loss counts, expand/collapse.
+
+Uses Vitest with the `svelte()` Vite plugin (not `sveltekit()`) and `resolve.conditions: ['browser']`. This is required because the `sveltekit()` plugin resolves Svelte to its SSR build; the plain `svelte()` plugin with browser conditions resolves to the client build where `mount()` is available.
+
+**E2E tests** (`npm run test:e2e`, Playwright):
+
+- `tests/auth.test.ts` — login form renders, error on bad credentials, valid credentials accepted, unauthenticated redirect to `/login`, register form renders.
+- `tests/projects.test.ts` — projects list, tab navigation, H2H grid, stats page, import page, tournaments empty state; all using a pre-authenticated cookie fixture.
+
+Playwright starts two servers automatically via `webServer`:
+1. `tests/mock-api.js` — a Node.js HTTP mock server on port 9999 with all API routes stubbed. Returns 200 from `GET /auth/me` only when `session_id=test-session` is present (enabling the unauthenticated redirect test to work without a real backend).
+2. SvelteKit dev server on port 5174, started with `INTERNAL_API_URL=http://localhost:9999` and `PUBLIC_API_URL=http://localhost:9999` so all server-side fetches hit the mock.
+
+Authenticated E2E tests pre-set the `session_id=test-session` cookie via `page.context().addCookies()` — this is forwarded by SvelteKit's `event.fetch` to the mock API, so the auth guard passes.
+
+**Known limitation:** SvelteKit's `event.fetch` does not forward `Set-Cookie` headers from cross-origin API responses to the browser. The full login→cookie→redirect flow therefore requires the SvelteKit login action to re-set the cookie explicitly via `event.cookies.set()` rather than relying on header forwarding. The test instead verifies correct credentials produce no error; authenticated page access is covered by the cookie fixture.
 
 ### General rules
 

@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO jobs (kind, project_id, status)\n           VALUES ('import_tournaments', $1, 'pending')\n           RETURNING id, kind::text AS \"kind!\", project_id,\n                     status::text AS \"status!\", error, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "kind!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "project_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "status!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "error",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      false,
+      null,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "8f14fd170959f88398a500c6e8a8174d8285c2c20ee48798a56cc54bc9302f0b"
+}

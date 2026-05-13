@@ -1,9 +1,9 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{delete, get, post},
-    Json, Router,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -143,7 +143,9 @@ async fn add_player(
     require_project(&state.db, project_id, user.id).await?;
 
     if body.name.trim().is_empty() {
-        return Err(AppError::UnprocessableEntity("name must not be empty".into()));
+        return Err(AppError::UnprocessableEntity(
+            "name must not be empty".into(),
+        ));
     }
 
     let player = sqlx::query_as!(
@@ -227,8 +229,7 @@ async fn link_account(
     .await
     .map_err(|e| match e {
         sqlx::Error::Database(ref db_err)
-            if db_err.constraint()
-                == Some("startgg_accounts_player_id_startgg_user_id_key") =>
+            if db_err.constraint() == Some("startgg_accounts_player_id_startgg_user_id_key") =>
         {
             AppError::UnprocessableEntity("account already linked to this player".into())
         }

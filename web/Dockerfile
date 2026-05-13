@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1
+
+FROM node:22-slim AS builder
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
+
+COPY . .
+
+ARG PUBLIC_API_URL
+ARG INTERNAL_API_URL
+RUN npm run build
+
+FROM node:22-slim AS web
+WORKDIR /app
+
+ARG UID=10001
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home "/nonexistent" \
+    --shell "/usr/sbin/nologin" \
+    --no-create-home \
+    --uid "${UID}" \
+    appuser
+USER appuser
+
+COPY --from=builder /app/build ./build
+COPY --from=builder /app/package.json ./
+
+ENV NODE_ENV=production
+EXPOSE 3000
+CMD ["node", "build"]
