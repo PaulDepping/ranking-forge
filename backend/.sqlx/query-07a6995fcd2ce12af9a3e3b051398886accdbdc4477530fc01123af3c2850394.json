@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO jobs (kind, project_id, status)\n           VALUES ('import_tournaments', $1, 'pending')\n           RETURNING id, kind::text AS \"kind!\", project_id,\n                     status::text AS \"status!\", error, created_at, updated_at",
+  "query": "SELECT id, kind::text AS \"kind!\", project_id, params, result,\n                  status::text AS \"status!\", error, created_at, updated_at\n           FROM jobs\n           WHERE project_id = $1\n           ORDER BY created_at DESC\n           LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -20,21 +20,31 @@
       },
       {
         "ordinal": 3,
+        "name": "params",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "result",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 5,
         "name": "status!",
         "type_info": "Text"
       },
       {
-        "ordinal": 4,
+        "ordinal": 6,
         "name": "error",
         "type_info": "Text"
       },
       {
-        "ordinal": 5,
+        "ordinal": 7,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 6,
+        "ordinal": 8,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -48,11 +58,13 @@
       false,
       null,
       false,
+      false,
+      true,
       null,
       true,
       false,
       false
     ]
   },
-  "hash": "8f14fd170959f88398a500c6e8a8174d8285c2c20ee48798a56cc54bc9302f0b"
+  "hash": "07a6995fcd2ce12af9a3e3b051398886accdbdc4477530fc01123af3c2850394"
 }

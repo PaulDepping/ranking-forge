@@ -186,6 +186,29 @@ async fn seed_entrant(
     .unwrap()
 }
 
+async fn seed_entrant_named(
+    pool: &sqlx::PgPool,
+    event_id: Uuid,
+    player_id: Option<Uuid>,
+    startgg_entrant_id: i64,
+    display_name: &str,
+    seed: Option<i32>,
+) -> Uuid {
+    sqlx::query_scalar!(
+        "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name, seed)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id",
+        event_id,
+        player_id,
+        startgg_entrant_id,
+        display_name,
+        seed,
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
 async fn seed_set(
     pool: &sqlx::PgPool,
     event_id: Uuid,
@@ -200,6 +223,32 @@ async fn seed_set(
         startgg_set_id,
         winner_entrant_id,
         loser_entrant_id,
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+async fn seed_set_with_scores(
+    pool: &sqlx::PgPool,
+    event_id: Uuid,
+    winner_entrant_id: Uuid,
+    loser_entrant_id: Uuid,
+    startgg_set_id: i64,
+    winner_score: i16,
+    loser_score: i16,
+) {
+    sqlx::query!(
+        "INSERT INTO sets
+             (event_id, startgg_set_id, winner_entrant_id, loser_entrant_id,
+              is_dq, winner_score, loser_score)
+         VALUES ($1, $2, $3, $4, false, $5, $6)",
+        event_id,
+        startgg_set_id,
+        winner_entrant_id,
+        loser_entrant_id,
+        winner_score,
+        loser_score,
     )
     .execute(pool)
     .await
@@ -1211,6 +1260,82 @@ async fn stats_enforces_ownership(pool: PgPool) {
 
     let resp = get_req(&app, &format!("/projects/{pid}/stats"), &bob).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn stats_includes_non_project_opponent(pool: PgPool) {
+    let app = make_app(pool.clone(), "");
+    let cookie = register(&app, "alice", "password123").await;
+    let pid_str = create_project(&app, &cookie).await;
+    let pid = Uuid::parse_str(&pid_str).unwrap();
+
+    let alice_id =
+        Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
+
+    let (_, event_id) = seed_tournament_event(&pool, pid, 2010, 3010).await;
+
+    // Alice (seed 2) and a non-project entrant "Outsider" (seed 7)
+    let alice_e =
+        seed_entrant_named(&pool, event_id, Some(alice_id), 110, "Alice", Some(2)).await;
+    let outside_e =
+        seed_entrant_named(&pool, event_id, None, 111, "Outsider", Some(7)).await;
+
+    // Outsider beats Alice
+    seed_set(&pool, event_id, outside_e, alice_e, 510).await;
+
+    let resp = get_req(&app, &format!("/projects/{pid}/stats"), &cookie).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let stats = read_json(resp).await;
+    let entries = stats.as_array().unwrap();
+    assert_eq!(entries.len(), 1, "only project players in outer list");
+
+    let alice = entries.iter().find(|s| s["name"] == "Alice").unwrap();
+    assert_eq!(alice["wins"], json!([]));
+    assert_eq!(alice["losses"].as_array().unwrap().len(), 1);
+    assert_eq!(alice["losses"][0]["opponent_name"], "Outsider");
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn stats_returns_game_scores(pool: PgPool) {
+    let app = make_app(pool.clone(), "");
+    let cookie = register(&app, "alice", "password123").await;
+    let pid_str = create_project(&app, &cookie).await;
+    let pid = Uuid::parse_str(&pid_str).unwrap();
+
+    let alice_id =
+        Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
+    let bob_id =
+        Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
+
+    let (_, event_id) = seed_tournament_event(&pool, pid, 2011, 3011).await;
+    let alice_e = seed_entrant(&pool, event_id, Some(alice_id), 112, Some(1)).await;
+    let bob_e = seed_entrant(&pool, event_id, Some(bob_id), 113, Some(2)).await;
+
+    // Alice beats Bob 3-1
+    seed_set_with_scores(&pool, event_id, alice_e, bob_e, 511, 3, 1).await;
+
+    let resp = get_req(&app, &format!("/projects/{pid}/stats"), &cookie).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let stats = read_json(resp).await;
+    let alice = stats
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["name"] == "Alice")
+        .unwrap();
+    assert_eq!(alice["wins"][0]["winner_score"], 3);
+    assert_eq!(alice["wins"][0]["loser_score"], 1);
+
+    let bob = stats
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["name"] == "Bob")
+        .unwrap();
+    assert_eq!(bob["losses"][0]["winner_score"], 3);
+    assert_eq!(bob["losses"][0]["loser_score"], 1);
 }
 
 // ── Head-to-head ──────────────────────────────────────────────────────────────

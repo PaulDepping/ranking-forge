@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, kind::text AS \"kind!\", project_id,\n                  status::text AS \"status!\", error, created_at, updated_at\n           FROM jobs\n           WHERE status = 'pending'\n           ORDER BY created_at\n           LIMIT 1\n           FOR UPDATE SKIP LOCKED",
+  "query": "SELECT id, kind::text AS \"kind!\", project_id, params, result,\n                  status::text AS \"status!\", error, created_at, updated_at\n           FROM jobs\n           WHERE status = 'pending'\n           ORDER BY created_at\n           LIMIT 1\n           FOR UPDATE SKIP LOCKED",
   "describe": {
     "columns": [
       {
@@ -20,21 +20,31 @@
       },
       {
         "ordinal": 3,
+        "name": "params",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "result",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 5,
         "name": "status!",
         "type_info": "Text"
       },
       {
-        "ordinal": 4,
+        "ordinal": 6,
         "name": "error",
         "type_info": "Text"
       },
       {
-        "ordinal": 5,
+        "ordinal": 7,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 6,
+        "ordinal": 8,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -46,11 +56,13 @@
       false,
       null,
       false,
+      false,
+      true,
       null,
       true,
       false,
       false
     ]
   },
-  "hash": "6ce5c5b725236b1f2bf6d78b7b14934823caa34aa2dead942449faea51273554"
+  "hash": "af201378492aa1477c2e75e17a445e3d323444ee3d5408f3cfa31ca8f8347806"
 }

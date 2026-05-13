@@ -50,6 +50,8 @@ pub struct SetRecord {
     pub opponent_id: Uuid,
     pub opponent_name: String,
     pub upset_factor: i64,
+    pub winner_score: Option<i16>,
+    pub loser_score: Option<i16>,
 }
 
 #[derive(Serialize)]
@@ -275,32 +277,41 @@ pub async fn get_stats(
     .await?;
 
     struct SetRow {
-        winner_player_id: Uuid,
+        winner_player_id: Option<Uuid>,
         winner_name: String,
         winner_seed: Option<i32>,
-        loser_player_id: Uuid,
+        winner_entrant_id: Uuid,
+        loser_player_id: Option<Uuid>,
         loser_name: String,
         loser_seed: Option<i32>,
+        loser_entrant_id: Uuid,
+        winner_score: Option<i16>,
+        loser_score: Option<i16>,
     }
 
     let sets = sqlx::query_as!(
         SetRow,
         r#"
         SELECT
-            we.player_id AS "winner_player_id!: Uuid",
-            wp.name      AS winner_name,
-            we.seed      AS winner_seed,
-            le.player_id AS "loser_player_id!: Uuid",
-            lp.name      AS loser_name,
-            le.seed      AS loser_seed
+            we.player_id                       AS "winner_player_id?: Uuid",
+            COALESCE(wp.name, we.display_name) AS "winner_name!",
+            we.seed                            AS winner_seed,
+            we.id                              AS winner_entrant_id,
+            le.player_id                       AS "loser_player_id?: Uuid",
+            COALESCE(lp.name, le.display_name) AS "loser_name!",
+            le.seed                            AS loser_seed,
+            le.id                              AS loser_entrant_id,
+            s.winner_score,
+            s.loser_score
         FROM sets s
         JOIN entrants we ON we.id = s.winner_entrant_id
         JOIN entrants le ON le.id = s.loser_entrant_id
-        JOIN players  wp ON wp.id = we.player_id AND wp.project_id = $1
-        JOIN players  lp ON lp.id = le.player_id AND lp.project_id = $1
+        LEFT JOIN players wp ON wp.id = we.player_id AND wp.project_id = $1
+        LEFT JOIN players lp ON lp.id = le.player_id AND lp.project_id = $1
         JOIN project_events pe ON pe.event_id = s.event_id AND pe.project_id = $1
         WHERE pe.included = true
           AND s.is_dq    = false
+          AND (wp.id IS NOT NULL OR lp.id IS NOT NULL)
         "#,
         project_id,
     )
@@ -318,19 +329,30 @@ pub async fn get_stats(
             (Some(ws), Some(ls)) => set_upset_factor(ws, ls) as i64,
             _ => 0,
         };
-        if let Some(entry) = stats.get_mut(&row.winner_player_id) {
-            entry.1.push(SetRecord {
-                opponent_id: row.loser_player_id,
-                opponent_name: row.loser_name.clone(),
-                upset_factor: uf,
-            });
+        let loser_opp_id = row.loser_player_id.unwrap_or(row.loser_entrant_id);
+        let winner_opp_id = row.winner_player_id.unwrap_or(row.winner_entrant_id);
+
+        if let Some(wp_id) = row.winner_player_id {
+            if let Some(entry) = stats.get_mut(&wp_id) {
+                entry.1.push(SetRecord {
+                    opponent_id: loser_opp_id,
+                    opponent_name: row.loser_name.clone(),
+                    upset_factor: uf,
+                    winner_score: row.winner_score,
+                    loser_score: row.loser_score,
+                });
+            }
         }
-        if let Some(entry) = stats.get_mut(&row.loser_player_id) {
-            entry.2.push(SetRecord {
-                opponent_id: row.winner_player_id,
-                opponent_name: row.winner_name.clone(),
-                upset_factor: uf,
-            });
+        if let Some(lp_id) = row.loser_player_id {
+            if let Some(entry) = stats.get_mut(&lp_id) {
+                entry.2.push(SetRecord {
+                    opponent_id: winner_opp_id,
+                    opponent_name: row.winner_name.clone(),
+                    upset_factor: uf,
+                    winner_score: row.winner_score,
+                    loser_score: row.loser_score,
+                });
+            }
         }
     }
 
