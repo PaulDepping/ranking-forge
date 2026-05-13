@@ -1,3 +1,7 @@
+use std::time::Instant;
+
+use tracing::instrument;
+
 use super::queries::{
     EntrantPage, EventEntrantsData, EventEntrantsVars, EventSetsData, EventSetsVars, GameNode,
     GameSearchData, GameSearchVars, SetPage, TournamentPage, TournamentsByUserData,
@@ -69,7 +73,9 @@ const EVENT_SETS_QUERY: &str = r#"
     }"#;
 
 impl StartggClient {
+    #[instrument(skip(self))]
     pub async fn search_games(&self, name: &str) -> Result<Vec<GameNode>, StartggError> {
+        let t = Instant::now();
         let data: GameSearchData = self
             .gql(
                 GAME_SEARCH_QUERY,
@@ -78,10 +84,13 @@ impl StartggClient {
                 },
             )
             .await?;
+        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
         Ok(data.videogames.nodes)
     }
 
+    #[instrument(skip(self))]
     pub async fn user_by_slug(&self, slug: &str) -> Result<Option<UserNode>, StartggError> {
+        let t = Instant::now();
         let data: UserBySlugData = self
             .gql(
                 USER_BY_SLUG_QUERY,
@@ -90,9 +99,11 @@ impl StartggClient {
                 },
             )
             .await?;
+        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
         Ok(data.user)
     }
 
+    #[instrument(skip(self))]
     pub async fn tournaments_by_user(
         &self,
         user_id: i64,
@@ -100,6 +111,7 @@ impl StartggClient {
         page: i32,
         per_page: i32,
     ) -> Result<TournamentPage, StartggError> {
+        let t = Instant::now();
         let data: TournamentsByUserData = self
             .gql(
                 TOURNAMENTS_BY_USER_QUERY,
@@ -111,6 +123,7 @@ impl StartggClient {
                 },
             )
             .await?;
+        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
         Ok(data
             .user
             .map(|u| u.tournaments)
@@ -120,12 +133,14 @@ impl StartggClient {
             }))
     }
 
+    #[instrument(skip(self))]
     pub async fn event_entrants(
         &self,
         event_id: i64,
         page: i32,
         per_page: i32,
     ) -> Result<EntrantPage, StartggError> {
+        let t = Instant::now();
         let data: EventEntrantsData = self
             .gql(
                 EVENT_ENTRANTS_QUERY,
@@ -136,6 +151,7 @@ impl StartggClient {
                 },
             )
             .await?;
+        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
         Ok(data
             .event
             .map(|e| e.entrants)
@@ -145,12 +161,14 @@ impl StartggClient {
             }))
     }
 
+    #[instrument(skip(self))]
     pub async fn event_sets(
         &self,
         event_id: i64,
         page: i32,
         per_page: i32,
     ) -> Result<SetPage, StartggError> {
+        let t = Instant::now();
         let data: EventSetsData = self
             .gql(
                 EVENT_SETS_QUERY,
@@ -161,6 +179,7 @@ impl StartggClient {
                 },
             )
             .await?;
+        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
         Ok(data.event.map(|e| e.sets).unwrap_or_else(|| SetPage {
             page_info: None,
             nodes: vec![],

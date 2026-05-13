@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
+use tracing::instrument;
 use uuid::Uuid;
 
 use common::startgg::{EventNode, StartggClient, TournamentNode};
@@ -11,6 +12,7 @@ fn ts_to_dt(ts: i64) -> DateTime<Utc> {
     DateTime::from_timestamp(ts, 0).unwrap_or_default()
 }
 
+#[instrument(skip(pool, startgg), fields(%project_id))]
 pub async fn run(pool: &PgPool, startgg: &StartggClient, project_id: Uuid) -> anyhow::Result<()> {
     let project = sqlx::query!(
         "SELECT game_id, game_name FROM ranking_projects WHERE id = $1",
@@ -46,6 +48,8 @@ pub async fn run(pool: &PgPool, startgg: &StartggClient, project_id: Uuid) -> an
         return Ok(());
     }
 
+    tracing::info!(player_count = user_ids.len(), "starting import");
+
     for user_id in user_ids {
         import_user_tournaments(
             pool,
@@ -62,6 +66,7 @@ pub async fn run(pool: &PgPool, startgg: &StartggClient, project_id: Uuid) -> an
     Ok(())
 }
 
+#[instrument(skip(pool, startgg, game_name, account_map), fields(%project_id, startgg_user_id = user_id, game_id))]
 async fn import_user_tournaments(
     pool: &PgPool,
     startgg: &StartggClient,
@@ -72,10 +77,13 @@ async fn import_user_tournaments(
     account_map: &HashMap<i64, Uuid>,
 ) -> anyhow::Result<()> {
     let mut page = 1i32;
+    let mut tournament_count = 0usize;
     loop {
         let tournament_page = startgg
             .tournaments_by_user(user_id, game_id, page, 25)
             .await?;
+
+        tournament_count += tournament_page.nodes.len();
 
         for tournament in &tournament_page.nodes {
             import_tournament(
@@ -102,9 +110,18 @@ async fn import_user_tournaments(
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
 
+    tracing::info!(tournament_count, "user tournaments imported");
     Ok(())
 }
 
+#[instrument(
+    skip(pool, startgg, tournament, account_map),
+    fields(
+        %project_id,
+        tournament_startgg_id = tournament.id,
+        tournament_name = %tournament.name,
+    )
+)]
 async fn import_tournament(
     pool: &PgPool,
     startgg: &StartggClient,
@@ -146,8 +163,9 @@ async fn import_tournament(
     .await?;
 
     let tournament_db_id: Uuid = row.id;
+    let events = tournament.events.as_deref().unwrap_or(&[]);
 
-    for event in tournament.events.as_deref().unwrap_or(&[]) {
+    for event in events {
         import_event(
             pool,
             startgg,
@@ -161,9 +179,18 @@ async fn import_tournament(
         .await?;
     }
 
+    tracing::info!(event_count = events.len(), "tournament imported");
     Ok(())
 }
 
+#[instrument(
+    skip(pool, startgg, event, account_map),
+    fields(
+        %project_id,
+        event_startgg_id = event.id,
+        event_name = %event.name,
+    )
+)]
 async fn import_event(
     pool: &PgPool,
     startgg: &StartggClient,
@@ -210,13 +237,16 @@ async fn import_event(
 
     // Import entrants, build startgg_entrant_id → DB uuid map for set resolution
     let entrant_map = import_entrants(pool, startgg, event_db_id, event.id, account_map).await?;
+    let entrant_count = entrant_map.len();
 
     // Import sets
-    import_sets(pool, startgg, event_db_id, event.id, &entrant_map).await?;
+    let set_count = import_sets(pool, startgg, event_db_id, event.id, &entrant_map).await?;
 
+    tracing::info!(entrant_count, set_count, "event imported");
     Ok(())
 }
 
+#[instrument(skip(pool, startgg, account_map), fields(event_startgg_id))]
 async fn import_entrants(
     pool: &PgPool,
     startgg: &StartggClient,
@@ -263,6 +293,8 @@ async fn import_entrants(
             entrant_map.insert(entrant.id, row.id);
         }
 
+        tracing::debug!(page, entrant_count = entrant_page.nodes.len(), "entrants page imported");
+
         let total_pages = entrant_page
             .page_info
             .as_ref()
@@ -278,17 +310,20 @@ async fn import_entrants(
     Ok(entrant_map)
 }
 
+#[instrument(skip(pool, startgg, entrant_map), fields(event_startgg_id))]
 async fn import_sets(
     pool: &PgPool,
     startgg: &StartggClient,
     event_db_id: Uuid,
     event_startgg_id: i64,
     entrant_map: &HashMap<i64, Uuid>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<usize> {
     let mut page = 1i32;
+    let mut total_sets = 0usize;
 
     loop {
         let set_page = startgg.event_sets(event_startgg_id, page, 25).await?;
+        let mut page_sets = 0usize;
 
         for set in &set_page.nodes {
             let (Some(winner_sg_id), Some(loser_sg_id)) = (set.winner_id, set.loser_id()) else {
@@ -336,7 +371,12 @@ async fn import_sets(
             )
             .execute(pool)
             .await?;
+
+            page_sets += 1;
         }
+
+        total_sets += page_sets;
+        tracing::debug!(page, set_count = page_sets, "sets page imported");
 
         let total_pages = set_page
             .page_info
@@ -350,5 +390,5 @@ async fn import_sets(
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
 
-    Ok(())
+    Ok(total_sets)
 }

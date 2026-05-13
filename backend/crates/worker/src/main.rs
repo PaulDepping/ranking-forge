@@ -6,14 +6,18 @@ mod config;
 mod import;
 use config::Config;
 
+fn init_tracing(rust_log: &str) {
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::new(rust_log))
+        .init();
+}
+
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
     let config = Config::parse();
 
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::new(&config.rust_log))
-        .init();
+    init_tracing(&config.rust_log);
 
     let pool = common::db::connect(&config.database_url)
         .await

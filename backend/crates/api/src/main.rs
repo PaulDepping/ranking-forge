@@ -1,21 +1,47 @@
-use axum::http::{HeaderValue, Method, header};
+use axum::http::{HeaderName, HeaderValue, Method, Request, header};
 use clap::Parser;
 use std::net::SocketAddr;
 use tower_http::cors::CorsLayer;
-use tower_http::trace::TraceLayer;
+use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
+use tower_http::trace::{MakeSpan, TraceLayer};
 
 use api::config::Config;
 use api::state::AppState;
 use common::startgg::StartggClient;
+
+static X_REQUEST_ID: HeaderName = HeaderName::from_static("x-request-id");
+
+#[derive(Clone, Default)]
+struct SpanWithRequestId;
+
+impl<B> MakeSpan<B> for SpanWithRequestId {
+    fn make_span(&mut self, request: &Request<B>) -> tracing::Span {
+        let request_id = request
+            .headers()
+            .get(&X_REQUEST_ID)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("-");
+        tracing::info_span!(
+            "request",
+            method = %request.method(),
+            uri = %request.uri().path(),
+            request_id,
+        )
+    }
+}
+
+fn init_tracing(rust_log: &str) {
+    tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::new(rust_log))
+        .init();
+}
 
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
     let config = Config::parse();
 
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::new(&config.rust_log))
-        .init();
+    init_tracing(&config.rust_log);
 
     let pool = common::db::connect(&config.database_url)
         .await
@@ -45,7 +71,9 @@ async fn main() {
         .allow_headers([header::CONTENT_TYPE]);
 
     let app = api::routes::router()
-        .layer(TraceLayer::new_for_http())
+        .layer(TraceLayer::new_for_http().make_span_with(SpanWithRequestId::default()))
+        .layer(PropagateRequestIdLayer::new(X_REQUEST_ID.clone()))
+        .layer(SetRequestIdLayer::new(X_REQUEST_ID.clone(), MakeRequestUuid))
         .layer(cors)
         .with_state(state);
 

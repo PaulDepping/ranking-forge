@@ -44,6 +44,7 @@ pub async fn start_import(
 ) -> Result<impl IntoResponse> {
     require_project(&state.db, project_id, user.id).await?;
     let job = common::jobs::enqueue(&state.db, project_id).await?;
+    tracing::info!(user_id = %user.id, %project_id, job_id = %job.id, "import job enqueued");
     Ok((StatusCode::ACCEPTED, Json(JobResponse::from(job))))
 }
 
@@ -56,5 +57,6 @@ pub async fn get_import_status(
     let job = common::jobs::latest_for_project(&state.db, project_id)
         .await?
         .ok_or(AppError::NotFound)?;
+    tracing::debug!(user_id = %user.id, %project_id, job_id = %job.id, status = %job.status, "import status queried");
     Ok(Json(JobResponse::from(job)))
 }
