@@ -18,6 +18,26 @@ const MOCK_PLAYERS = [
 	{ id: 'player-3', project_id: 'proj-1', name: 'Charlie', created_at: '2026-01-01T00:00:00Z', accounts: [] }
 ];
 
+const MOCK_FAILED_JOB = {
+	id: 'job-1',
+	status: 'failed',
+	error: 'start.gg API error: rate limit exceeded',
+	after_date: '2026-01-01',
+	before_date: '2026-03-31',
+	created_at: '2026-05-01T10:00:00Z',
+	updated_at: '2026-05-01T10:01:00Z'
+};
+
+const MOCK_PENDING_JOB = {
+	id: 'job-2',
+	status: 'pending',
+	error: null,
+	after_date: '2026-01-01',
+	before_date: '2026-03-31',
+	created_at: '2026-05-01T10:05:00Z',
+	updated_at: '2026-05-01T10:05:00Z'
+};
+
 const MOCK_H2H = [
 	{ player_id: 'player-1', opponent_id: 'player-2', wins: 3, losses: 1 },
 	{ player_id: 'player-2', opponent_id: 'player-1', wins: 1, losses: 3 },
@@ -48,20 +68,34 @@ const MOCK_STATS = [
 	}
 ];
 
+/**
+ * @param {import('http').IncomingMessage} req
+ * @param {string} name
+ * @param {string} value
+ */
 function hasCookie(req, name, value) {
 	const header = req.headers.cookie || '';
 	return header.split(';').some((c) => c.trim() === `${name}=${value}`);
 }
 
+/**
+ * @param {import('http').ServerResponse} res
+ * @param {number} status
+ * @param {unknown} body
+ */
 function respond(res, status, body) {
 	res.writeHead(status, { 'Content-Type': 'application/json' });
 	res.end(JSON.stringify(body));
 }
 
+/**
+ * @param {import('http').IncomingMessage} req
+ * @returns {Promise<Record<string, unknown> | null>}
+ */
 function readBody(req) {
 	return new Promise((resolve) => {
 		let data = '';
-		req.on('data', (chunk) => (data += chunk));
+		req.on('data', (/** @type {Buffer} */ chunk) => (data += chunk));
 		req.on('end', () => {
 			try {
 				resolve(data ? JSON.parse(data) : null);
@@ -85,7 +119,7 @@ function createMockServer() {
 			return;
 		}
 
-		const url = new URL(req.url, 'http://localhost');
+		const url = new URL(req.url ?? '/', 'http://localhost');
 		const path = url.pathname;
 		const isAuthenticated = hasCookie(req, 'session_id', 'test-session');
 
@@ -151,9 +185,16 @@ function createMockServer() {
 		}
 
 		const importMatch = path.match(/^\/projects\/([^/]+)\/import$/);
-		if (importMatch && req.method === 'GET') {
-			respond(res, 200, null);
-			return;
+		if (importMatch) {
+			const projectId = importMatch[1];
+			if (req.method === 'GET') {
+				respond(res, 200, projectId === 'proj-failed' ? MOCK_FAILED_JOB : null);
+				return;
+			}
+			if (req.method === 'POST') {
+				respond(res, 202, MOCK_PENDING_JOB);
+				return;
+			}
 		}
 
 		const tournamentsMatch = path.match(/^\/projects\/([^/]+)\/tournaments$/);

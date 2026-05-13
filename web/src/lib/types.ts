@@ -56,6 +56,8 @@ export interface Job {
 	id: string;
 	status: 'pending' | 'running' | 'done' | 'failed';
 	error: string | null;
+	after_date: string | null;
+	before_date: string | null;
 	created_at: string;
 	updated_at: string;
 }

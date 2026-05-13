@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
@@ -8,8 +9,9 @@
 
 	let { data, form } = $props();
 
-	// Local state so we can update after polling
-	let job = $state<Job | null>(data.job ?? null);
+	// Local state so we can update after polling; synced when server data changes
+	let job = $state<Job | null>(untrack(() => data.job ?? null));
+	$effect(() => { job = data.job ?? null; });
 	let polling = $state(false);
 
 	const statusColors: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
@@ -67,11 +69,29 @@
 			<p class="text-xs text-muted-foreground">
 				Started {new Date(job.created_at).toLocaleString()}
 			</p>
+			{#if job.status === 'failed'}
+				<form
+					method="POST"
+					use:enhance={() => {
+						return ({ result }) => {
+							if (result.type === 'success' && result.data?.job) {
+								job = result.data.job as Job;
+								startPolling();
+							}
+						};
+					}}
+				>
+					<input type="hidden" name="after_date" value={job.after_date ?? ''} />
+					<input type="hidden" name="before_date" value={job.before_date ?? ''} />
+					<Button type="submit" variant="outline" size="sm">Retry</Button>
+				</form>
+			{/if}
 		</div>
 	{/if}
 
 	<form
 		method="POST"
+		class="space-y-4"
 		use:enhance={({ cancel }) => {
 			if (job?.status === 'pending' || job?.status === 'running') {
 				if (!confirm('An import is already running. Start a new one?')) cancel();
@@ -84,6 +104,27 @@
 			};
 		}}
 	>
+		<div class="grid grid-cols-2 gap-4">
+			<div class="space-y-1">
+				<label for="after_date" class="text-sm font-medium">From date</label>
+				<input
+					id="after_date"
+					name="after_date"
+					type="date"
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+				/>
+			</div>
+			<div class="space-y-1">
+				<label for="before_date" class="text-sm font-medium">To date</label>
+				<input
+					id="before_date"
+					name="before_date"
+					type="date"
+					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+				/>
+			</div>
+		</div>
+		<p class="text-xs text-muted-foreground">Leave blank to import all tournaments.</p>
 		<Button type="submit">
 			{job ? 'Re-import' : 'Start import'}
 		</Button>

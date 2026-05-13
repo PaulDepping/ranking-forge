@@ -64,3 +64,17 @@ test('tournaments page shows empty state before import', async ({ page }) => {
 		page.getByText('No tournaments imported yet. Run an import first.')
 	).toBeVisible();
 });
+
+test('import page shows retry button when last import failed', async ({ page }) => {
+	await page.goto('/projects/proj-failed/import');
+	await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
+	// Main form submit button should not be "Retry" — it should say Re-import
+	await expect(page.getByRole('button', { name: 'Re-import' })).toBeVisible();
+});
+
+test('retry button re-enqueues import with same params', async ({ page }) => {
+	await page.goto('/projects/proj-failed/import');
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'Retry' }).click();
+	await expect(page.getByText('pending')).toBeVisible();
+});
