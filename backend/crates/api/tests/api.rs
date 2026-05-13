@@ -1294,6 +1294,11 @@ async fn stats_includes_non_project_opponent(pool: PgPool) {
     assert_eq!(alice["wins"], json!([]));
     assert_eq!(alice["losses"].as_array().unwrap().len(), 1);
     assert_eq!(alice["losses"][0]["opponent_name"], "Outsider");
+    // opponent_id for non-project entrants is the entrant UUID, not a player UUID
+    assert_eq!(
+        alice["losses"][0]["opponent_id"],
+        outside_e.to_string()
+    );
 }
 
 #[sqlx::test(migrations = "../../migrations")]

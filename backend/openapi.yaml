@@ -165,16 +165,27 @@ components:
 
     SetRecord:
       type: object
-      required: [opponent_id, opponent_name, upset_factor]
+      required: [opponent_id, opponent_name, upset_factor, winner_score, loser_score]
       properties:
         opponent_id:
           type: string
           format: uuid
+          description: >
+            For project players this is a `players.id` UUID;
+            for non-project opponents this is an `entrants.id` UUID.
         opponent_name:
           type: string
         upset_factor:
           type: integer
           description: Upset factor of this individual set (winner's projected round minus loser's)
+        winner_score:
+          type: integer
+          nullable: true
+          description: Games won by the winner of this set. Null if scores were not recorded.
+        loser_score:
+          type: integer
+          nullable: true
+          description: Games won by the loser of this set. Null if scores were not recorded.
 
     PlayerStats:
       type: object
