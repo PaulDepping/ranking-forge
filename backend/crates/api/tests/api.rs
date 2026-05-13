@@ -1042,6 +1042,32 @@ async fn import_response_date_params_null_when_unset(pool: PgPool) {
     assert!(body["before_date"].is_null());
 }
 
+#[sqlx::test(migrations = "../../migrations")]
+async fn import_enqueue_no_body_returns_202(pool: PgPool) {
+    let app = make_app(pool, "");
+    let cookie = register(&app, "alice", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/projects/{pid}/import"))
+                .header("cookie", &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), StatusCode::ACCEPTED);
+    let body = read_json(resp).await;
+    assert_eq!(body["status"], "pending");
+    assert!(body["after_date"].is_null());
+    assert!(body["before_date"].is_null());
+}
+
 // ── Tournaments ───────────────────────────────────────────────────────────────
 
 #[sqlx::test(migrations = "../../migrations")]

@@ -583,6 +583,23 @@ paths:
         start.gg for all tournaments any of the project's players have entered,
         then stores them in the database.
       tags: [Import]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                after_date:
+                  type: string
+                  format: date
+                  nullable: true
+                  description: Only import tournaments on or after this date.
+                before_date:
+                  type: string
+                  format: date
+                  nullable: true
+                  description: Only import tournaments on or before this date.
       responses:
         '202':
           description: Job enqueued
