@@ -1010,6 +1010,38 @@ async fn import_status_returns_latest_job(pool: PgPool) {
     assert_eq!(read_json(resp).await["id"], second["id"]);
 }
 
+#[sqlx::test(migrations = "../../migrations")]
+async fn import_response_includes_date_params(pool: PgPool) {
+    let app = make_app(pool, "");
+    let cookie = register(&app, "alice", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+
+    let resp = post_json(
+        &app,
+        &format!("/projects/{pid}/import"),
+        &cookie,
+        json!({ "after_date": "2026-01-15", "before_date": "2026-03-31" }),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::ACCEPTED);
+    let body = read_json(resp).await;
+    assert_eq!(body["after_date"], "2026-01-15");
+    assert_eq!(body["before_date"], "2026-03-31");
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn import_response_date_params_null_when_unset(pool: PgPool) {
+    let app = make_app(pool, "");
+    let cookie = register(&app, "alice", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+
+    let resp = post_json(&app, &format!("/projects/{pid}/import"), &cookie, json!({})).await;
+    assert_eq!(resp.status(), StatusCode::ACCEPTED);
+    let body = read_json(resp).await;
+    assert!(body["after_date"].is_null());
+    assert!(body["before_date"].is_null());
+}
+
 // ── Tournaments ───────────────────────────────────────────────────────────────
 
 #[sqlx::test(migrations = "../../migrations")]
