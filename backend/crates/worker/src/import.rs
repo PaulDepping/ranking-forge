@@ -99,42 +99,57 @@ async fn collect_user_tournaments(
     before_date: Option<i64>,
     seen: &mut HashMap<i64, TournamentNode>,
 ) -> anyhow::Result<()> {
-    let mut page = 1i32;
+    let mut per_page = 25i32;
     let mut scanned = 0usize;
     let mut newly_added = 0usize;
-    loop {
-        let tournament_page = startgg
-            .tournaments_by_user(user_id, game_id, page, 25)
-            .await?;
 
-        for tournament in tournament_page.nodes {
-            let start_ts = tournament.start_at.unwrap_or(0);
-            if let Some(before) = before_date {
-                if start_ts > before {
-                    continue;
+    'pages: loop {
+        let mut page = 1i32;
+        loop {
+            let tournament_page = match startgg
+                .tournaments_by_user(user_id, game_id, page, per_page)
+                .await
+            {
+                Err(StartggError::ComplexityTooHigh { actual, limit }) if per_page > 1 => {
+                    tracing::warn!(
+                        per_page, actual, limit,
+                        "complexity too high, halving perPage"
+                    );
+                    per_page /= 2;
+                    continue 'pages;
                 }
-            }
-            if let Some(after) = after_date {
-                if start_ts < after {
-                    continue;
-                }
-            }
-            scanned += 1;
-            seen.entry(tournament.id).or_insert_with(|| {
-                newly_added += 1;
-                tournament
-            });
-        }
+                other => other?,
+            };
 
-        let total_pages = tournament_page
-            .page_info
-            .as_ref()
-            .and_then(|p| p.total_pages)
-            .unwrap_or(1);
-        if page >= total_pages {
-            break;
+            for tournament in tournament_page.nodes {
+                let start_ts = tournament.start_at.unwrap_or(0);
+                if let Some(before) = before_date {
+                    if start_ts > before {
+                        continue;
+                    }
+                }
+                if let Some(after) = after_date {
+                    if start_ts < after {
+                        continue;
+                    }
+                }
+                scanned += 1;
+                seen.entry(tournament.id).or_insert_with(|| {
+                    newly_added += 1;
+                    tournament
+                });
+            }
+
+            let total_pages = tournament_page
+                .page_info
+                .as_ref()
+                .and_then(|p| p.total_pages)
+                .unwrap_or(1);
+            if page >= total_pages {
+                break 'pages;
+            }
+            page += 1;
         }
-        page += 1;
     }
 
     tracing::info!(scanned, newly_added, "user tournaments scanned");
@@ -310,59 +325,73 @@ async fn import_entrants(
     account_map: &HashMap<i64, Uuid>,
 ) -> anyhow::Result<HashMap<i64, Uuid>> {
     let mut entrant_map: HashMap<i64, Uuid> = HashMap::new();
-    let mut page = 1i32;
+    let mut per_page = 25i32;
 
-    loop {
-        let entrant_page = startgg.event_entrants(event_startgg_id, page, 25).await?;
+    'pages: loop {
+        let mut page = 1i32;
+        loop {
+            let entrant_page =
+                match startgg.event_entrants(event_startgg_id, page, per_page).await {
+                    Err(StartggError::ComplexityTooHigh { actual, limit }) if per_page > 1 => {
+                        tracing::warn!(
+                            per_page, actual, limit,
+                            "complexity too high, halving perPage"
+                        );
+                        per_page /= 2;
+                        continue 'pages;
+                    }
+                    other => other?,
+                };
 
-        for entrant in &entrant_page.nodes {
-            let player_id: Option<Uuid> = entrant
-                .startgg_user_id()
-                .and_then(|uid| account_map.get(&uid))
-                .copied();
+            for entrant in &entrant_page.nodes {
+                let player_id: Option<Uuid> = entrant
+                    .startgg_user_id()
+                    .and_then(|uid| account_map.get(&uid))
+                    .copied();
 
-            let row = sqlx::query!(
-                r#"INSERT INTO entrants
-                       (event_id, player_id, startgg_entrant_id, startgg_user_id,
-                        seed, display_name, is_disqualified, final_placement)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                   ON CONFLICT (event_id, startgg_entrant_id) DO UPDATE SET
-                       player_id       = COALESCE(EXCLUDED.player_id, entrants.player_id),
-                       seed            = EXCLUDED.seed,
-                       display_name    = EXCLUDED.display_name,
-                       is_disqualified = EXCLUDED.is_disqualified,
-                       final_placement = EXCLUDED.final_placement
-                   RETURNING id"#,
-                event_db_id,
-                player_id,
-                entrant.id,
-                entrant.startgg_user_id(),
-                entrant.initial_seed_num,
-                entrant.display_name(),
-                entrant.is_disqualified.unwrap_or(false),
-                entrant.standing.as_ref().and_then(|s| s.placement),
-            )
-            .fetch_one(pool)
-            .await?;
+                let row = sqlx::query!(
+                    r#"INSERT INTO entrants
+                           (event_id, player_id, startgg_entrant_id, startgg_user_id,
+                            seed, display_name, is_disqualified, final_placement)
+                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                       ON CONFLICT (event_id, startgg_entrant_id) DO UPDATE SET
+                           player_id       = COALESCE(EXCLUDED.player_id, entrants.player_id),
+                           seed            = EXCLUDED.seed,
+                           display_name    = EXCLUDED.display_name,
+                           is_disqualified = EXCLUDED.is_disqualified,
+                           final_placement = EXCLUDED.final_placement
+                       RETURNING id"#,
+                    event_db_id,
+                    player_id,
+                    entrant.id,
+                    entrant.startgg_user_id(),
+                    entrant.initial_seed_num,
+                    entrant.display_name(),
+                    entrant.is_disqualified.unwrap_or(false),
+                    entrant.standing.as_ref().and_then(|s| s.placement),
+                )
+                .fetch_one(pool)
+                .await?;
 
-            entrant_map.insert(entrant.id, row.id);
+                entrant_map.insert(entrant.id, row.id);
+            }
+
+            tracing::debug!(
+                page,
+                entrant_count = entrant_page.nodes.len(),
+                "entrants page imported"
+            );
+
+            let total_pages = entrant_page
+                .page_info
+                .as_ref()
+                .and_then(|p| p.total_pages)
+                .unwrap_or(1);
+            if page >= total_pages {
+                break 'pages;
+            }
+            page += 1;
         }
-
-        tracing::debug!(
-            page,
-            entrant_count = entrant_page.nodes.len(),
-            "entrants page imported"
-        );
-
-        let total_pages = entrant_page
-            .page_info
-            .as_ref()
-            .and_then(|p| p.total_pages)
-            .unwrap_or(1);
-        if page >= total_pages {
-            break;
-        }
-        page += 1;
     }
 
     Ok(entrant_map)
@@ -452,107 +481,123 @@ async fn import_sets(
     entrant_map: &HashMap<i64, Uuid>,
     phase_group_map: &HashMap<i64, Uuid>,
 ) -> anyhow::Result<usize> {
-    let mut page = 1i32;
+    let mut per_page = 25i32;
     let mut total_sets = 0usize;
 
-    loop {
-        let set_page = match startgg.event_sets(event_startgg_id, page, 25).await {
-            Ok(p) => p,
-            Err(StartggError::Decode(msg)) => {
-                tracing::error!(event_startgg_id, page, "set page decode error: {msg}");
-                break;
-            }
-            Err(e) => return Err(e.into()),
-        };
-        let mut page_sets = 0usize;
-
-        for set in &set_page.nodes {
-            // Skip bye sets (one slot is a placeholder, not a real match)
-            if set.has_placeholder.unwrap_or(false) {
-                continue;
-            }
-
-            let (Some(winner_sg_id), Some(loser_sg_id)) = (set.winner_id, set.loser_id()) else {
-                continue; // in-progress or unresolvable
-            };
-            let (Some(&winner_uuid), Some(&loser_uuid)) = (
-                entrant_map.get(&winner_sg_id),
-                entrant_map.get(&loser_sg_id),
-            ) else {
-                tracing::warn!(set_id = set.id, "entrant not found for set, skipping");
-                continue;
-            };
-
-            let phase_group_id: Option<Uuid> = set.phase_group.as_ref().and_then(|pg| {
-                let uuid = phase_group_map.get(&pg.id).copied();
-                if uuid.is_none() {
-                    tracing::warn!(set_id = set.id, pg_id = pg.id, "phase_group not in map, storing NULL");
+    'pages: loop {
+        let mut page = 1i32;
+        loop {
+            let set_page = match startgg.event_sets(event_startgg_id, page, per_page).await {
+                Ok(p) => p,
+                Err(StartggError::ComplexityTooHigh { actual, limit }) if per_page > 1 => {
+                    tracing::warn!(
+                        per_page, actual, limit,
+                        "complexity too high, halving perPage"
+                    );
+                    per_page /= 2;
+                    continue 'pages;
                 }
-                uuid
-            });
+                Err(StartggError::Decode(msg)) => {
+                    tracing::error!(event_startgg_id, page, "set page decode error: {msg}");
+                    break 'pages;
+                }
+                Err(e) => return Err(e.into()),
+            };
 
-            let (winner_score, loser_score) = set.scores();
-            let completed_at = set.completed_at.map(ts_to_dt);
+            let mut page_sets = 0usize;
 
-            sqlx::query!(
-                r#"INSERT INTO sets
-                       (event_id, phase_group_id, startgg_set_id,
-                        winner_entrant_id, loser_entrant_id,
-                        round, round_name, total_games,
-                        winner_score, loser_score,
-                        is_dq, has_placeholder, state, identifier,
-                        vod_url, completed_at)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-                   ON CONFLICT (event_id, startgg_set_id) DO UPDATE SET
-                       phase_group_id    = EXCLUDED.phase_group_id,
-                       winner_entrant_id = EXCLUDED.winner_entrant_id,
-                       loser_entrant_id  = EXCLUDED.loser_entrant_id,
-                       round             = EXCLUDED.round,
-                       round_name        = EXCLUDED.round_name,
-                       total_games       = EXCLUDED.total_games,
-                       winner_score      = EXCLUDED.winner_score,
-                       loser_score       = EXCLUDED.loser_score,
-                       is_dq             = EXCLUDED.is_dq,
-                       has_placeholder   = EXCLUDED.has_placeholder,
-                       state             = EXCLUDED.state,
-                       identifier        = EXCLUDED.identifier,
-                       vod_url           = EXCLUDED.vod_url,
-                       completed_at      = EXCLUDED.completed_at"#,
-                event_db_id,
-                phase_group_id,
-                set.id,
-                winner_uuid,
-                loser_uuid,
-                set.round,
-                set.full_round_text.as_deref(),
-                set.total_games.map(|b| b as i16),
-                winner_score,
-                loser_score,
-                set.is_dq(),
-                set.has_placeholder.unwrap_or(false),
-                set.state,
-                set.identifier.as_deref(),
-                set.vod_url.as_deref(),
-                completed_at,
-            )
-            .execute(pool)
-            .await?;
+            for set in &set_page.nodes {
+                if set.has_placeholder.unwrap_or(false) {
+                    continue;
+                }
 
-            page_sets += 1;
+                let (Some(winner_sg_id), Some(loser_sg_id)) = (set.winner_id, set.loser_id())
+                else {
+                    continue;
+                };
+                let (Some(&winner_uuid), Some(&loser_uuid)) = (
+                    entrant_map.get(&winner_sg_id),
+                    entrant_map.get(&loser_sg_id),
+                ) else {
+                    tracing::warn!(set_id = set.id, "entrant not found for set, skipping");
+                    continue;
+                };
+
+                let phase_group_id: Option<Uuid> = set.phase_group.as_ref().and_then(|pg| {
+                    let uuid = phase_group_map.get(&pg.id).copied();
+                    if uuid.is_none() {
+                        tracing::warn!(
+                            set_id = set.id,
+                            pg_id = pg.id,
+                            "phase_group not in map, storing NULL"
+                        );
+                    }
+                    uuid
+                });
+
+                let (winner_score, loser_score) = set.scores();
+                let completed_at = set.completed_at.map(ts_to_dt);
+
+                sqlx::query!(
+                    r#"INSERT INTO sets
+                           (event_id, phase_group_id, startgg_set_id,
+                            winner_entrant_id, loser_entrant_id,
+                            round, round_name, total_games,
+                            winner_score, loser_score,
+                            is_dq, has_placeholder, state, identifier,
+                            vod_url, completed_at)
+                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                       ON CONFLICT (event_id, startgg_set_id) DO UPDATE SET
+                           phase_group_id    = EXCLUDED.phase_group_id,
+                           winner_entrant_id = EXCLUDED.winner_entrant_id,
+                           loser_entrant_id  = EXCLUDED.loser_entrant_id,
+                           round             = EXCLUDED.round,
+                           round_name        = EXCLUDED.round_name,
+                           total_games       = EXCLUDED.total_games,
+                           winner_score      = EXCLUDED.winner_score,
+                           loser_score       = EXCLUDED.loser_score,
+                           is_dq             = EXCLUDED.is_dq,
+                           has_placeholder   = EXCLUDED.has_placeholder,
+                           state             = EXCLUDED.state,
+                           identifier        = EXCLUDED.identifier,
+                           vod_url           = EXCLUDED.vod_url,
+                           completed_at      = EXCLUDED.completed_at"#,
+                    event_db_id,
+                    phase_group_id,
+                    set.id,
+                    winner_uuid,
+                    loser_uuid,
+                    set.round,
+                    set.full_round_text.as_deref(),
+                    set.total_games.map(|b| b as i16),
+                    winner_score,
+                    loser_score,
+                    set.is_dq(),
+                    set.has_placeholder.unwrap_or(false),
+                    set.state,
+                    set.identifier.as_deref(),
+                    set.vod_url.as_deref(),
+                    completed_at,
+                )
+                .execute(pool)
+                .await?;
+
+                page_sets += 1;
+            }
+
+            total_sets += page_sets;
+            tracing::debug!(page, set_count = page_sets, "sets page imported");
+
+            let total_pages = set_page
+                .page_info
+                .as_ref()
+                .and_then(|p| p.total_pages)
+                .unwrap_or(1);
+            if page >= total_pages {
+                break 'pages;
+            }
+            page += 1;
         }
-
-        total_sets += page_sets;
-        tracing::debug!(page, set_count = page_sets, "sets page imported");
-
-        let total_pages = set_page
-            .page_info
-            .as_ref()
-            .and_then(|p| p.total_pages)
-            .unwrap_or(1);
-        if page >= total_pages {
-            break;
-        }
-        page += 1;
     }
 
     Ok(total_sets)

@@ -167,6 +167,42 @@ async fn full_import_flow(pool: PgPool) {
         .mount(&mock)
         .await;
 
+    // event_phases: one phase with one phase group
+    Mock::given(method("POST"))
+        .and(body_string_contains("phaseGroups(query:"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": {
+                "event": {
+                    "phases": [{
+                        "id": 5001_i64,
+                        "name": "Bracket",
+                        "bracketType": "DOUBLE_ELIMINATION",
+                        "phaseOrder": 1,
+                        "numSeeds": 2,
+                        "groupCount": 1,
+                        "state": "COMPLETED",
+                        "isExhibition": false,
+                        "phaseGroups": {
+                            "pageInfo": { "total": 1, "totalPages": 1 },
+                            "nodes": [{
+                                "id": 6001_i64,
+                                "displayIdentifier": "1",
+                                "bracketType": "DOUBLE_ELIMINATION",
+                                "bracketUrl": null,
+                                "numRounds": null,
+                                "startAt": null,
+                                "firstRoundTime": null,
+                                "state": 3
+                            }]
+                        }
+                    }]
+                }
+            }
+        })))
+        .expect(1)
+        .mount(&mock)
+        .await;
+
     // event_entrants: Mango seeded 2nd, Armada seeded 7th
     Mock::given(method("POST"))
         .and(body_string_contains("entrants(query:"))
