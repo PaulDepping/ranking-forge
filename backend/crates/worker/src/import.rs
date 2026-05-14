@@ -487,11 +487,13 @@ async fn import_sets(
                 continue;
             };
 
-            let phase_group_id: Option<Uuid> = set
-                .phase_group
-                .as_ref()
-                .and_then(|pg| phase_group_map.get(&pg.id))
-                .copied();
+            let phase_group_id: Option<Uuid> = set.phase_group.as_ref().and_then(|pg| {
+                let uuid = phase_group_map.get(&pg.id).copied();
+                if uuid.is_none() {
+                    tracing::warn!(set_id = set.id, pg_id = pg.id, "phase_group not in map, storing NULL");
+                }
+                uuid
+            });
 
             let (winner_score, loser_score) = set.scores();
             let completed_at = set.completed_at.map(ts_to_dt);
