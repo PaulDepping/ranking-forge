@@ -52,6 +52,16 @@ pub struct SetRecord {
     pub upset_factor: i64,
     pub winner_score: Option<i16>,
     pub loser_score: Option<i16>,
+    pub tournament_name: String,
+    pub tournament_slug: String,
+    pub event_name: String,
+    pub round_name: Option<String>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub is_dq: bool, // always false currently (filtered in SQL); kept for forward-compat
+    pub vod_url: Option<String>,
+    pub startgg_set_id: i64,
+    pub winner_seed: Option<i32>,
+    pub loser_seed: Option<i32>,
 }
 
 #[derive(Serialize)]
@@ -76,6 +86,20 @@ pub struct HeadToHeadEntry {
 pub struct ProjectEventPath {
     pub id: Uuid,
     pub eid: Uuid,
+}
+
+#[derive(Deserialize)]
+pub struct H2HSetPath {
+    pub id: Uuid,
+    pub pid_a: Uuid,
+    pub pid_b: Uuid,
+}
+
+#[derive(Serialize)]
+pub struct H2HSet {
+    #[serde(flatten)]
+    pub set: SetRecord,
+    pub is_win: bool,
 }
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -287,6 +311,14 @@ pub async fn get_stats(
         loser_entrant_id: Uuid,
         winner_score: Option<i16>,
         loser_score: Option<i16>,
+        event_name: String,
+        tournament_name: String,
+        tournament_slug: String,
+        round_name: Option<String>,
+        completed_at: Option<DateTime<Utc>>,
+        is_dq: bool,
+        vod_url: Option<String>,
+        startgg_set_id: i64,
     }
 
     let sets = sqlx::query_as!(
@@ -302,13 +334,23 @@ pub async fn get_stats(
             le.seed                            AS loser_seed,
             le.id                              AS loser_entrant_id,
             s.winner_score,
-            s.loser_score
+            s.loser_score,
+            e.name                             AS event_name,
+            t.name                             AS tournament_name,
+            t.slug                             AS tournament_slug,
+            s.round_name,
+            s.completed_at,
+            s.is_dq,
+            s.vod_url,
+            s.startgg_set_id
         FROM sets s
         JOIN entrants we ON we.id = s.winner_entrant_id
         JOIN entrants le ON le.id = s.loser_entrant_id
         LEFT JOIN players wp ON wp.id = we.player_id AND wp.project_id = $1
         LEFT JOIN players lp ON lp.id = le.player_id AND lp.project_id = $1
         JOIN project_events pe ON pe.event_id = s.event_id AND pe.project_id = $1
+        JOIN events e ON e.id = s.event_id
+        JOIN tournaments t ON t.id = e.tournament_id
         WHERE pe.included = true
           AND s.is_dq    = false
           AND (wp.id IS NOT NULL OR lp.id IS NOT NULL)
@@ -340,6 +382,16 @@ pub async fn get_stats(
                     upset_factor: uf,
                     winner_score: row.winner_score,
                     loser_score: row.loser_score,
+                    tournament_name: row.tournament_name.clone(),
+                    tournament_slug: row.tournament_slug.clone(),
+                    event_name: row.event_name.clone(),
+                    round_name: row.round_name.clone(),
+                    completed_at: row.completed_at,
+                    is_dq: row.is_dq,
+                    vod_url: row.vod_url.clone(),
+                    startgg_set_id: row.startgg_set_id,
+                    winner_seed: row.winner_seed,
+                    loser_seed: row.loser_seed,
                 });
             }
         }
@@ -347,10 +399,20 @@ pub async fn get_stats(
             if let Some(entry) = stats.get_mut(&lp_id) {
                 entry.2.push(SetRecord {
                     opponent_id: winner_opp_id,
-                    opponent_name: row.winner_name.clone(),
+                    opponent_name: row.winner_name,
                     upset_factor: uf,
                     winner_score: row.winner_score,
                     loser_score: row.loser_score,
+                    tournament_name: row.tournament_name,
+                    tournament_slug: row.tournament_slug,
+                    event_name: row.event_name,
+                    round_name: row.round_name,
+                    completed_at: row.completed_at,
+                    is_dq: row.is_dq,
+                    vod_url: row.vod_url,
+                    startgg_set_id: row.startgg_set_id,
+                    winner_seed: row.winner_seed,
+                    loser_seed: row.loser_seed,
                 });
             }
         }
@@ -372,9 +434,14 @@ pub async fn get_stats(
         .collect();
 
     resp.sort_by(|a, b| {
-        let a_uf: i64 = a.wins.iter().map(|s| s.upset_factor).sum();
-        let b_uf: i64 = b.wins.iter().map(|s| s.upset_factor).sum();
-        b_uf.cmp(&a_uf).then(b.wins.len().cmp(&a.wins.len()))
+        let a_total = a.wins.len() + a.losses.len();
+        let b_total = b.wins.len() + b.losses.len();
+        let a_rate = if a_total == 0 { -1.0_f64 } else { a.wins.len() as f64 / a_total as f64 };
+        let b_rate = if b_total == 0 { -1.0_f64 } else { b.wins.len() as f64 / b_total as f64 };
+        b_rate
+            .partial_cmp(&a_rate)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(b.wins.len().cmp(&a.wins.len()))
     });
 
     Ok(Json(resp))
@@ -458,6 +525,114 @@ pub async fn get_head_to_head(
     Ok(Json(resp))
 }
 
+pub async fn get_h2h_sets(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path(path): Path<H2HSetPath>,
+) -> Result<impl IntoResponse> {
+    require_project(&state.db, path.id, user.id).await?;
+
+    struct H2HSetRow {
+        winner_player_id: Uuid,
+        winner_name: String,
+        winner_seed: Option<i32>,
+        loser_player_id: Uuid,
+        loser_name: String,
+        loser_seed: Option<i32>,
+        winner_score: Option<i16>,
+        loser_score: Option<i16>,
+        event_name: String,
+        tournament_name: String,
+        tournament_slug: String,
+        round_name: Option<String>,
+        completed_at: Option<DateTime<Utc>>,
+        is_dq: bool,
+        vod_url: Option<String>,
+        startgg_set_id: i64,
+    }
+
+    let rows = sqlx::query_as!(
+        H2HSetRow,
+        r#"
+        SELECT
+            we.player_id                       AS "winner_player_id!: Uuid",
+            COALESCE(wp.name, we.display_name) AS "winner_name!",
+            we.seed                            AS winner_seed,
+            le.player_id                       AS "loser_player_id!: Uuid",
+            COALESCE(lp.name, le.display_name) AS "loser_name!",
+            le.seed                            AS loser_seed,
+            s.winner_score,
+            s.loser_score,
+            e.name                             AS event_name,
+            t.name                             AS tournament_name,
+            t.slug                             AS tournament_slug,
+            s.round_name,
+            s.completed_at,
+            s.is_dq,
+            s.vod_url,
+            s.startgg_set_id
+        FROM sets s
+        JOIN entrants we ON we.id = s.winner_entrant_id
+        JOIN entrants le ON le.id = s.loser_entrant_id
+        JOIN players  wp ON wp.id = we.player_id AND wp.project_id = $1
+        JOIN players  lp ON lp.id = le.player_id AND lp.project_id = $1
+        JOIN events   e  ON e.id  = s.event_id
+        JOIN tournaments t ON t.id = e.tournament_id
+        JOIN project_events pe ON pe.event_id = s.event_id AND pe.project_id = $1
+        WHERE pe.included = true
+          AND s.is_dq = false
+          AND (
+              (we.player_id = $2 AND le.player_id = $3)
+           OR (we.player_id = $3 AND le.player_id = $2)
+          )
+        ORDER BY s.completed_at DESC NULLS LAST
+        "#,
+        path.id,
+        path.pid_a,
+        path.pid_b,
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let sets: Vec<H2HSet> = rows
+        .into_iter()
+        .map(|row| {
+            let uf = match (row.winner_seed, row.loser_seed) {
+                (Some(ws), Some(ls)) => set_upset_factor(ws, ls) as i64,
+                _ => 0,
+            };
+            let is_win = row.winner_player_id == path.pid_a;
+            let (opponent_id, opponent_name) = if is_win {
+                (row.loser_player_id, row.loser_name)
+            } else {
+                (row.winner_player_id, row.winner_name)
+            };
+            H2HSet {
+                is_win,
+                set: SetRecord {
+                    opponent_id,
+                    opponent_name,
+                    upset_factor: uf,
+                    winner_score: row.winner_score,
+                    loser_score: row.loser_score,
+                    tournament_name: row.tournament_name,
+                    tournament_slug: row.tournament_slug,
+                    event_name: row.event_name,
+                    round_name: row.round_name,
+                    completed_at: row.completed_at,
+                    is_dq: row.is_dq,
+                    vod_url: row.vod_url,
+                    startgg_set_id: row.startgg_set_id,
+                    winner_seed: row.winner_seed,
+                    loser_seed: row.loser_seed,
+                },
+            }
+        })
+        .collect();
+
+    Ok(Json(sets))
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 
 pub fn router() -> axum::Router<AppState> {
@@ -467,4 +642,5 @@ pub fn router() -> axum::Router<AppState> {
         .route("/events/{eid}", patch(patch_event))
         .route("/stats", get(get_stats))
         .route("/head-to-head", get(get_head_to_head))
+        .route("/head-to-head/{pid_a}/{pid_b}/sets", get(get_h2h_sets))
 }

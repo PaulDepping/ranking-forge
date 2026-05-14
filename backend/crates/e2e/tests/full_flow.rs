@@ -338,6 +338,16 @@ async fn full_import_flow(pool: PgPool) {
     assert_eq!(armada_stats["wins"][0]["upset_factor"], json!(3));
     assert_eq!(armada_stats["losses"], json!([]));
 
+    // Enriched fields
+    assert_eq!(armada_stats["wins"][0]["tournament_name"], json!("Test Tournament"));
+    assert_eq!(armada_stats["wins"][0]["tournament_slug"], json!("tournament/test-2024"));
+    assert_eq!(armada_stats["wins"][0]["event_name"], json!("Melee Singles"));
+    assert_eq!(armada_stats["wins"][0]["round_name"], json!("Round 1"));
+    assert_eq!(armada_stats["wins"][0]["winner_seed"], json!(7));
+    assert_eq!(armada_stats["wins"][0]["loser_seed"], json!(2));
+    assert_eq!(armada_stats["wins"][0]["is_dq"], json!(false));
+    assert_eq!(armada_stats["wins"][0]["startgg_set_id"], json!(4001_i64));
+
     let mango_stats = stats_arr
         .iter()
         .find(|s| s["player_id"] == mango_id)
@@ -346,6 +356,9 @@ async fn full_import_flow(pool: PgPool) {
     assert_eq!(mango_stats["losses"].as_array().unwrap().len(), 1);
     assert_eq!(mango_stats["losses"][0]["opponent_name"], "Armada");
     assert_eq!(mango_stats["losses"][0]["upset_factor"], json!(3));
+
+    // Loser-side construction path covered
+    assert_eq!(mango_stats["losses"][0]["tournament_name"], json!("Test Tournament"));
 
     // ── Head-to-head ──────────────────────────────────────────────────────────
 
@@ -372,6 +385,24 @@ async fn full_import_flow(pool: PgPool) {
         .unwrap();
     assert_eq!(mango_vs_armada["wins"], json!(0));
     assert_eq!(mango_vs_armada["losses"], json!(1));
+
+    // ── H2H sets endpoint ─────────────────────────────────────────────────────
+    let resp = get_req(
+        &app,
+        &format!("/projects/{project_id}/head-to-head/{mango_id}/{armada_id}/sets"),
+        &cookie,
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let sets_body = read_json(resp).await;
+    let sets_arr = sets_body.as_array().unwrap();
+    assert_eq!(sets_arr.len(), 1);
+    // pid_a = mango_id, mango lost → is_win = false
+    assert_eq!(sets_arr[0]["is_win"], json!(false));
+    assert_eq!(sets_arr[0]["tournament_name"], json!("Test Tournament"));
+    assert_eq!(sets_arr[0]["event_name"], json!("Melee Singles"));
+    assert_eq!(sets_arr[0]["round_name"], json!("Round 1"));
+    assert_eq!(sets_arr[0]["opponent_name"], json!("Armada"));
 
     // ── Event exclusion ───────────────────────────────────────────────────────
 

@@ -150,4 +150,5 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/events/{eid}", patch(t::patch_event))
         .route("/{id}/stats", get(t::get_stats))
         .route("/{id}/head-to-head", get(t::get_head_to_head))
+        .route("/{id}/head-to-head/{pid_a}/{pid_b}/sets", get(t::get_h2h_sets))
 }
