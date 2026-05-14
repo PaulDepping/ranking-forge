@@ -54,8 +54,9 @@
 			const tournamentMatch = t.name.toLowerCase().includes(q);
 			if (!nameMatch && !tournamentMatch) return false;
 		}
-		if (minEntrants !== null && (e.num_entrants ?? Infinity) < minEntrants) return false;
-		if (maxEntrants !== null && (e.num_entrants ?? 0) > maxEntrants) return false;
+		// Svelte's bind:value on number inputs can produce "" when cleared — guard with > 0
+		if (+minEntrants > 0 && (e.num_entrants ?? Infinity) < +minEntrants) return false;
+		if (+maxEntrants > 0 && (e.num_entrants ?? 0) > +maxEntrants) return false;
 		if (eventType === 'singles' && e.event_type !== null && e.event_type !== 1) return false;
 		if (eventType === 'teams' && e.event_type !== null && e.event_type !== 2) return false;
 		if (excludeLadder && e.bracket_types.length > 0 &&
@@ -209,6 +210,9 @@
 		{/if}
 
 		<!-- Tournament list — iterate visibleTournaments -->
+		{#if visibleTournaments.length === 0}
+			<p class="text-sm text-muted-foreground">No tournaments match the current filters.</p>
+		{/if}
 		<div class="space-y-3">
 			{#each visibleTournaments as tournament (tournament.id)}
 				<div class="rounded-md border border-border">
