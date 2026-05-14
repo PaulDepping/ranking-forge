@@ -67,11 +67,14 @@ CREATE TABLE tournaments (
     country_code   TEXT,
     venue_name     TEXT,
     venue_address  TEXT,
-    timezone       TEXT,        -- IANA tz, e.g. "America/Chicago"; needed to display set times correctly
+    timezone       TEXT,
     online         BOOLEAN     NOT NULL DEFAULT FALSE,
     num_attendees  INTEGER,
     start_at       TIMESTAMPTZ,
     end_at         TIMESTAMPTZ,
+    lat            DOUBLE PRECISION,
+    lng            DOUBLE PRECISION,
+    state          INTEGER,
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -84,6 +87,12 @@ CREATE TABLE events (
     tournament_id UUID        NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
     startgg_id    BIGINT      NOT NULL UNIQUE,
     name          TEXT        NOT NULL,
+    slug          TEXT,
+    state         TEXT,
+    is_online     BOOLEAN,
+    event_type    INTEGER,
+    min_team_size INTEGER,
+    max_team_size INTEGER,
     game_id       BIGINT,
     game_name     TEXT,
     num_entrants  INTEGER,
@@ -94,6 +103,38 @@ CREATE TABLE events (
 CREATE INDEX events_start_at_idx ON events(start_at);
 
 CREATE INDEX events_tournament_id_idx ON events(tournament_id);
+
+-- Bracket phases within an event (e.g. "Pools", "Top 8 Bracket")
+CREATE TABLE phases (
+    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    startgg_id    BIGINT      NOT NULL UNIQUE,
+    event_id      UUID        NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    name          TEXT,
+    bracket_type  TEXT,
+    phase_order   INTEGER,
+    num_seeds     INTEGER,
+    group_count   INTEGER,
+    state         INTEGER,
+    is_exhibition BOOLEAN
+);
+
+CREATE INDEX phases_event_id_idx ON phases(event_id);
+
+-- Individual pools/brackets within a phase (e.g. "Pool A", "Top 8")
+CREATE TABLE phase_groups (
+    id                 UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    startgg_id         BIGINT      NOT NULL UNIQUE,
+    phase_id           UUID        NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
+    display_identifier TEXT,
+    bracket_type       TEXT,
+    bracket_url        TEXT,
+    num_rounds         INTEGER,
+    start_at           TIMESTAMPTZ,
+    first_round_time   TIMESTAMPTZ,
+    state              INTEGER
+);
+
+CREATE INDEX phase_groups_phase_id_idx ON phase_groups(phase_id);
 
 -- Per-project event inclusion (default: included)
 CREATE TABLE project_events (
@@ -129,17 +170,21 @@ CREATE INDEX entrants_startgg_user_id_idx ON entrants(startgg_user_id);
 CREATE TABLE sets (
     id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id          UUID        NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    phase_group_id    UUID        REFERENCES phase_groups(id),
     startgg_set_id    BIGINT      NOT NULL,
     winner_entrant_id UUID        NOT NULL REFERENCES entrants(id),
     loser_entrant_id  UUID        NOT NULL REFERENCES entrants(id),
-    round             INTEGER,           -- raw round number from start.gg
-    round_name        TEXT,              -- display name, e.g. "Winners Finals", "Grand Finals"
-    total_games       SMALLINT,          -- format: 3, 5, or 7
-    winner_score      SMALLINT,          -- games won by winner
-    loser_score       SMALLINT,          -- games won by loser
+    round             INTEGER,
+    round_name        TEXT,
+    total_games       SMALLINT,
+    winner_score      SMALLINT,
+    loser_score       SMALLINT,
     is_dq             BOOLEAN     NOT NULL DEFAULT FALSE,
+    has_placeholder   BOOLEAN     NOT NULL DEFAULT FALSE,
+    state             INTEGER,
+    identifier        TEXT,
     vod_url           TEXT,
-    completed_at      TIMESTAMPTZ,       -- when the set finished
+    completed_at      TIMESTAMPTZ,
     UNIQUE (event_id, startgg_set_id)
 );
 
