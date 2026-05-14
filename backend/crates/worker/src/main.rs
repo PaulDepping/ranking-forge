@@ -1,6 +1,9 @@
 use clap::Parser;
 use sqlx::postgres::PgListener;
 use std::time::Duration;
+use tokio::signal::unix::{signal, SignalKind};
+use tokio::task::JoinHandle;
+use uuid::Uuid;
 
 mod config;
 mod import;
@@ -10,6 +13,21 @@ fn init_tracing(rust_log: &str) {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::new(rust_log))
         .init();
+}
+
+async fn shutdown(pool: &sqlx::PgPool, in_flight: Vec<(Uuid, JoinHandle<()>)>) {
+    let job_ids: Vec<Uuid> = in_flight.iter().map(|(id, _)| *id).collect();
+    for (_, handle) in &in_flight {
+        handle.abort();
+    }
+    if job_ids.is_empty() {
+        tracing::info!("shutdown: no in-flight jobs");
+        return;
+    }
+    tracing::info!(count = job_ids.len(), "shutdown: aborting in-flight imports");
+    if let Err(e) = common::jobs::mark_shutdown(pool, &job_ids).await {
+        tracing::error!(%e, "shutdown: failed to mark in-flight jobs as failed");
+    }
 }
 
 #[tokio::main]
@@ -38,9 +56,17 @@ async fn main() {
         .await
         .expect("failed to listen on jobs channel");
 
+    let mut sigterm = signal(SignalKind::terminate()).expect("failed to install SIGTERM handler");
+    let mut sigint = signal(SignalKind::interrupt()).expect("failed to install SIGINT handler");
+
     tracing::info!("Worker ready, listening for import jobs");
 
+    let mut in_flight: Vec<(Uuid, JoinHandle<()>)> = Vec::new();
+
     loop {
+        // Reap handles for tasks that finished since the last iteration
+        in_flight.retain(|(_, h)| !h.is_finished());
+
         // Drain all pending jobs before waiting
         loop {
             match common::jobs::claim(&pool).await {
@@ -49,9 +75,10 @@ async fn main() {
                     let startgg2 = startgg.clone();
                     let project_id = job.project_id;
                     let job_id = job.id;
+                    let import_params = common::jobs::ImportParams::from_job(&job);
                     tracing::info!(%job_id, %project_id, "starting import");
-                    tokio::spawn(async move {
-                        match import::run(&pool2, &startgg2, project_id).await {
+                    let handle = tokio::spawn(async move {
+                        match import::run(&pool2, &startgg2, project_id, import_params).await {
                             Ok(()) => {
                                 tracing::info!(%job_id, "import complete");
                                 if let Err(e) = common::jobs::mark_done(&pool2, job_id).await {
@@ -68,6 +95,7 @@ async fn main() {
                             }
                         }
                     });
+                    in_flight.push((job_id, handle));
                 }
                 Ok(None) => break,
                 Err(e) => {
@@ -77,7 +105,7 @@ async fn main() {
             }
         }
 
-        // Wait for a NOTIFY or poll every 30s
+        // Wait for a NOTIFY, poll every 30s, or shutdown signal
         tokio::select! {
             result = listener.recv() => {
                 match result {
@@ -87,6 +115,16 @@ async fn main() {
             }
             _ = tokio::time::sleep(Duration::from_secs(30)) => {
                 tracing::debug!("polling for jobs");
+            }
+            _ = sigterm.recv() => {
+                tracing::info!("received SIGTERM, shutting down");
+                shutdown(&pool, in_flight).await;
+                return;
+            }
+            _ = sigint.recv() => {
+                tracing::info!("received SIGINT, shutting down");
+                shutdown(&pool, in_flight).await;
+                return;
             }
         }
     }
