@@ -100,7 +100,7 @@ async fn collect_user_tournaments(
     let mut page = 1i32;
     let mut scanned = 0usize;
     let mut newly_added = 0usize;
-    'pages: loop {
+    loop {
         let tournament_page = startgg
             .tournaments_by_user(user_id, game_id, page, 25)
             .await?;
@@ -114,9 +114,7 @@ async fn collect_user_tournaments(
             }
             if let Some(after) = after_date {
                 if start_ts < after {
-                    // The query uses sortBy: "startAt desc", so once we pass the
-                    // cutoff every remaining page is also out of range.
-                    break 'pages;
+                    continue;
                 }
             }
             scanned += 1;

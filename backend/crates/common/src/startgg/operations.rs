@@ -24,7 +24,6 @@ const TOURNAMENTS_BY_USER_QUERY: &str = r#"
             tournaments(query: {
                 page: $page
                 perPage: $perPage
-                sortBy: "startAt desc"
                 filter: { videogameId: [$gameId] }
             }) {
                 pageInfo { total totalPages }

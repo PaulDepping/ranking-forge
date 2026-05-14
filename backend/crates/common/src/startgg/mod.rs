@@ -78,7 +78,7 @@ impl StartggClient {
                 .text()
                 .await?;
 
-            let resp: GqlResponse<T> = serde_json::from_str(&body).map_err(|e| {
+            let resp: GqlResponse<serde_json::Value> = serde_json::from_str(&body).map_err(|e| {
                 let preview: String = body.chars().take(500).collect();
                 tracing::error!(body = %preview, "failed to decode start.gg response: {e}");
                 StartggError::Decode(e.to_string())
@@ -90,11 +90,16 @@ impl StartggClient {
                     .map(|e| e.message)
                     .collect::<Vec<_>>()
                     .join("; ");
+                tracing::error!(body = %body, "start.gg returned GraphQL errors: {msg}");
                 return Err(StartggError::GraphQL(msg));
             }
 
-            resp.data
-                .ok_or_else(|| StartggError::GraphQL("empty data field in response".into()))
+            let data_value = resp.data
+                .ok_or_else(|| StartggError::GraphQL("empty data field in response".into()))?;
+            serde_json::from_value(data_value).map_err(|e| {
+                tracing::error!("failed to decode start.gg data: {e}");
+                StartggError::Decode(e.to_string())
+            })
         })
         .retry(
             ExponentialBuilder::default()
