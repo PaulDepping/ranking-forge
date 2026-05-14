@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -45,7 +46,15 @@
 						<p class="font-medium">{player.name}</p>
 						<div class="flex flex-wrap gap-1">
 							{#each player.accounts as account (account.id)}
-								<form method="POST" action="?/unlinkAccount" use:enhance class="inline-flex">
+								<form method="POST" action="?/unlinkAccount" use:enhance={() => {
+									return async ({ result, update }) => {
+										if (result.type === 'success') {
+											await invalidateAll();
+										} else {
+											await update();
+										}
+									};
+								}} class="inline-flex">
 									<input type="hidden" name="pid" value={player.id} />
 									<input type="hidden" name="aid" value={account.id} />
 									<Badge variant="secondary" class="gap-1 pr-1">
@@ -90,7 +99,16 @@
 		<form
 			method="POST"
 			action="?/linkAccount"
-			use:enhance={() => { return ({ result }) => { if (result.type === 'success') linkDialogOpen = false; }; }}
+			use:enhance={() => {
+				return async ({ result, update }) => {
+					if (result.type === 'success') {
+						linkDialogOpen = false;
+						await invalidateAll();
+					} else {
+						await update();
+					}
+				};
+			}}
 			class="space-y-4"
 		>
 			<input type="hidden" name="pid" value={linkingPid} />
