@@ -35,6 +35,8 @@ export interface TournamentEvent {
 	num_entrants: number | null;
 	start_at: string | null;
 	included: boolean;
+	event_type: number | null;
+	bracket_types: string[];
 }
 
 export interface Tournament {
