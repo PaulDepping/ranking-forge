@@ -14,7 +14,7 @@ Reference for the start.gg GraphQL API as used by RankingForge. See `schema.grap
 
 Authentication uses a shared server-side key (`STARTGG_API_KEY` env var). No OAuth is required for the read queries this project uses.
 
-## Our 5 Operations
+## Our 6 Operations
 
 ### 1. `search_games` — Find a videogame ID by name
 
@@ -118,7 +118,7 @@ query($eventId: ID!, $page: Int!, $perPage: Int!) {
 }
 ```
 
-**Pagination:** Loop over pages 1..`pageInfo.totalPages`. Use `perPage: 50`.
+**Pagination:** Loop over pages 1..`pageInfo.totalPages`. Use `perPage: 25`.
 
 **Key fields:** `participants[].user.id` links the entrant to a start.gg user. `standing.placement` is the final finish position. `isDisqualified` marks DQ'd entrants separately from those filtered via score (see quirks).
 
@@ -149,9 +149,40 @@ query($eventId: ID!, $page: Int!, $perPage: Int!) {
 }
 ```
 
-**Pagination:** Loop over pages 1..`pageInfo.totalPages`. Use `perPage: 50`.
+**Pagination:** Loop over pages 1..`pageInfo.totalPages`. Use `perPage: 25`.
 
-**Key fields:** `winnerId` is the entrant ID of the winner. `slots[].standing.stats.score.value` is the game count won by each player (or `-1` for a DQ — see quirks). `phaseGroup.id` links the set to its bracket.
+**Key fields:** `winnerId` is the entrant ID of the winner. `slots[].standing.stats.score.value` is the game count won by each player (a float; any negative value signals a DQ — see quirks). `phaseGroup.id` links the set to its bracket.
+
+### 6. `event_phases` — Fetch all phases and phase groups for an event
+
+**Purpose:** Retrieve the full phase/phase-group tree for an event when more detail is needed than the embedded `phases` returned by `tournaments_by_user`. Used to refresh or fill in phase-group data that may not have been available during the initial tournament import.
+
+**Query:**
+```graphql
+query($eventId: ID!, $page: Int!, $perPage: Int!) {
+    event(id: $eventId) {
+        phases {
+            id name bracketType phaseOrder
+            numSeeds groupCount state isExhibition
+            phaseGroups(query: { page: $page, perPage: $perPage }) {
+                pageInfo { total totalPages }
+                nodes {
+                    id displayIdentifier bracketType bracketUrl
+                    numRounds startAt firstRoundTime state
+                }
+            }
+        }
+    }
+}
+```
+
+**Pagination:** The caller does **not** paginate — `event_phases` handles pagination internally. It loops over phase-group pages, merging results across pages per phase, and returns the complete `Vec<PhaseNode>` once all pages are exhausted. The starting `perPage` is 25.
+
+**Adaptive backoff:** If the API returns a complexity-too-high error and `perPage > 1`, the method halves `perPage` and restarts from page 1. This retry loop continues until a successful page size is found or `perPage` reaches 1.
+
+**Key fields:** `phases[].id` and `phases[].phaseGroups.nodes[].id` are the start.gg IDs used to match phases and phase groups already stored in the DB. `state` on `PhaseNode` is a `String` (e.g. `"COMPLETED"`); `state` on `PhaseGroupNode` is an `i32`.
+
+---
 
 ## Known Quirks
 
@@ -175,7 +206,7 @@ The Rust deserialization handles this by declaring each struct's `state` field w
 
 ### DQ detection via score value
 
-A set slot with `standing.stats.score.value == -1` is a disqualification, not a real score. Filter out any set where either slot has a score of `-1` before computing upset factor. This is distinct from `Entrant.isDisqualified` (which marks the entrant's overall DQ status, not per-set).
+`standing.stats.score.value` is a `f64`. Any negative value (`< 0.0`) indicates a disqualification, not a real score. Filter out any set where either slot has a negative score before computing upset factor. This is distinct from `Entrant.isDisqualified` (which marks the entrant's overall DQ status, not per-set).
 
 ### `hasPlaceholder` sets
 
