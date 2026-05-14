@@ -1,32 +1,49 @@
-import { render, screen, fireEvent, within } from '@testing-library/svelte';
-import { describe, it, expect } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/svelte';
 import Page from './+page.svelte';
+import type { SetRecord } from '$lib/types';
 
 const user = { id: 'u1', username: 'testuser', created_at: '2026-01-01T00:00:00Z' };
 const project = { id: 'proj-1', name: 'Test Project', game_id: null, game_name: null, created_at: '2026-01-01T00:00:00Z' };
+
+function makeSet(opponentName: string, uf: number): SetRecord {
+	return {
+		opponent_id: 'opp',
+		opponent_name: opponentName,
+		upset_factor: uf,
+		winner_score: null,
+		loser_score: null,
+		tournament_name: 'Test Tournament',
+		tournament_slug: 'tournament/test',
+		event_name: 'Melee Singles',
+		round_name: 'Round 1',
+		completed_at: null,
+		is_dq: false,
+		vod_url: null,
+		startgg_set_id: 1,
+		winner_seed: null,
+		loser_seed: null,
+	};
+}
 
 const stats = [
 	{
 		player_id: 'p1',
 		name: 'Alice',
-		wins: [
-			{ opponent_id: 'p2', opponent_name: 'Bob', upset_factor: 2.0, winner_score: null, loser_score: null },
-			{ opponent_id: 'p3', opponent_name: 'Charlie', upset_factor: 1.5, winner_score: null, loser_score: null }
-		],
-		losses: [{ opponent_id: 'p3', opponent_name: 'Charlie', upset_factor: 0.5, winner_score: null, loser_score: null }]
+		wins: [makeSet('Bob', 2), makeSet('Charlie', 1)],
+		losses: [makeSet('Charlie', 0)],
 	},
 	{
 		player_id: 'p2',
 		name: 'Bob',
-		wins: [{ opponent_id: 'p3', opponent_name: 'Charlie', upset_factor: 1.0, winner_score: null, loser_score: null }],
-		losses: [{ opponent_id: 'p1', opponent_name: 'Alice', upset_factor: 2.0, winner_score: null, loser_score: null }]
+		wins: [makeSet('Charlie', 3)],
+		losses: [makeSet('Alice', 2)],
 	},
 	{
 		player_id: 'p3',
 		name: 'Charlie',
 		wins: [],
-		losses: [{ opponent_id: 'p1', opponent_name: 'Alice', upset_factor: 1.5, winner_score: null, loser_score: null }]
-	}
+		losses: [makeSet('Alice', 1)],
+	},
 ];
 
 describe('Stats page', () => {
@@ -37,33 +54,36 @@ describe('Stats page', () => {
 		expect(screen.getByText('Charlie')).toBeInTheDocument();
 	});
 
-	it('renders players in the order supplied (server already sorts by aggregate UF)', () => {
+	it('shows W/L/% summary in each card header', () => {
 		render(Page, { data: { user, project, stats } });
-		const rows = screen.getAllByRole('row');
-		expect(rows[1]).toHaveTextContent('Alice');
-		expect(rows[2]).toHaveTextContent('Bob');
-		expect(rows[3]).toHaveTextContent('Charlie');
+		// Alice: 2W 1L = 67%, Bob: 1W 1L = 50%, Charlie: 0W 1L = 0%
+		expect(screen.getByText('W 2 · L 1 · 67%')).toBeInTheDocument();
+		expect(screen.getByText('W 1 · L 1 · 50%')).toBeInTheDocument();
+		expect(screen.getByText('W 0 · L 1 · 0%')).toBeInTheDocument();
 	});
 
-	it('shows aggregate upset factor for each player', () => {
+	it('shows win opponent names with integer UF', () => {
 		render(Page, { data: { user, project, stats } });
-		// Alice: 2.0 + 1.5 = 3.5 | Bob: 1.0 | Charlie: 0.0
-		expect(screen.getByText('3.5')).toBeInTheDocument();
-		expect(screen.getByText('1.0')).toBeInTheDocument();
-		expect(screen.getByText('0.0')).toBeInTheDocument();
+		expect(screen.getByText(/Bob · UF 2/)).toBeInTheDocument();
+		expect(screen.getByText(/Charlie · UF 1/)).toBeInTheDocument();
 	});
 
-	it('shows win and loss count buttons per player row', () => {
-		render(Page, { data: { user, project, stats } });
-		const rows = screen.getAllByRole('row');
-		// Alice: 2 wins, 1 loss — uniquely named buttons
-		expect(within(rows[1]).getByRole('button', { name: '2' })).toBeInTheDocument();
-		expect(within(rows[1]).getByRole('button', { name: '1' })).toBeInTheDocument();
-		// Charlie: 0 wins
-		expect(within(rows[3]).getByRole('button', { name: '0' })).toBeInTheDocument();
+	it('does not render any decimal UF values', () => {
+		const statsWithDecimalUF = [
+			{ player_id: 'p1', name: 'Alice', wins: [makeSet('Bob', 2)], losses: [] },
+		];
+		render(Page, { data: { user, project, stats: statsWithDecimalUF } });
+		expect(screen.queryByText(/UF 2\.0/)).not.toBeInTheDocument();
+		expect(screen.queryByText(/UF 2\.5/)).not.toBeInTheDocument();
 	});
 
-	it('shows empty state when there are no stats', () => {
+	it('does not show Agg. UF or accumulated upset factor', () => {
+		render(Page, { data: { user, project, stats } });
+		expect(screen.queryByText(/Agg\./i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/accumulated/i)).not.toBeInTheDocument();
+	});
+
+	it('shows empty state when stats is empty', () => {
 		render(Page, { data: { user, project, stats: [] } });
 		expect(
 			screen.getByText('No stats yet. Import tournaments and include some events first.')
@@ -71,100 +91,20 @@ describe('Stats page', () => {
 		expect(screen.queryByRole('table')).not.toBeInTheDocument();
 	});
 
-	it('expands wins list when the wins button is clicked', async () => {
+	it('opens set detail modal when a win row is clicked', async () => {
 		render(Page, { data: { user, project, stats } });
-		const aliceRow = screen.getAllByRole('row')[1];
-		// Alice has 2 wins — the wins button is labeled "2"
-		const winsBtn = within(aliceRow).getByRole('button', { name: '2' });
-
-		await fireEvent.click(winsBtn);
-
-		// UF values only appear in the expanded section, not in any header
-		expect(screen.getByText('UF 2.0')).toBeInTheDocument();
-		expect(screen.getByText('UF 1.5')).toBeInTheDocument();
+		const bobRow = screen.getByRole('button', { name: /Bob · UF 2/ });
+		await fireEvent.click(bobRow);
+		expect(screen.getByText('Alice vs Bob')).toBeInTheDocument();
+		expect(screen.getByText(/Win/)).toBeInTheDocument();
 	});
 
-	it('collapses the expanded section on a second click', async () => {
+	it('opens set detail modal when a loss row is clicked', async () => {
 		render(Page, { data: { user, project, stats } });
-		const aliceRow = screen.getAllByRole('row')[1];
-		const winsBtn = within(aliceRow).getByRole('button', { name: '2' });
-
-		await fireEvent.click(winsBtn);
-		expect(screen.getByText('UF 2.0')).toBeInTheDocument();
-
-		await fireEvent.click(winsBtn);
-		expect(screen.queryByText('UF 2.0')).not.toBeInTheDocument();
-	});
-
-	it('expands losses list when the losses button is clicked', async () => {
-		render(Page, { data: { user, project, stats } });
-		const aliceRow = screen.getAllByRole('row')[1];
-		// Alice has 1 loss — the losses button is labeled "1" (unique within Alice's row)
-		const lossesBtn = within(aliceRow).getByRole('button', { name: '1' });
-
-		await fireEvent.click(lossesBtn);
-
-		expect(screen.getByText('UF 0.5')).toBeInTheDocument();
-	});
-
-	it('shows game score from winner perspective in wins', async () => {
-		const statsWithScores = [
-			{
-				player_id: 'p1',
-				name: 'Alice',
-				wins: [
-					{ opponent_id: 'p2', opponent_name: 'Bob', upset_factor: 2.0, winner_score: 3, loser_score: 1 }
-				],
-				losses: []
-			}
-		];
-		render(Page, { data: { user, project, stats: statsWithScores } });
-
-		const aliceRow = screen.getAllByRole('row')[1];
-		await fireEvent.click(within(aliceRow).getByRole('button', { name: '1' }));
-
-		// Win: player_score = winner_score=3, opp_score = loser_score=1
-		expect(screen.getByText(/3–1/)).toBeInTheDocument();
-	});
-
-	it('shows game score from loser perspective in losses', async () => {
-		const statsWithScores = [
-			{
-				player_id: 'p1',
-				name: 'Alice',
-				wins: [],
-				losses: [
-					{ opponent_id: 'p2', opponent_name: 'Bob', upset_factor: 0.0, winner_score: 3, loser_score: 1 }
-				]
-			}
-		];
-		render(Page, { data: { user, project, stats: statsWithScores } });
-
-		const aliceRow = screen.getAllByRole('row')[1];
-		await fireEvent.click(within(aliceRow).getByRole('button', { name: '1' }));
-
-		// Loss: player_score = loser_score=1, opp_score = winner_score=3
-		expect(screen.getByText(/1–3/)).toBeInTheDocument();
-	});
-
-	it('omits score when scores are null', async () => {
-		const statsNoScore = [
-			{
-				player_id: 'p1',
-				name: 'Alice',
-				wins: [
-					{ opponent_id: 'p2', opponent_name: 'Bob', upset_factor: 2.0, winner_score: null, loser_score: null }
-				],
-				losses: []
-			}
-		];
-		render(Page, { data: { user, project, stats: statsNoScore } });
-
-		const aliceRow = screen.getAllByRole('row')[1];
-		await fireEvent.click(within(aliceRow).getByRole('button', { name: '1' }));
-
-		expect(screen.getByText('UF 2.0')).toBeInTheDocument();
-		// The en-dash separator only appears when scores are present
-		expect(screen.queryByText(/\d–\d/)).not.toBeInTheDocument();
+		// Alice's losses list contains "Charlie · UF 0"
+		const lossRow = screen.getByRole('button', { name: /Charlie · UF 0/ });
+		await fireEvent.click(lossRow);
+		expect(screen.getByText('Alice vs Charlie')).toBeInTheDocument();
+		expect(screen.getByText(/Loss/)).toBeInTheDocument();
 	});
 });
