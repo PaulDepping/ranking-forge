@@ -82,6 +82,14 @@ cargo test -p common -- test_name
 | `STARTGG_API_KEY` | api, worker | Shared start.gg API key |
 | `CORS_ORIGIN` | api | Default: `https://rankingforge.example.com`; set to `http://localhost:5173` for local dev |
 
+## start.gg API reference
+
+Local documentation lives in `docs/startgg/`:
+
+- `schema.graphql` — full SDL schema from GraphQL introspection; the authoritative type and field reference for the start.gg API
+- `project-notes.md` — the 5 GraphQL operations this project uses, rate limits, auth, and known API quirks (including the `ActivityState` string/int inconsistency)
+- `fetch-schema.sh` — run this to refresh `schema.graphql` before extending the query set; requires `STARTGG_API_KEY` in environment or root `.env`
+
 ## Key architectural patterns
 
 ### sqlx compile-time query checking
