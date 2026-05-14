@@ -115,7 +115,7 @@ CREATE TABLE phases (
     num_seeds     INTEGER,
     group_count   INTEGER,
     state         INTEGER,
-    is_exhibition BOOLEAN
+    is_exhibition BOOLEAN     NOT NULL DEFAULT FALSE
 );
 
 CREATE INDEX phases_event_id_idx ON phases(event_id);
@@ -189,6 +189,7 @@ CREATE TABLE sets (
 );
 
 CREATE INDEX sets_event_id_idx ON sets(event_id);
+CREATE INDEX sets_phase_group_id_idx ON sets(phase_group_id);
 CREATE INDEX sets_winner_entrant_id_idx ON sets(winner_entrant_id);
 CREATE INDEX sets_loser_entrant_id_idx ON sets(loser_entrant_id);
 CREATE INDEX sets_completed_at_idx ON sets(completed_at);
