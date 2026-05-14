@@ -32,9 +32,22 @@ const TOURNAMENTS_BY_USER_QUERY: &str = r#"
                     city addrState countryCode
                     venueName venueAddress
                     timezone isOnline numAttendees
+                    lat lng state
                     startAt endAt
                     events(filter: { videogameId: [$gameId] }) {
                         id name numEntrants startAt
+                        slug state isOnline type
+                        teamRosterSize { minPlayers maxPlayers }
+                        phases {
+                            id name bracketType phaseOrder
+                            numSeeds groupCount state isExhibition
+                            phaseGroups(query: { perPage: 100 }) {
+                                nodes {
+                                    id displayIdentifier bracketType bracketUrl
+                                    numRounds startAt firstRoundTime state
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -63,6 +76,8 @@ const EVENT_SETS_QUERY: &str = r#"
                 nodes {
                     id winnerId round fullRoundText totalGames
                     completedAt vodUrl
+                    hasPlaceholder state identifier
+                    phaseGroup { id }
                     slots {
                         entrant { id }
                         standing { stats { score { value } } }
