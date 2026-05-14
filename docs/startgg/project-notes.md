@@ -167,7 +167,7 @@ The API schema declares `ActivityState` as an enum, but the wire format differs 
 | `PhaseGroup.state` | **Integer** | `3` |
 | `Set.state` | **Integer** | `3` |
 
-The Rust deserialization must handle this with `#[serde(untagged)]` on a `StringOrInt` enum, or `deserialize_with` per field. The current implementation in `queries.rs` uses an `ActivityState` enum with `#[serde(untagged)]` variants for `String(String)` and `Int(i32)`.
+The Rust deserialization handles this by declaring each struct's `state` field with its natural type: `EventNode.state` and `PhaseNode.state` are `Option<String>`, while `TournamentNode.state`, `PhaseGroupNode.state`, and `SetNode.state` are `Option<i32>`. Serde deserializes each naturally without additional adapters.
 
 ### Pagination: use `totalPages`, not `total`
 
