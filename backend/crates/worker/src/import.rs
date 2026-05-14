@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use tracing::instrument;
 use uuid::Uuid;
 
+use common::jobs::ImportParams;
 use common::startgg::{EventNode, StartggClient, TournamentNode};
 
 fn ts_to_dt(ts: i64) -> DateTime<Utc> {
@@ -13,7 +14,12 @@ fn ts_to_dt(ts: i64) -> DateTime<Utc> {
 }
 
 #[instrument(skip(pool, startgg), fields(%project_id))]
-pub async fn run(pool: &PgPool, startgg: &StartggClient, project_id: Uuid) -> anyhow::Result<()> {
+pub async fn run(
+    pool: &PgPool,
+    startgg: &StartggClient,
+    project_id: Uuid,
+    params: ImportParams,
+) -> anyhow::Result<()> {
     let project = sqlx::query!(
         "SELECT game_id, game_name FROM ranking_projects WHERE id = $1",
         project_id,
@@ -50,12 +56,28 @@ pub async fn run(pool: &PgPool, startgg: &StartggClient, project_id: Uuid) -> an
 
     tracing::info!(player_count = user_ids.len(), "starting import");
 
+    // Phase 1: discover all unique tournaments across all players
+    let mut seen: HashMap<i64, TournamentNode> = HashMap::new();
     for user_id in user_ids {
-        import_user_tournaments(
+        collect_user_tournaments(
+            startgg,
+            user_id,
+            game_id,
+            params.after_date,
+            params.before_date,
+            &mut seen,
+        )
+        .await?;
+    }
+    tracing::info!(unique_tournament_count = seen.len(), "collection complete, starting import");
+
+    // Phase 2: import each unique tournament exactly once
+    for (_, tournament) in &seen {
+        import_tournament(
             pool,
             startgg,
             project_id,
-            user_id,
+            tournament,
             game_id,
             project.game_name.as_deref(),
             &account_map,
@@ -66,36 +88,38 @@ pub async fn run(pool: &PgPool, startgg: &StartggClient, project_id: Uuid) -> an
     Ok(())
 }
 
-#[instrument(skip(pool, startgg, game_name, account_map), fields(%project_id, startgg_user_id = user_id, game_id))]
-async fn import_user_tournaments(
-    pool: &PgPool,
+#[instrument(skip(startgg, seen), fields(startgg_user_id = user_id, game_id))]
+async fn collect_user_tournaments(
     startgg: &StartggClient,
-    project_id: Uuid,
     user_id: i64,
     game_id: i64,
-    game_name: Option<&str>,
-    account_map: &HashMap<i64, Uuid>,
+    after_date: Option<i64>,
+    before_date: Option<i64>,
+    seen: &mut HashMap<i64, TournamentNode>,
 ) -> anyhow::Result<()> {
     let mut page = 1i32;
-    let mut tournament_count = 0usize;
-    loop {
+    let mut collected = 0usize;
+    'pages: loop {
         let tournament_page = startgg
             .tournaments_by_user(user_id, game_id, page, 25)
             .await?;
 
-        tournament_count += tournament_page.nodes.len();
-
-        for tournament in &tournament_page.nodes {
-            import_tournament(
-                pool,
-                startgg,
-                project_id,
-                tournament,
-                game_id,
-                game_name,
-                account_map,
-            )
-            .await?;
+        for tournament in tournament_page.nodes {
+            let start_ts = tournament.start_at.unwrap_or(0);
+            if let Some(before) = before_date {
+                if start_ts > before {
+                    continue;
+                }
+            }
+            if let Some(after) = after_date {
+                if start_ts < after {
+                    break 'pages;
+                }
+            }
+            seen.entry(tournament.id).or_insert_with(|| {
+                collected += 1;
+                tournament
+            });
         }
 
         let total_pages = tournament_page
@@ -110,7 +134,7 @@ async fn import_user_tournaments(
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
 
-    tracing::info!(tournament_count, "user tournaments imported");
+    tracing::info!(collected, "user tournaments collected");
     Ok(())
 }
 
@@ -343,14 +367,14 @@ async fn import_sets(
             sqlx::query!(
                 r#"INSERT INTO sets
                        (event_id, startgg_set_id, winner_entrant_id, loser_entrant_id,
-                        round, round_name, best_of, winner_score, loser_score, is_dq, vod_url, completed_at)
+                        round, round_name, total_games, winner_score, loser_score, is_dq, vod_url, completed_at)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                    ON CONFLICT (event_id, startgg_set_id) DO UPDATE SET
                        winner_entrant_id = EXCLUDED.winner_entrant_id,
                        loser_entrant_id  = EXCLUDED.loser_entrant_id,
                        round             = EXCLUDED.round,
                        round_name        = EXCLUDED.round_name,
-                       best_of           = EXCLUDED.best_of,
+                       total_games       = EXCLUDED.total_games,
                        winner_score      = EXCLUDED.winner_score,
                        loser_score       = EXCLUDED.loser_score,
                        is_dq             = EXCLUDED.is_dq,
@@ -362,7 +386,7 @@ async fn import_sets(
                 loser_uuid,
                 set.round,
                 set.full_round_text.as_deref(),
-                set.best_of.map(|b| b as i16),
+                set.total_games.map(|b| b as i16),
                 winner_score,
                 loser_score,
                 set.is_dq(),
