@@ -52,7 +52,7 @@ query($slug: String) {
 
 ### 3. `tournaments_by_user` — Paginate a user's tournament history
 
-**Purpose:** Fetch all tournaments a user attended for a given game, with full event/phase/phaseGroup structure for import.
+**Purpose:** Fetch all tournaments a user attended for a given game, with basic event metadata. Phases and phase groups are fetched separately per event via `event_phases` (operation 6) — they were removed from this query to avoid hitting the complexity limit on large tournament histories.
 
 **Query:**
 ```graphql
@@ -75,16 +75,6 @@ query($userId: ID!, $gameId: ID!, $page: Int!, $perPage: Int!) {
                     id name numEntrants startAt
                     slug state isOnline type
                     teamRosterSize { minPlayers maxPlayers }
-                    phases {
-                        id name bracketType phaseOrder
-                        numSeeds groupCount state isExhibition
-                        phaseGroups(query: { perPage: 100 }) {
-                            nodes {
-                                id displayIdentifier bracketType bracketUrl
-                                numRounds startAt firstRoundTime state
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -92,9 +82,9 @@ query($userId: ID!, $gameId: ID!, $page: Int!, $perPage: Int!) {
 }
 ```
 
-**Pagination:** Loop over pages 1..`pageInfo.totalPages`. Use `perPage: 25` (safe within the 1000-object complexity budget given the deep nesting).
+**Pagination:** Loop over pages 1..`pageInfo.totalPages`. Starts at `perPage: 25`; halves and restarts on `ComplexityTooHigh` — see the complexity retry quirk below.
 
-**Key fields:** `state` on Tournament/Event/Phase/PhaseGroup is the `ActivityState` field — see the quirks section below.
+**Key fields:** `state` on Tournament is an integer; `state` on Event is a string — see the `ActivityState` quirk below.
 
 ---
 
@@ -118,7 +108,7 @@ query($eventId: ID!, $page: Int!, $perPage: Int!) {
 }
 ```
 
-**Pagination:** Loop over pages 1..`pageInfo.totalPages`. Use `perPage: 25`.
+**Pagination:** Loop over pages 1..`pageInfo.totalPages`. Starts at `perPage: 25`; halves and restarts on `ComplexityTooHigh` — see the complexity retry quirk below.
 
 **Key fields:** `participants[].user.id` links the entrant to a start.gg user. `standing.placement` is the final finish position. `isDisqualified` marks DQ'd entrants separately from those filtered via score (see quirks).
 
@@ -149,13 +139,13 @@ query($eventId: ID!, $page: Int!, $perPage: Int!) {
 }
 ```
 
-**Pagination:** Loop over pages 1..`pageInfo.totalPages`. Use `perPage: 25`.
+**Pagination:** Loop over pages 1..`pageInfo.totalPages`. Starts at `perPage: 25`; halves and restarts on `ComplexityTooHigh` — see the complexity retry quirk below.
 
 **Key fields:** `winnerId` is the entrant ID of the winner. `slots[].standing.stats.score.value` is the game count won by each player (a float; any negative value signals a DQ — see quirks). `phaseGroup.id` links the set to its bracket.
 
 ### 6. `event_phases` — Fetch all phases and phase groups for an event
 
-**Purpose:** Retrieve the full phase/phase-group tree for an event when more detail is needed than the embedded `phases` returned by `tournaments_by_user`. Used to refresh or fill in phase-group data that may not have been available during the initial tournament import.
+**Purpose:** Fetch the full phase/phase-group tree for an event. This is the primary way phases are imported — `tournaments_by_user` no longer includes nested phase data (removed to avoid complexity errors), so `import_event` calls this directly for every event.
 
 **Query:**
 ```graphql
@@ -185,6 +175,18 @@ query($eventId: ID!, $page: Int!, $perPage: Int!) {
 ---
 
 ## Known Quirks
+
+### Complexity retry (adaptive `perPage` halving)
+
+The API returns a `ComplexityTooHigh` error (HTTP 200, GraphQL error body containing the actual vs. limit object counts) when a query exceeds the 1000-object complexity cap. All four paginated operations handle this identically:
+
+1. Start at `perPage = 25`
+2. On `ComplexityTooHigh` (and only if `perPage > 1`): halve `perPage`, restart from page 1
+3. Repeat until a page succeeds or `perPage` reaches 1
+
+Operations 3–5 implement the retry loop in the worker (`import.rs`). Operation 6 (`event_phases`) implements it inside the `StartggClient` method itself — callers always receive the fully merged result.
+
+`StartggError::ComplexityTooHigh { actual, limit }` is detected by parsing the GraphQL error message with a regex in `common/src/startgg/mod.rs`.
 
 ### `ActivityState` type inconsistency
 
