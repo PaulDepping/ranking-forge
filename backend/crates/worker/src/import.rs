@@ -98,7 +98,8 @@ async fn collect_user_tournaments(
     seen: &mut HashMap<i64, TournamentNode>,
 ) -> anyhow::Result<()> {
     let mut page = 1i32;
-    let mut collected = 0usize;
+    let mut scanned = 0usize;
+    let mut newly_added = 0usize;
     'pages: loop {
         let tournament_page = startgg
             .tournaments_by_user(user_id, game_id, page, 25)
@@ -113,11 +114,14 @@ async fn collect_user_tournaments(
             }
             if let Some(after) = after_date {
                 if start_ts < after {
+                    // The query uses sortBy: "startAt desc", so once we pass the
+                    // cutoff every remaining page is also out of range.
                     break 'pages;
                 }
             }
+            scanned += 1;
             seen.entry(tournament.id).or_insert_with(|| {
-                collected += 1;
+                newly_added += 1;
                 tournament
             });
         }
@@ -134,7 +138,7 @@ async fn collect_user_tournaments(
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
 
-    tracing::info!(collected, "user tournaments collected");
+    tracing::info!(scanned, newly_added, "user tournaments scanned");
     Ok(())
 }
 

@@ -11,7 +11,7 @@ use super::{StartggClient, StartggError};
 
 const GAME_SEARCH_QUERY: &str = r#"
     query($name: String) {
-        videogames(query: { name: $name }) {
+        videogames(query: { filter: { name: $name } }) {
             nodes { id name displayName }
         }
     }"#;
@@ -24,6 +24,7 @@ const TOURNAMENTS_BY_USER_QUERY: &str = r#"
             tournaments(query: {
                 page: $page
                 perPage: $perPage
+                sortBy: "startAt desc"
                 filter: { videogameId: [$gameId] }
             }) {
                 pageInfo { total totalPages }
@@ -61,7 +62,7 @@ const EVENT_SETS_QUERY: &str = r#"
             sets(page: $page, perPage: $perPage, sortType: STANDARD) {
                 pageInfo { total totalPages }
                 nodes {
-                    id winnerId round fullRoundText bestOf
+                    id winnerId round fullRoundText totalGames
                     completedAt vodUrl
                     slots {
                         entrant { id }
