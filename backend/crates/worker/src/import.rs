@@ -372,6 +372,7 @@ async fn import_entrants(
     Ok(entrant_map)
 }
 
+#[instrument(skip(pool, phases), fields(event_db_id = %event_db_id, phase_count = phases.len()))]
 async fn upsert_phases(
     pool: &PgPool,
     event_db_id: Uuid,
@@ -423,6 +424,7 @@ async fn upsert_phases(
                    ON CONFLICT (startgg_id) DO UPDATE SET
                        display_identifier = EXCLUDED.display_identifier,
                        bracket_url        = EXCLUDED.bracket_url,
+                       num_rounds         = EXCLUDED.num_rounds,
                        state              = EXCLUDED.state
                    RETURNING id"#,
                 pg.id,
