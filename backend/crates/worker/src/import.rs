@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
@@ -7,7 +6,7 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use common::jobs::ImportParams;
-use common::startgg::{EventNode, StartggClient, TournamentNode};
+use common::startgg::{EventNode, PhaseNode, StartggClient, StartggError, TournamentNode};
 
 fn ts_to_dt(ts: i64) -> DateTime<Utc> {
     DateTime::from_timestamp(ts, 0).unwrap_or_default()
@@ -165,11 +164,15 @@ async fn import_tournament(
     let row = sqlx::query!(
         r#"INSERT INTO tournaments
                (startgg_id, name, slug, city, addr_state, country_code,
-                venue_name, venue_address, timezone, online, num_attendees, start_at, end_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                venue_name, venue_address, timezone, online, num_attendees,
+                lat, lng, state, start_at, end_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
            ON CONFLICT (startgg_id) DO UPDATE SET
                name          = EXCLUDED.name,
                num_attendees = EXCLUDED.num_attendees,
+               lat           = EXCLUDED.lat,
+               lng           = EXCLUDED.lng,
+               state         = EXCLUDED.state,
                start_at      = EXCLUDED.start_at,
                end_at        = EXCLUDED.end_at
            RETURNING id"#,
@@ -184,6 +187,9 @@ async fn import_tournament(
         tournament.timezone,
         tournament.is_online.unwrap_or(false),
         tournament.num_attendees,
+        tournament.lat,
+        tournament.lng,
+        tournament.state,
         start_at,
         end_at,
     )
@@ -230,18 +236,34 @@ async fn import_event(
     account_map: &HashMap<i64, Uuid>,
 ) -> anyhow::Result<()> {
     let start_at = event.start_at.map(ts_to_dt);
+    let min_team_size = event.team_roster_size.as_ref().and_then(|r| r.min_players);
+    let max_team_size = event.team_roster_size.as_ref().and_then(|r| r.max_players);
 
     let row = sqlx::query!(
-        r#"INSERT INTO events (tournament_id, startgg_id, name, game_id, game_name, num_entrants, start_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
+        r#"INSERT INTO events
+               (tournament_id, startgg_id, name, slug, state, is_online, event_type,
+                min_team_size, max_team_size, game_id, game_name, num_entrants, start_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
            ON CONFLICT (startgg_id) DO UPDATE SET
-               name         = EXCLUDED.name,
-               num_entrants = EXCLUDED.num_entrants,
-               start_at     = EXCLUDED.start_at
+               name          = EXCLUDED.name,
+               slug          = EXCLUDED.slug,
+               state         = EXCLUDED.state,
+               is_online     = EXCLUDED.is_online,
+               event_type    = EXCLUDED.event_type,
+               min_team_size = EXCLUDED.min_team_size,
+               max_team_size = EXCLUDED.max_team_size,
+               num_entrants  = EXCLUDED.num_entrants,
+               start_at      = EXCLUDED.start_at
            RETURNING id"#,
         tournament_db_id,
         event.id,
         event.name,
+        event.slug,
+        event.state,
+        event.is_online,
+        event.event_type,
+        min_team_size,
+        max_team_size,
         game_id,
         game_name,
         event.num_entrants,
@@ -263,12 +285,21 @@ async fn import_event(
     .execute(pool)
     .await?;
 
+    // Upsert phases and phase groups, building startgg_phase_group_id → UUID map
+    let phase_group_map = upsert_phases(
+        pool,
+        event_db_id,
+        event.phases.as_deref().unwrap_or(&[]),
+    )
+    .await?;
+
     // Import entrants, build startgg_entrant_id → DB uuid map for set resolution
     let entrant_map = import_entrants(pool, startgg, event_db_id, event.id, account_map).await?;
     let entrant_count = entrant_map.len();
 
     // Import sets
-    let set_count = import_sets(pool, startgg, event_db_id, event.id, &entrant_map).await?;
+    let set_count =
+        import_sets(pool, startgg, event_db_id, event.id, &entrant_map, &phase_group_map).await?;
 
     tracing::info!(entrant_count, set_count, "event imported");
     Ok(())
@@ -341,19 +372,100 @@ async fn import_entrants(
     Ok(entrant_map)
 }
 
-#[instrument(skip(pool, startgg, entrant_map), fields(event_startgg_id))]
+async fn upsert_phases(
+    pool: &PgPool,
+    event_db_id: Uuid,
+    phases: &[PhaseNode],
+) -> anyhow::Result<HashMap<i64, Uuid>> {
+    let mut phase_group_map: HashMap<i64, Uuid> = HashMap::new();
+
+    for phase in phases {
+        let phase_row = sqlx::query!(
+            r#"INSERT INTO phases
+                   (startgg_id, event_id, name, bracket_type, phase_order,
+                    num_seeds, group_count, state, is_exhibition)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+               ON CONFLICT (startgg_id) DO UPDATE SET
+                   name         = EXCLUDED.name,
+                   bracket_type = EXCLUDED.bracket_type,
+                   phase_order  = EXCLUDED.phase_order,
+                   state        = EXCLUDED.state
+               RETURNING id"#,
+            phase.id,
+            event_db_id,
+            phase.name,
+            phase.bracket_type,
+            phase.phase_order,
+            phase.num_seeds,
+            phase.group_count,
+            phase.state,
+            phase.is_exhibition,
+        )
+        .fetch_one(pool)
+        .await?;
+
+        let phase_db_id: Uuid = phase_row.id;
+
+        for pg in phase
+            .phase_groups
+            .as_ref()
+            .map(|p| p.nodes.as_slice())
+            .unwrap_or(&[])
+        {
+            let first_round_time = pg.first_round_time.map(ts_to_dt);
+            let start_at = pg.start_at.map(ts_to_dt);
+
+            let pg_row = sqlx::query!(
+                r#"INSERT INTO phase_groups
+                       (startgg_id, phase_id, display_identifier, bracket_type, bracket_url,
+                        num_rounds, start_at, first_round_time, state)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                   ON CONFLICT (startgg_id) DO UPDATE SET
+                       display_identifier = EXCLUDED.display_identifier,
+                       bracket_url        = EXCLUDED.bracket_url,
+                       state              = EXCLUDED.state
+                   RETURNING id"#,
+                pg.id,
+                phase_db_id,
+                pg.display_identifier,
+                pg.bracket_type,
+                pg.bracket_url,
+                pg.num_rounds,
+                start_at,
+                first_round_time,
+                pg.state,
+            )
+            .fetch_one(pool)
+            .await?;
+
+            phase_group_map.insert(pg.id, pg_row.id);
+        }
+    }
+
+    Ok(phase_group_map)
+}
+
+#[instrument(skip(pool, startgg, entrant_map, phase_group_map), fields(event_startgg_id))]
 async fn import_sets(
     pool: &PgPool,
     startgg: &StartggClient,
     event_db_id: Uuid,
     event_startgg_id: i64,
     entrant_map: &HashMap<i64, Uuid>,
+    phase_group_map: &HashMap<i64, Uuid>,
 ) -> anyhow::Result<usize> {
     let mut page = 1i32;
     let mut total_sets = 0usize;
 
     loop {
-        let set_page = startgg.event_sets(event_startgg_id, page, 25).await?;
+        let set_page = match startgg.event_sets(event_startgg_id, page, 25).await {
+            Ok(p) => p,
+            Err(StartggError::Decode(msg)) => {
+                tracing::error!(event_startgg_id, page, "set page decode error: {msg}");
+                break;
+            }
+            Err(e) => return Err(e.into()),
+        };
         let mut page_sets = 0usize;
 
         for set in &set_page.nodes {

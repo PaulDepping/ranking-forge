@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO phase_groups\n                       (startgg_id, phase_id, display_identifier, bracket_type, bracket_url,\n                        num_rounds, start_at, first_round_time, state)\n                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n                   ON CONFLICT (startgg_id) DO UPDATE SET\n                       display_identifier = EXCLUDED.display_identifier,\n                       bracket_url        = EXCLUDED.bracket_url,\n                       state              = EXCLUDED.state\n                   RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Timestamptz",
+        "Timestamptz",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3b7111920f76389fa1485e8aded3eb2296777d84ffca913ae6789cb9999d82b7"
+}
