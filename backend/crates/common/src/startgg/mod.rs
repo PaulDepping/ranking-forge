@@ -3,8 +3,9 @@ mod queries;
 
 pub use queries::{
     EntrantNode, EntrantPage, EntrantStanding, EventNode, GameNode, PageInfo, Participant,
-    ParticipantUser, ScoreValue, SetNode, SetPage, SetSlot, SlotEntrant, SlotStanding, SlotStats,
-    TournamentNode, TournamentPage, UserNode,
+    ParticipantUser, PhaseGroupNode, PhaseNode, ScoreValue, SetNode, SetPage, SetPhaseGroup,
+    SetSlot, SlotEntrant, SlotStanding, SlotStats, TeamRosterSize, TournamentNode, TournamentPage,
+    UserNode,
 };
 
 use reqwest::Client;
@@ -118,7 +119,7 @@ impl StartggClient {
                 == Some(reqwest::StatusCode::TOO_MANY_REQUESTS))
         })
         .notify(|_err, dur| {
-            tracing::info!(?dur, "start.gg rate limited; retrying");
+            tracing::debug!(?dur, "start.gg rate limited; retrying");
         })
         .await
     }

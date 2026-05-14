@@ -22,6 +22,10 @@ fn make_set(winner_id: Option<i64>, slots: Vec<SetSlot>) -> SetNode {
         total_games: Some(5),
         completed_at: None,
         vod_url: None,
+        has_placeholder: None,
+        state: None,
+        identifier: None,
+        phase_group: None,
         slots,
     }
 }

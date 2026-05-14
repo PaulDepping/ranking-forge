@@ -106,6 +106,50 @@ pub struct TournamentPage {
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct TeamRosterSize {
+    pub min_players: Option<i32>,
+    pub max_players: Option<i32>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PhaseGroupNode {
+    pub id: i64,
+    pub display_identifier: Option<String>,
+    pub bracket_type: Option<String>,
+    pub bracket_url: Option<String>,
+    pub num_rounds: Option<i32>,
+    pub start_at: Option<i64>,
+    pub first_round_time: Option<i64>,
+    pub state: Option<i32>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct PhaseGroupPage {
+    pub nodes: Vec<PhaseGroupNode>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PhaseNode {
+    pub id: i64,
+    pub name: Option<String>,
+    pub bracket_type: Option<String>,
+    pub phase_order: Option<i32>,
+    pub num_seeds: Option<i32>,
+    pub group_count: Option<i32>,
+    pub state: Option<i32>,
+    pub is_exhibition: Option<bool>,
+    pub phase_groups: Option<PhaseGroupPage>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct SetPhaseGroup {
+    pub id: i64,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct TournamentNode {
     pub id: i64,
     pub name: String,
@@ -120,6 +164,9 @@ pub struct TournamentNode {
     pub num_attendees: Option<i32>,
     pub start_at: Option<i64>,
     pub end_at: Option<i64>,
+    pub lat: Option<f64>,
+    pub lng: Option<f64>,
+    pub state: Option<i32>,
     pub events: Option<Vec<EventNode>>,
 }
 
@@ -130,6 +177,13 @@ pub struct EventNode {
     pub name: String,
     pub num_entrants: Option<i32>,
     pub start_at: Option<i64>,
+    pub slug: Option<String>,
+    pub state: Option<String>,
+    pub is_online: Option<bool>,
+    #[serde(rename = "type")]
+    pub event_type: Option<i32>,
+    pub team_roster_size: Option<TeamRosterSize>,
+    pub phases: Option<Vec<PhaseNode>>,
 }
 
 // ── Event entrants ────────────────────────────────────────────────────────────
@@ -240,6 +294,10 @@ pub struct SetNode {
     pub total_games: Option<i32>,
     pub completed_at: Option<i64>,
     pub vod_url: Option<String>,
+    pub has_placeholder: Option<bool>,
+    pub state: Option<i32>,
+    pub identifier: Option<String>,
+    pub phase_group: Option<SetPhaseGroup>,
     pub slots: Vec<SetSlot>,
 }
 
