@@ -223,6 +223,14 @@ function createMockServer() {
 			return;
 		}
 
+		const h2hSetsMatch = path.match(/^\/projects\/([^/]+)\/head-to-head\/([^/]+)\/([^/]+)\/sets$/);
+		if (h2hSetsMatch && req.method === 'GET') {
+			respond(res, 200, [
+				{ ...MOCK_SET_BASE, opponent_id: h2hSetsMatch[3], opponent_name: 'Bob', upset_factor: 2, is_win: true },
+			]);
+			return;
+		}
+
 		respond(res, 404, { message: 'Not found' });
 	});
 }

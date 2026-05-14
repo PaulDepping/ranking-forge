@@ -175,7 +175,7 @@ components:
 
     SetRecord:
       type: object
-      required: [opponent_id, opponent_name, upset_factor, winner_score, loser_score]
+      required: [opponent_id, opponent_name, upset_factor, winner_score, loser_score, tournament_name, tournament_slug, event_name, round_name, completed_at, is_dq, vod_url, startgg_set_id, winner_seed, loser_seed]
       properties:
         opponent_id:
           type: string
@@ -196,6 +196,35 @@ components:
           type: integer
           nullable: true
           description: Games won by the loser of this set. Null if scores were not recorded.
+        tournament_name:
+          type: string
+        tournament_slug:
+          type: string
+          description: start.gg slug including the "tournament/" prefix (e.g. "tournament/genesis-9")
+        event_name:
+          type: string
+        round_name:
+          type: string
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        is_dq:
+          type: boolean
+          description: Always false (DQ sets are filtered out server-side); kept for forward-compat.
+        vod_url:
+          type: string
+          nullable: true
+        startgg_set_id:
+          type: integer
+          format: int64
+        winner_seed:
+          type: integer
+          nullable: true
+        loser_seed:
+          type: integer
+          nullable: true
 
     PlayerStats:
       type: object
@@ -710,7 +739,7 @@ paths:
           format: uuid
 
     get:
-      summary: Get player stats ordered by aggregate upset factor
+      summary: Get player stats ordered by win rate (descending)
       description: >
         Only counts sets from included events where both the winner and loser
         are tracked players in this project.
@@ -750,6 +779,51 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/HeadToHeadEntry'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/head-to-head/{pid_a}/{pid_b}/sets:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: pid_a
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: pid_b
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: Get all sets between two players from pid_a's perspective
+      tags: [Stats]
+      responses:
+        '200':
+          description: Chronological list of sets, most recent first. `is_win` is true if pid_a won.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  allOf:
+                    - $ref: '#/components/schemas/SetRecord'
+                    - type: object
+                      required: [is_win]
+                      properties:
+                        is_win:
+                          type: boolean
+                          description: True if pid_a won this set
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':

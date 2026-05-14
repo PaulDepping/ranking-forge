@@ -31,19 +31,22 @@
 		}
 		loading = true;
 		selectedPair = null;
-		const res = await fetch(
-			`${PUBLIC_API_URL}/projects/${data.project.id}/head-to-head/${rowPlayer.id}/${colPlayer.id}/sets`,
-			{ credentials: 'include' }
-		);
-		const sets: H2HSet[] = res.ok ? await res.json() : [];
-		selectedPair = {
-			rowPlayer,
-			colPlayer,
-			sets,
-			wins: sets.filter((s) => s.is_win).length,
-			losses: sets.filter((s) => !s.is_win).length,
-		};
-		loading = false;
+		try {
+			const res = await fetch(
+				`${PUBLIC_API_URL}/projects/${data.project.id}/head-to-head/${rowPlayer.id}/${colPlayer.id}/sets`,
+				{ credentials: 'include' }
+			);
+			const sets: H2HSet[] = res.ok ? await res.json() : [];
+			selectedPair = {
+				rowPlayer,
+				colPlayer,
+				sets,
+				wins: sets.filter((s) => s.is_win).length,
+				losses: sets.filter((s) => !s.is_win).length,
+			};
+		} finally {
+			loading = false;
+		}
 	}
 
 	function isSelected(rowId: string, colId: string): boolean {
