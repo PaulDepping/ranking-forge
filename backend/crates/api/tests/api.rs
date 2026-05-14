@@ -276,7 +276,7 @@ async fn create_player(app: &Router, cookie: &str, project_id: &str, name: &str)
 }
 
 fn startgg_user_ok(id: i64, name: &str) -> Value {
-    json!({ "data": { "user": { "id": id, "name": name } } })
+    json!({ "data": { "user": { "id": id, "player": { "gamerTag": name } } } })
 }
 
 fn startgg_user_null() -> Value {

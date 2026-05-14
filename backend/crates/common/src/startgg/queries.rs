@@ -71,7 +71,19 @@ pub(crate) struct UserBySlugData {
 #[derive(Deserialize, Debug, Clone)]
 pub struct UserNode {
     pub id: i64,
-    pub name: Option<String>,
+    pub player: Option<UserPlayer>,
+}
+
+impl UserNode {
+    pub fn gamer_tag(&self) -> Option<&str> {
+        self.player.as_ref().map(|p| p.gamer_tag.as_str())
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct UserPlayer {
+    pub gamer_tag: String,
 }
 
 // ── Tournaments by user ───────────────────────────────────────────────────────
@@ -138,7 +150,7 @@ pub struct PhaseNode {
     pub phase_order: Option<i32>,
     pub num_seeds: Option<i32>,
     pub group_count: Option<i32>,
-    pub state: Option<i32>,
+    pub state: Option<String>,
     pub is_exhibition: Option<bool>,
     pub phase_groups: Option<PhaseGroupPage>,
 }
@@ -178,7 +190,7 @@ pub struct EventNode {
     pub num_entrants: Option<i32>,
     pub start_at: Option<i64>,
     pub slug: Option<String>,
-    pub state: Option<i32>,
+    pub state: Option<String>,
     pub is_online: Option<bool>,
     #[serde(rename = "type")]
     pub event_type: Option<i32>,

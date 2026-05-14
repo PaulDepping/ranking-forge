@@ -88,7 +88,7 @@ CREATE TABLE events (
     startgg_id    BIGINT      NOT NULL UNIQUE,
     name          TEXT        NOT NULL,
     slug          TEXT,
-    state         INTEGER,
+    state         TEXT,
     is_online     BOOLEAN,
     event_type    INTEGER,
     min_team_size INTEGER,
@@ -114,7 +114,7 @@ CREATE TABLE phases (
     phase_order   INTEGER,
     num_seeds     INTEGER,
     group_count   INTEGER,
-    state         INTEGER,
+    state         TEXT,
     is_exhibition BOOLEAN     NOT NULL DEFAULT FALSE
 );
 

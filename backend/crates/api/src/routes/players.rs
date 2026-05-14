@@ -223,7 +223,7 @@ async fn link_account(
         path.pid,
         sg_user.id,
         body.slug,
-        sg_user.name,
+        sg_user.gamer_tag(),
     )
     .fetch_one(&state.db)
     .await

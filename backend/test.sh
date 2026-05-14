@@ -22,5 +22,6 @@ echo "Waiting for Postgres..."
 until docker exec "$CONTAINER" pg_isready -U postgres -q 2>/dev/null; do
     sleep 0.1
 done
+sleep 0.5
 
 cargo test --workspace "$@"

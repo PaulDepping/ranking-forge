@@ -2,3 +2,4 @@
 /backend/target/
 /web/node_modules/
 /postgres_data
+.superpowers

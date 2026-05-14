@@ -16,7 +16,8 @@ const GAME_SEARCH_QUERY: &str = r#"
         }
     }"#;
 
-const USER_BY_SLUG_QUERY: &str = "query($slug: String) { user(slug: $slug) { id name } }";
+const USER_BY_SLUG_QUERY: &str =
+    "query($slug: String) { user(slug: $slug) { id player { gamerTag } } }";
 
 const TOURNAMENTS_BY_USER_QUERY: &str = r#"
     query($userId: ID!, $gameId: ID!, $page: Int!, $perPage: Int!) {

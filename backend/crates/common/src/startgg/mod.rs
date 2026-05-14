@@ -218,7 +218,7 @@ mod tests {
         let mock = MockServer::start().await;
         Mock::given(method("POST"))
             .respond_with(mock_ok(json!({
-                "data": { "user": { "id": 12345, "name": "Mango" } }
+                "data": { "user": { "id": 12345, "player": { "gamerTag": "Mango" } } }
             })))
             .mount(&mock)
             .await;
@@ -229,7 +229,7 @@ mod tests {
             .unwrap();
         let user = user.expect("expected Some(user)");
         assert_eq!(user.id, 12345);
-        assert_eq!(user.name.as_deref(), Some("Mango"));
+        assert_eq!(user.gamer_tag(), Some("Mango"));
     }
 
     #[tokio::test]
