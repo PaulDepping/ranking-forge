@@ -40,6 +40,10 @@ impl From<StartggError> for AppError {
                 tracing::error!("start.gg response decode error: {msg}");
                 AppError::ExternalApiError
             }
+            StartggError::ComplexityTooHigh { limit, actual } => {
+                tracing::error!(limit, actual, "start.gg query complexity too high");
+                AppError::ExternalApiError
+            }
         }
     }
 }
