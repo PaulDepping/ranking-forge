@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { Badge } from '$lib/components/ui/badge';
+	import { Button } from '$lib/components/ui/button';
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import type { Tournament, TournamentEvent } from '$lib/types';
 
@@ -98,8 +99,118 @@
 	{#if tournaments.length === 0}
 		<p class="text-sm text-muted-foreground">No tournaments imported yet. Run an import first.</p>
 	{:else}
+		<!-- Status line + toggle -->
+		<div class="flex items-center justify-between text-sm text-muted-foreground">
+			<span>
+				Showing <strong>{visibleTournaments.length}</strong> of {tournaments.length} tournaments
+				· <strong>{visibleEventCount}</strong> of {totalEventCount} events
+			</span>
+			<Button variant="outline" size="sm" onclick={() => (filterOpen = !filterOpen)}>
+				⚙ Filters &amp; Actions {filterOpen ? '▲' : '▼'}
+			</Button>
+		</div>
+
+		<!-- Collapsible filter panel -->
+		{#if filterOpen}
+			<div class="rounded-md border border-border bg-muted/30 p-4 space-y-3">
+				<!-- Row 1: search + venue -->
+				<div class="flex flex-wrap gap-2">
+					<input
+						type="text"
+						placeholder="Search tournament or event name…"
+						bind:value={search}
+						class="flex-1 min-w-48 rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+					/>
+					<select
+						bind:value={venueFilter}
+						class="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+					>
+						<option value="all">Venue: All</option>
+						<option value="online">Online only</option>
+						<option value="offline">Offline only</option>
+					</select>
+				</div>
+
+				<!-- Row 2: entrant range + date range -->
+				<div class="flex flex-wrap gap-2 items-center">
+					<div class="flex items-center gap-1.5">
+						<span class="text-xs text-muted-foreground whitespace-nowrap">Entrants</span>
+						<input
+							type="number"
+							min="0"
+							placeholder="min"
+							bind:value={minEntrants}
+							class="w-20 rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+						/>
+						<span class="text-muted-foreground">–</span>
+						<input
+							type="number"
+							min="0"
+							placeholder="max"
+							bind:value={maxEntrants}
+							class="w-20 rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+						/>
+					</div>
+					<div class="flex items-center gap-1.5">
+						<span class="text-xs text-muted-foreground">From</span>
+						<input
+							type="date"
+							bind:value={dateFrom}
+							class="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+						/>
+						<span class="text-xs text-muted-foreground">To</span>
+						<input
+							type="date"
+							bind:value={dateTo}
+							class="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+						/>
+					</div>
+				</div>
+
+				<!-- Row 3: event type + ladder -->
+				<div class="flex flex-wrap gap-4 items-center">
+					<div class="flex items-center gap-2">
+						<span class="text-xs text-muted-foreground whitespace-nowrap">Event type</span>
+						<select
+							bind:value={eventType}
+							class="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+						>
+							<option value="all">All</option>
+							<option value="singles">Singles</option>
+							<option value="teams">Teams</option>
+						</select>
+					</div>
+					<label class="flex items-center gap-2 cursor-pointer text-sm">
+						<input type="checkbox" bind:checked={excludeLadder} class="h-4 w-4 accent-primary" />
+						Exclude ladder / matchmaking
+					</label>
+				</div>
+
+				<!-- Divider + bulk actions -->
+				<div class="flex items-center justify-between border-t border-border pt-3">
+					<span class="text-xs text-muted-foreground">
+						Bulk actions apply to {visibleEventCount} visible event{visibleEventCount !== 1 ? 's' : ''}
+					</span>
+					<div class="flex gap-2">
+						<Button variant="outline" size="sm" onclick={() => bulkSetIncluded(true)}>
+							✓ Include all visible
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							class="border-destructive text-destructive hover:bg-destructive/10"
+							onclick={() => bulkSetIncluded(false)}
+						>
+							✕ Exclude all visible
+						</Button>
+					</div>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Tournament list — iterate visibleTournaments -->
 		<div class="space-y-3">
-			{#each tournaments as tournament (tournament.id)}
+			{#each visibleTournaments as tournament (tournament.id)}
 				<div class="rounded-md border border-border">
 					<div class="flex items-start justify-between p-3">
 						<div>
@@ -112,7 +223,9 @@
 								{tournament.start_at ? '· ' + new Date(tournament.start_at).toLocaleDateString() : ''}
 							</p>
 						</div>
-						<Badge variant="outline">{tournament.events.length} event{tournament.events.length !== 1 ? 's' : ''}</Badge>
+						<Badge variant="outline">
+							{tournament.events.length} event{tournament.events.length !== 1 ? 's' : ''}
+						</Badge>
 					</div>
 					<div class="divide-y divide-border border-t border-border">
 						{#each tournament.events as event (event.id)}
