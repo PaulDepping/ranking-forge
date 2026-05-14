@@ -30,8 +30,8 @@ function tournamentVisible(
 ): boolean {
     if (venueFilter === 'online' && !t.online) return false;
     if (venueFilter === 'offline' && t.online) return false;
-    if (dateFrom && t.start_at && t.start_at < dateFrom) return false;
-    if (dateTo && t.start_at && t.start_at > dateTo) return false;
+    if (dateFrom && t.start_at && t.start_at.slice(0, 10) < dateFrom) return false;
+    if (dateTo && t.start_at && t.start_at.slice(0, 10) > dateTo) return false;
     return true;
 }
 
@@ -68,6 +68,13 @@ describe('tournament filter', () => {
         const t = makeTournament([], { start_at: '2024-06-01T00:00:00Z' });
         expect(tournamentVisible(t, 'all', '2025-01-01', '')).toBe(false);
         expect(tournamentVisible(t, 'all', '2024-01-01', '2024-12-31')).toBe(true);
+        // boundary: start_at on exactly dateTo day must pass
+        expect(tournamentVisible(t, 'all', '', '2024-06-01')).toBe(true);
+    });
+
+    it('null start_at passes date filter', () => {
+        const t = makeTournament([], { start_at: null });
+        expect(tournamentVisible(t, 'all', '2025-01-01', '2025-12-31')).toBe(true);
     });
 
     it('name search matches event name', () => {

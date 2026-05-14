@@ -41,8 +41,8 @@
 	function tournamentVisible(t: Tournament): boolean {
 		if (venueFilter === 'online' && !t.online) return false;
 		if (venueFilter === 'offline' && t.online) return false;
-		if (dateFrom && t.start_at && t.start_at < dateFrom) return false;
-		if (dateTo && t.start_at && t.start_at > dateTo) return false;
+		if (dateFrom && t.start_at && t.start_at.slice(0, 10) < dateFrom) return false;
+		if (dateTo && t.start_at && t.start_at.slice(0, 10) > dateTo) return false;
 		return true;
 	}
 
