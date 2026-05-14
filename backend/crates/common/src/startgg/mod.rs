@@ -3,9 +3,9 @@ mod queries;
 
 pub use queries::{
     EntrantNode, EntrantPage, EntrantStanding, EventNode, GameNode, PageInfo, Participant,
-    ParticipantUser, PhaseGroupNode, PhaseNode, ScoreValue, SetNode, SetPage, SetPhaseGroup,
-    SetSlot, SlotEntrant, SlotStanding, SlotStats, TeamRosterSize, TournamentNode, TournamentPage,
-    UserNode,
+    ParticipantUser, PhaseGroupNode, PhaseGroupPage, PhaseNode, ScoreValue, SetNode, SetPage,
+    SetPhaseGroup, SetSlot, SlotEntrant, SlotStanding, SlotStats, TeamRosterSize, TournamentNode,
+    TournamentPage, UserNode,
 };
 
 use reqwest::Client;

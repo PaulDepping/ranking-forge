@@ -88,7 +88,7 @@ CREATE TABLE events (
     startgg_id    BIGINT      NOT NULL UNIQUE,
     name          TEXT        NOT NULL,
     slug          TEXT,
-    state         TEXT,
+    state         INTEGER,
     is_online     BOOLEAN,
     event_type    INTEGER,
     min_team_size INTEGER,
