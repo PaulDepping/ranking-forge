@@ -2,6 +2,9 @@ import { render, screen } from '@testing-library/svelte';
 import { describe, it, expect } from 'vitest';
 import Page from './+page.svelte';
 
+const user = { id: 'u1', username: 'testuser', created_at: '2026-01-01T00:00:00Z' };
+const project = { id: 'proj-1', name: 'Test Project', game_id: null, game_name: null, created_at: '2026-01-01T00:00:00Z' };
+
 const players = [
 	{ id: 'p1', name: 'Alice', project_id: 'proj-1', created_at: '2026-01-01T00:00:00Z', accounts: [] },
 	{ id: 'p2', name: 'Bob', project_id: 'proj-1', created_at: '2026-01-01T00:00:00Z', accounts: [] },
@@ -19,14 +22,14 @@ const h2h = [
 
 describe('H2H page', () => {
 	it('renders player names in header row', () => {
-		render(Page, { data: { players, h2h } });
+		render(Page, { data: { user, project, players, h2h } });
 		expect(screen.getAllByText('Alice').length).toBeGreaterThan(0);
 		expect(screen.getAllByText('Bob').length).toBeGreaterThan(0);
 		expect(screen.getAllByText('Charlie').length).toBeGreaterThan(0);
 	});
 
 	it('renders win–loss records between players', () => {
-		render(Page, { data: { players, h2h } });
+		render(Page, { data: { user, project, players, h2h } });
 		// Alice vs Bob: 3–1 (and Bob vs Alice: 1–3)
 		expect(screen.getByText('3–1')).toBeInTheDocument();
 		expect(screen.getByText('1–3')).toBeInTheDocument();
@@ -36,7 +39,7 @@ describe('H2H page', () => {
 	});
 
 	it('shows empty message when h2h data is absent', () => {
-		render(Page, { data: { players: players.slice(0, 1), h2h: [] } });
+		render(Page, { data: { user, project, players: players.slice(0, 1), h2h: [] } });
 		expect(
 			screen.getByText('No head-to-head data yet. Import tournaments first.')
 		).toBeInTheDocument();
@@ -44,12 +47,12 @@ describe('H2H page', () => {
 	});
 
 	it('shows table footer note when data is present', () => {
-		render(Page, { data: { players, h2h } });
+		render(Page, { data: { user, project, players, h2h } });
 		expect(screen.getByText("Row player's record vs. column player")).toBeInTheDocument();
 	});
 
 	it('renders a dash for same-player diagonal cells', () => {
-		render(Page, { data: { players, h2h } });
+		render(Page, { data: { user, project, players, h2h } });
 		const dashCells = screen.getAllByText('—');
 		// One dash per player (3 players → 3 diagonal cells)
 		expect(dashCells.length).toBe(players.length);

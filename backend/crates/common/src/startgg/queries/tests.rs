@@ -19,7 +19,7 @@ fn make_set(winner_id: Option<i64>, slots: Vec<SetSlot>) -> SetNode {
         winner_id,
         round: Some(1),
         full_round_text: None,
-        best_of: Some(5),
+        total_games: Some(5),
         completed_at: None,
         vod_url: None,
         slots,

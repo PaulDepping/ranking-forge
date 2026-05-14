@@ -7,7 +7,7 @@ export const load: PageServerLoad = ({ locals }) => {
 };
 
 export const actions: Actions = {
-	default: async ({ fetch, request }) => {
+	default: async ({ fetch, request, cookies }) => {
 		const data = await request.formData();
 		const username = data.get('username') as string;
 		const password = data.get('password') as string;
@@ -21,6 +21,17 @@ export const actions: Actions = {
 		if (!res.ok) {
 			const body = await res.json().catch(() => ({ message: 'Login failed' }));
 			return fail(res.status, { error: body.message ?? 'Login failed' });
+		}
+
+		const setCookie = res.headers.get('set-cookie');
+		const match = setCookie?.match(/session_id=([^;]+)/);
+		if (match) {
+			cookies.set('session_id', match[1], {
+				path: '/',
+				httpOnly: true,
+				sameSite: 'strict',
+				maxAge: 60 * 60 * 24 * 30
+			});
 		}
 
 		redirect(303, '/projects');

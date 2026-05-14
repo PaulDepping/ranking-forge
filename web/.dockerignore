@@ -1,0 +1,8 @@
+node_modules/
+build/
+.svelte-kit/
+test-results/
+tests/
+playwright.config.ts
+vitest.config.ts
+README.md

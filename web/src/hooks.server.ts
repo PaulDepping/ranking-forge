@@ -5,7 +5,10 @@ import { INTERNAL_API_URL } from '$env/static/private';
 export const handle: Handle = async ({ event, resolve }) => {
 	const { pathname } = event.url;
 
-	const res = await event.fetch(`${INTERNAL_API_URL}/auth/me`);
+	const sessionId = event.cookies.get('session_id');
+	const res = await event.fetch(`${INTERNAL_API_URL}/auth/me`, {
+		headers: sessionId ? { Cookie: `session_id=${sessionId}` } : {}
+	});
 	if (res.ok) {
 		event.locals.user = await res.json();
 	} else {

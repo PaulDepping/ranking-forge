@@ -9,6 +9,7 @@ pub use queries::{
 
 use reqwest::Client;
 use serde::Serialize;
+use std::time::Duration;
 use thiserror::Error;
 
 const STARTGG_BASE_URL: &str = "https://api.start.gg/gql/alpha";
@@ -19,6 +20,8 @@ pub enum StartggError {
     Http(#[from] reqwest::Error),
     #[error("GraphQL error: {0}")]
     GraphQL(String),
+    #[error("response decode error: {0}")]
+    Decode(String),
 }
 
 #[derive(Clone)]
@@ -26,6 +29,7 @@ pub struct StartggClient {
     http: Client,
     api_key: String,
     base_url: String,
+    retry_min_delay: Duration,
 }
 
 impl StartggClient {
@@ -40,9 +44,15 @@ impl StartggClient {
             .expect("failed to build HTTP client");
         StartggClient {
             http,
-            api_key: api_key.into(),
-            base_url: base_url.into(),
+            api_key,
+            base_url,
+            retry_min_delay: Duration::from_secs(1),
         }
+    }
+
+    pub fn with_retry_min_delay(mut self, d: Duration) -> Self {
+        self.retry_min_delay = d;
+        self
     }
 
     async fn gql<V, T>(&self, query: &'static str, variables: V) -> Result<T, StartggError>
@@ -50,30 +60,57 @@ impl StartggClient {
         V: Serialize,
         T: serde::de::DeserializeOwned,
     {
+        use backon::{ExponentialBuilder, Retryable};
         use queries::{GqlRequest, GqlResponse};
 
-        let resp: GqlResponse<T> = self
-            .http
-            .post(&self.base_url)
-            .bearer_auth(&self.api_key)
-            .json(&GqlRequest { query, variables })
-            .send()
-            .await?
-            .error_for_status()?
-            .json()
-            .await?;
+        let vars = serde_json::to_value(variables)
+            .map_err(|e| StartggError::GraphQL(e.to_string()))?;
 
-        if let Some(errors) = resp.errors {
-            let msg = errors
-                .into_iter()
-                .map(|e| e.message)
-                .collect::<Vec<_>>()
-                .join("; ");
-            return Err(StartggError::GraphQL(msg));
-        }
+        (|| async {
+            let body = self
+                .http
+                .post(&self.base_url)
+                .bearer_auth(&self.api_key)
+                .json(&GqlRequest { query, variables: &vars })
+                .send()
+                .await?
+                .error_for_status()?
+                .text()
+                .await?;
 
-        resp.data
-            .ok_or_else(|| StartggError::GraphQL("empty data field in response".into()))
+            let resp: GqlResponse<T> = serde_json::from_str(&body).map_err(|e| {
+                let preview: String = body.chars().take(500).collect();
+                tracing::error!(body = %preview, "failed to decode start.gg response: {e}");
+                StartggError::Decode(e.to_string())
+            })?;
+
+            if let Some(errors) = resp.errors {
+                let msg = errors
+                    .into_iter()
+                    .map(|e| e.message)
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                return Err(StartggError::GraphQL(msg));
+            }
+
+            resp.data
+                .ok_or_else(|| StartggError::GraphQL("empty data field in response".into()))
+        })
+        .retry(
+            ExponentialBuilder::default()
+                .with_min_delay(self.retry_min_delay)
+                .with_max_delay(Duration::from_secs(60))
+                .with_max_times(usize::MAX)
+                .with_jitter(),
+        )
+        .when(|e| {
+            matches!(e, StartggError::Http(re) if re.status()
+                == Some(reqwest::StatusCode::TOO_MANY_REQUESTS))
+        })
+        .notify(|_err, dur| {
+            tracing::warn!(?dur, "start.gg rate limited; retrying");
+        })
+        .await
     }
 }
 
@@ -86,6 +123,7 @@ mod tests {
 
     fn client(base_url: &str) -> StartggClient {
         StartggClient::new_with_base_url("test-key".into(), base_url.into())
+            .with_retry_min_delay(std::time::Duration::from_millis(1))
     }
 
     fn mock_ok(body: serde_json::Value) -> ResponseTemplate {
@@ -180,7 +218,7 @@ mod tests {
             .unwrap();
         let user = user.expect("expected Some(user)");
         assert_eq!(user.id, 12345);
-        assert_eq!(user.name, "Mango");
+        assert_eq!(user.name.as_deref(), Some("Mango"));
     }
 
     #[tokio::test]
@@ -225,6 +263,26 @@ mod tests {
     }
 
     // ── tournaments_by_user ───────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn tournaments_by_user_works_with_empty_result() {
+        let mock = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": { "user": { "tournaments": {
+                    "pageInfo": { "total": 0, "totalPages": 1 },
+                    "nodes": []
+                }}}
+            })))
+            .mount(&mock)
+            .await;
+
+        let page = client(&mock.uri())
+            .tournaments_by_user(99, 1, 1, 25)
+            .await
+            .unwrap();
+        assert!(page.nodes.is_empty());
+    }
 
     #[tokio::test]
     async fn tournaments_by_user_returns_page() {
@@ -388,7 +446,7 @@ mod tests {
                                 "winnerId": 1001,
                                 "round": 6,
                                 "fullRoundText": "Grand Final",
-                                "bestOf": 5,
+                                "totalGames": 5,
                                 "completedAt": 1700050000_i64,
                                 "vodUrl": null,
                                 "slots": [
@@ -419,7 +477,7 @@ mod tests {
         assert_eq!(s.winner_id, Some(1001));
         assert_eq!(s.round, Some(6));
         assert_eq!(s.full_round_text.as_deref(), Some("Grand Final"));
-        assert_eq!(s.best_of, Some(5));
+        assert_eq!(s.total_games, Some(5));
         assert_eq!(s.completed_at, Some(1700050000));
         assert_eq!(s.loser_id(), Some(1002));
         assert!(!s.is_dq());
@@ -440,7 +498,7 @@ mod tests {
                                 "winnerId": 1001,
                                 "round": 1,
                                 "fullRoundText": "Round 1",
-                                "bestOf": 3,
+                                "totalGames": 3,
                                 "completedAt": null,
                                 "vodUrl": null,
                                 "slots": [
@@ -475,5 +533,48 @@ mod tests {
 
         let page = client(&mock.uri()).event_sets(0, 1, 25).await.unwrap();
         assert!(page.nodes.is_empty());
+    }
+
+    // ── rate limit retry ──────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn rate_limited_once_then_succeeds() {
+        let mock = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(429))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": { "videogames": { "nodes": [] } }
+            })))
+            .mount(&mock)
+            .await;
+
+        let games = client(&mock.uri()).search_games("melee").await.unwrap();
+        assert!(games.is_empty());
+    }
+
+    #[tokio::test]
+    async fn rate_limited_multiple_times_then_succeeds() {
+        let mock = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(429))
+            .up_to_n_times(3)
+            .mount(&mock)
+            .await;
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": { "videogames": { "nodes": [
+                    {"id": 1, "name": "Melee", "displayName": null}
+                ] } }
+            })))
+            .mount(&mock)
+            .await;
+
+        let games = client(&mock.uri()).search_games("melee").await.unwrap();
+        assert_eq!(games.len(), 1);
+        assert_eq!(games[0].id, 1);
     }
 }

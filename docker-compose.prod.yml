@@ -1,0 +1,64 @@
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-rankingforge}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+      target: api
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-rankingforge}
+      PORT: 3000
+      BIND_ADDR: "0.0.0.0"
+      SESSION_SECRET: ${SESSION_SECRET}
+      STARTGG_API_KEY: ${STARTGG_API_KEY}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://rankingforge.example.com}
+      RUST_LOG: ${RUST_LOG:-warn}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      target: worker
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-rankingforge}
+      STARTGG_API_KEY: ${STARTGG_API_KEY}
+      RUST_LOG: ${RUST_LOG:-warn}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+      args:
+        PUBLIC_API_URL: ${PUBLIC_API_URL:-https://rankingforge.example.com}
+        INTERNAL_API_URL: http://api:3000
+    environment:
+      ORIGIN: ${ORIGIN:-https://rankingforge.example.com}
+    ports:
+      - "127.0.0.1:5173:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

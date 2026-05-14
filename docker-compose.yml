@@ -8,11 +8,13 @@ services:
     volumes:
       - ./postgres_data:/var/lib/postgresql
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U rankingforge"]
       interval: 5s
       timeout: 5s
+      start_interval: 0.1s
+      start_period: 10s
       retries: 5
 
   api:
@@ -25,9 +27,9 @@ services:
       BIND_ADDR: "0.0.0.0"
       SESSION_SECRET: ${SESSION_SECRET:-change-me-in-prod}
       STARTGG_API_KEY: ${STARTGG_API_KEY}
-      RUST_LOG: info
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       db:
         condition: service_healthy
@@ -39,7 +41,6 @@ services:
     environment:
       DATABASE_URL: postgres://rankingforge:rankingforge@db:5432/rankingforge
       STARTGG_API_KEY: ${STARTGG_API_KEY}
-      RUST_LOG: info
     depends_on:
       db:
         condition: service_healthy
@@ -53,7 +54,7 @@ services:
     environment:
       ORIGIN: http://localhost:5173
     ports:
-      - "5173:3000"
+      - "127.0.0.1:5173:3000"
     depends_on:
       - api
 

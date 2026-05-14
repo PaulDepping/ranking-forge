@@ -1,12 +1,14 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import type { TournamentEvent } from '$lib/types';
 
 	let { data } = $props();
 
-	// Local copy for optimistic toggle updates
-	let tournaments = $state([...data.tournaments]);
+	// Local copy for optimistic toggle updates; synced when server data changes
+	let tournaments = $state(untrack(() => [...data.tournaments]));
+	$effect(() => { tournaments = [...data.tournaments]; });
 
 	async function toggleEvent(projectId: string, eventId: string, included: boolean) {
 		const res = await fetch(`${PUBLIC_API_URL}/projects/${projectId}/events/${eventId}`, {

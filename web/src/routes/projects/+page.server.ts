@@ -4,8 +4,8 @@ import { makeApi } from '$lib/api';
 import type { Project } from '$lib/types';
 import { INTERNAL_API_URL } from '$env/static/private';
 
-export const load: PageServerLoad = async ({ fetch }) => {
-	const api = makeApi(fetch, INTERNAL_API_URL);
+export const load: PageServerLoad = async ({ fetch, cookies }) => {
+	const api = makeApi(fetch, INTERNAL_API_URL, cookies.get('session_id'));
 	const res = await api.get('/projects');
 	if (!res.ok) return { projects: [] as Project[] };
 	const projects: Project[] = await res.json();
@@ -13,10 +13,10 @@ export const load: PageServerLoad = async ({ fetch }) => {
 };
 
 export const actions: Actions = {
-	delete: async ({ fetch, request }) => {
+	delete: async ({ fetch, request, cookies }) => {
 		const data = await request.formData();
 		const id = data.get('id') as string;
-		const api = makeApi(fetch, INTERNAL_API_URL);
+		const api = makeApi(fetch, INTERNAL_API_URL, cookies.get('session_id'));
 		const res = await api.delete(`/projects/${id}`);
 		if (!res.ok) {
 			const body = await res.json().catch(() => ({ message: 'Delete failed' }));

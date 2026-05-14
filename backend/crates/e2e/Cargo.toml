@@ -14,3 +14,4 @@ tokio = { version = "1.52.3", features = ["full"] }
 tower = { version = "0.5", features = ["util"] }
 uuid  = { version = "1.23.1", features = ["v4", "serde"] }
 wiremock = "0.6"
+common = { path = "../common" }

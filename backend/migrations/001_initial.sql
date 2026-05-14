@@ -134,7 +134,7 @@ CREATE TABLE sets (
     loser_entrant_id  UUID        NOT NULL REFERENCES entrants(id),
     round             INTEGER,           -- raw round number from start.gg
     round_name        TEXT,              -- display name, e.g. "Winners Finals", "Grand Finals"
-    best_of           SMALLINT,          -- format: 3, 5, or 7
+    total_games       SMALLINT,          -- format: 3, 5, or 7
     winner_score      SMALLINT,          -- games won by winner
     loser_score       SMALLINT,          -- games won by loser
     is_dq             BOOLEAN     NOT NULL DEFAULT FALSE,
@@ -153,6 +153,8 @@ CREATE TABLE jobs (
     id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     kind       job_kind    NOT NULL,
     project_id UUID        NOT NULL REFERENCES ranking_projects(id) ON DELETE CASCADE,
+    params     JSONB       NOT NULL DEFAULT '{}',
+    result     JSONB,
     status     job_status  NOT NULL DEFAULT 'pending',
     error      TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

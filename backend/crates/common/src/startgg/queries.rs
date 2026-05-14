@@ -71,7 +71,7 @@ pub(crate) struct UserBySlugData {
 #[derive(Deserialize, Debug, Clone)]
 pub struct UserNode {
     pub id: i64,
-    pub name: String,
+    pub name: Option<String>,
 }
 
 // ── Tournaments by user ───────────────────────────────────────────────────────
@@ -237,7 +237,7 @@ pub struct SetNode {
     pub winner_id: Option<i64>,
     pub round: Option<i32>,
     pub full_round_text: Option<String>,
-    pub best_of: Option<i32>,
+    pub total_games: Option<i32>,
     pub completed_at: Option<i64>,
     pub vod_url: Option<String>,
     pub slots: Vec<SetSlot>,

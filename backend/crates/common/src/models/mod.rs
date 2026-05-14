@@ -7,6 +7,8 @@ pub struct Job {
     pub id: Uuid,
     pub kind: String,
     pub project_id: Uuid,
+    pub params: serde_json::Value,
+    pub result: Option<serde_json::Value>,
     pub status: String,
     pub error: Option<String>,
     pub created_at: DateTime<Utc>,

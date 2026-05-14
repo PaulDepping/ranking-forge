@@ -1,6 +1,7 @@
 use axum::http::{HeaderName, HeaderValue, Method, Request, header};
 use clap::Parser;
 use std::net::SocketAddr;
+use tokio::signal::unix::{SignalKind, signal};
 use tower_http::cors::CorsLayer;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::trace::{MakeSpan, TraceLayer};
@@ -85,5 +86,17 @@ async fn main() {
         .await
         .expect("failed to bind");
 
-    axum::serve(listener, app).await.expect("server error");
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .expect("server error");
+}
+
+async fn shutdown_signal() {
+    let mut sigterm = signal(SignalKind::terminate()).expect("failed to install SIGTERM handler");
+    let mut sigint = signal(SignalKind::interrupt()).expect("failed to install SIGINT handler");
+    tokio::select! {
+        _ = sigterm.recv() => tracing::info!("received SIGTERM, shutting down"),
+        _ = sigint.recv() => tracing::info!("received SIGINT, shutting down"),
+    }
 }

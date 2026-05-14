@@ -58,7 +58,7 @@
 								<td colspan={5} class="px-8 py-3">
 									<p class="mb-2 text-xs font-semibold text-muted-foreground">{label}</p>
 									<div class="space-y-1">
-										{#each sets as set (set.opponent_id + set.upset_factor)}
+										{#each sets as set, i (i)}
 											{@const ps = isWins ? set.winner_score : set.loser_score}
 											{@const os = isWins ? set.loser_score : set.winner_score}
 											<div class="flex justify-between text-xs">

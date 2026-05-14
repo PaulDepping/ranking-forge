@@ -4,20 +4,20 @@ import { makeApi } from '$lib/api';
 import type { Player } from '$lib/types';
 import { INTERNAL_API_URL } from '$env/static/private';
 
-export const load: PageServerLoad = async ({ fetch, params }) => {
-	const api = makeApi(fetch, INTERNAL_API_URL);
+export const load: PageServerLoad = async ({ fetch, params, cookies }) => {
+	const api = makeApi(fetch, INTERNAL_API_URL, cookies.get('session_id'));
 	const res = await api.get(`/projects/${params.id}/players`);
 	const players: Player[] = res.ok ? await res.json() : [];
 	return { players };
 };
 
 export const actions: Actions = {
-	addPlayer: async ({ fetch, request, params }) => {
+	addPlayer: async ({ fetch, request, params, cookies }) => {
 		const data = await request.formData();
 		const name = (data.get('name') as string)?.trim();
 		if (!name) return fail(422, { addError: 'Player name is required' });
 
-		const api = makeApi(fetch, INTERNAL_API_URL);
+		const api = makeApi(fetch, INTERNAL_API_URL, cookies.get('session_id'));
 		const res = await api.post(`/projects/${params.id}/players`, { name });
 		if (!res.ok) {
 			const err = await res.json().catch(() => ({ message: 'Failed to add player' }));
@@ -25,21 +25,21 @@ export const actions: Actions = {
 		}
 	},
 
-	deletePlayer: async ({ fetch, request, params }) => {
+	deletePlayer: async ({ fetch, request, params, cookies }) => {
 		const data = await request.formData();
 		const pid = data.get('pid') as string;
-		const api = makeApi(fetch, INTERNAL_API_URL);
+		const api = makeApi(fetch, INTERNAL_API_URL, cookies.get('session_id'));
 		const res = await api.delete(`/projects/${params.id}/players/${pid}`);
 		if (!res.ok) return fail(res.status, { deleteError: 'Failed to delete player' });
 	},
 
-	linkAccount: async ({ fetch, request, params }) => {
+	linkAccount: async ({ fetch, request, params, cookies }) => {
 		const data = await request.formData();
 		const pid = data.get('pid') as string;
 		const slug = (data.get('slug') as string)?.trim();
 		if (!slug) return fail(422, { linkError: 'Slug is required', linkPid: pid });
 
-		const api = makeApi(fetch, INTERNAL_API_URL);
+		const api = makeApi(fetch, INTERNAL_API_URL, cookies.get('session_id'));
 		const res = await api.post(`/projects/${params.id}/players/${pid}/accounts`, { slug });
 		if (!res.ok) {
 			const err = await res.json().catch(() => ({ message: 'Failed to link account' }));
@@ -47,11 +47,11 @@ export const actions: Actions = {
 		}
 	},
 
-	unlinkAccount: async ({ fetch, request, params }) => {
+	unlinkAccount: async ({ fetch, request, params, cookies }) => {
 		const data = await request.formData();
 		const pid = data.get('pid') as string;
 		const aid = data.get('aid') as string;
-		const api = makeApi(fetch, INTERNAL_API_URL);
+		const api = makeApi(fetch, INTERNAL_API_URL, cookies.get('session_id'));
 		const res = await api.delete(`/projects/${params.id}/players/${pid}/accounts/${aid}`);
 		if (!res.ok) return fail(res.status, { deleteError: 'Failed to unlink account' });
 	}

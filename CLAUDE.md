@@ -25,6 +25,29 @@ DESIGN.md         Architecture reference with full data model and API overview
 ROADMAP.md        Phase breakdown and implementation decisions
 ```
 
+## Test scripts
+
+```bash
+# Run all tests (backend + frontend unit + frontend e2e)
+bash test.sh
+
+# Backend only — spins up an ephemeral Postgres container via Docker, then runs cargo test --workspace
+bash backend/test.sh
+
+# Frontend unit tests only
+cd web && npm run test:unit
+
+# Frontend e2e tests only (Playwright auto-starts mock API + SvelteKit dev server)
+cd web && npm run test:e2e
+
+# Update the sqlx offline query cache after adding/modifying any sqlx::query! macro
+bash backend/prepare-sqlx.sh
+```
+
+`backend/test.sh` handles the full backend suite (common, api, e2e) without a pre-existing database.
+`backend/prepare-sqlx.sh` runs migrations then `cargo sqlx prepare --workspace -- --all-targets` against a fresh container.
+Playwright e2e tests are self-contained: the config auto-starts a mock API on port 9999 and the SvelteKit dev server on port 5174.
+
 ## Backend commands
 
 All commands run from `backend/`:
@@ -49,11 +72,6 @@ DATABASE_URL=postgres://... cargo test -p e2e
 # Run a single test
 cargo test -p api -- test_name
 cargo test -p common -- test_name
-
-# After adding any sqlx::query! macro — update the offline cache
-cargo sqlx prepare
-# If tests have query macros too:
-cargo sqlx prepare --workspace -- --all-targets
 ```
 
 ## Environment variables
@@ -68,7 +86,7 @@ cargo sqlx prepare --workspace -- --all-targets
 
 ### sqlx compile-time query checking
 
-All DB queries use `sqlx::query!` macros. The schema is the source of truth for Rust types. After adding any new `sqlx::query!` block, run `cargo sqlx prepare` from `backend/` to update `.sqlx/`. The `.sqlx/` directory is committed.
+All DB queries use `sqlx::query!` macros. The schema is the source of truth for Rust types. After adding any new `sqlx::query!` block, run `bash backend/prepare-sqlx.sh` to update `.sqlx/`. The `.sqlx/` directory is committed.
 
 ### StartggClient injection
 

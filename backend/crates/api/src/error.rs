@@ -36,6 +36,10 @@ impl From<StartggError> for AppError {
                 tracing::error!("start.gg GraphQL error: {msg}");
                 AppError::ExternalApiError
             }
+            StartggError::Decode(msg) => {
+                tracing::error!("start.gg response decode error: {msg}");
+                AppError::ExternalApiError
+            }
         }
     }
 }
@@ -44,7 +48,10 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, msg): (StatusCode, String) = match &self {
             AppError::NotFound => (StatusCode::NOT_FOUND, "not found".into()),
-            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "unauthorized".into()),
+            AppError::Unauthorized => {
+                tracing::warn!("unauthorized request");
+                (StatusCode::UNAUTHORIZED, "unauthorized".into())
+            }
             AppError::UnprocessableEntity(m) => (StatusCode::UNPROCESSABLE_ENTITY, m.clone()),
             AppError::Db(sqlx::Error::RowNotFound) => (StatusCode::NOT_FOUND, "not found".into()),
             AppError::Db(e) => {
