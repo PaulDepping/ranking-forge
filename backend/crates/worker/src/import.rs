@@ -471,8 +471,13 @@ async fn import_sets(
         let mut page_sets = 0usize;
 
         for set in &set_page.nodes {
+            // Skip bye sets (one slot is a placeholder, not a real match)
+            if set.has_placeholder.unwrap_or(false) {
+                continue;
+            }
+
             let (Some(winner_sg_id), Some(loser_sg_id)) = (set.winner_id, set.loser_id()) else {
-                continue; // in-progress or bye
+                continue; // in-progress or unresolvable
             };
             let (Some(&winner_uuid), Some(&loser_uuid)) = (
                 entrant_map.get(&winner_sg_id),
@@ -482,15 +487,26 @@ async fn import_sets(
                 continue;
             };
 
+            let phase_group_id: Option<Uuid> = set
+                .phase_group
+                .as_ref()
+                .and_then(|pg| phase_group_map.get(&pg.id))
+                .copied();
+
             let (winner_score, loser_score) = set.scores();
             let completed_at = set.completed_at.map(ts_to_dt);
 
             sqlx::query!(
                 r#"INSERT INTO sets
-                       (event_id, startgg_set_id, winner_entrant_id, loser_entrant_id,
-                        round, round_name, total_games, winner_score, loser_score, is_dq, vod_url, completed_at)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                       (event_id, phase_group_id, startgg_set_id,
+                        winner_entrant_id, loser_entrant_id,
+                        round, round_name, total_games,
+                        winner_score, loser_score,
+                        is_dq, has_placeholder, state, identifier,
+                        vod_url, completed_at)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
                    ON CONFLICT (event_id, startgg_set_id) DO UPDATE SET
+                       phase_group_id    = EXCLUDED.phase_group_id,
                        winner_entrant_id = EXCLUDED.winner_entrant_id,
                        loser_entrant_id  = EXCLUDED.loser_entrant_id,
                        round             = EXCLUDED.round,
@@ -499,9 +515,13 @@ async fn import_sets(
                        winner_score      = EXCLUDED.winner_score,
                        loser_score       = EXCLUDED.loser_score,
                        is_dq             = EXCLUDED.is_dq,
+                       has_placeholder   = EXCLUDED.has_placeholder,
+                       state             = EXCLUDED.state,
+                       identifier        = EXCLUDED.identifier,
                        vod_url           = EXCLUDED.vod_url,
                        completed_at      = EXCLUDED.completed_at"#,
                 event_db_id,
+                phase_group_id,
                 set.id,
                 winner_uuid,
                 loser_uuid,
@@ -511,6 +531,9 @@ async fn import_sets(
                 winner_score,
                 loser_score,
                 set.is_dq(),
+                set.has_placeholder.unwrap_or(false),
+                set.state,
+                set.identifier.as_deref(),
                 set.vod_url.as_deref(),
                 completed_at,
             )
