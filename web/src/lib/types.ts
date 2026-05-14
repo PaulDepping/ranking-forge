@@ -68,6 +68,20 @@ export interface SetRecord {
 	upset_factor: number;
 	winner_score: number | null;
 	loser_score: number | null;
+	tournament_name: string;
+	tournament_slug: string;
+	event_name: string;
+	round_name: string | null;
+	completed_at: string | null;
+	is_dq: boolean;
+	vod_url: string | null;
+	startgg_set_id: number;
+	winner_seed: number | null;
+	loser_seed: number | null;
+}
+
+export interface H2HSet extends SetRecord {
+	is_win: boolean;
 }
 
 export interface PlayerStats {
