@@ -1,6 +1,8 @@
-import { render, screen } from '@testing-library/svelte';
+import { render, screen, fireEvent } from '@testing-library/svelte';
 import { describe, it, expect } from 'vitest';
 import Page from './+page.svelte';
+
+vi.mock('$env/static/public', () => ({ PUBLIC_API_URL: 'http://localhost:8080' }));
 
 const user = { id: 'u1', username: 'testuser', created_at: '2026-01-01T00:00:00Z' };
 const project = { id: 'proj-1', name: 'Test Project', game_id: null, game_name: null, created_at: '2026-01-01T00:00:00Z' };
@@ -56,5 +58,16 @@ describe('H2H page', () => {
 		const dashCells = screen.getAllByText('—');
 		// One dash per player (3 players → 3 diagonal cells)
 		expect(dashCells.length).toBe(players.length);
+	});
+
+	it('renders non-diagonal cells as clickable buttons', () => {
+		render(Page, { data: { user, project, players, h2h } });
+		// Alice vs Bob cell shows "3–1" as a button
+		expect(screen.getByRole('button', { name: '3–1' })).toBeInTheDocument();
+	});
+
+	it('does not show side panel before any cell is clicked', () => {
+		render(Page, { data: { user, project, players, h2h } });
+		expect(screen.queryByText(/wins ·/i)).not.toBeInTheDocument();
 	});
 });

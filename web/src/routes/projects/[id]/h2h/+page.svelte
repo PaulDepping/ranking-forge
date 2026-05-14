@@ -1,10 +1,57 @@
 <script lang="ts">
-	import type { HeadToHeadEntry } from '$lib/types';
+	import { PUBLIC_API_URL } from '$env/static/public';
+	import type { HeadToHeadEntry, H2HSet } from '$lib/types';
+	import SetDetailModal from '$lib/components/SetDetailModal.svelte';
 
 	let { data } = $props();
 
+	interface SelectedPair {
+		rowPlayer: { id: string; name: string };
+		colPlayer: { id: string; name: string };
+		sets: H2HSet[];
+		wins: number;
+		losses: number;
+	}
+
+	let selectedPair = $state<SelectedPair | null>(null);
+	let loading = $state(false);
+	let selectedSet = $state<H2HSet | null>(null);
+	let selectedIsWin = $state(false);
+
+	async function selectCell(
+		rowPlayer: { id: string; name: string },
+		colPlayer: { id: string; name: string }
+	) {
+		if (
+			selectedPair?.rowPlayer.id === rowPlayer.id &&
+			selectedPair?.colPlayer.id === colPlayer.id
+		) {
+			selectedPair = null;
+			return;
+		}
+		loading = true;
+		selectedPair = null;
+		const res = await fetch(
+			`${PUBLIC_API_URL}/projects/${data.project.id}/head-to-head/${rowPlayer.id}/${colPlayer.id}/sets`,
+			{ credentials: 'include' }
+		);
+		const sets: H2HSet[] = res.ok ? await res.json() : [];
+		selectedPair = {
+			rowPlayer,
+			colPlayer,
+			sets,
+			wins: sets.filter((s) => s.is_win).length,
+			losses: sets.filter((s) => !s.is_win).length,
+		};
+		loading = false;
+	}
+
+	function isSelected(rowId: string, colId: string): boolean {
+		return selectedPair?.rowPlayer.id === rowId && selectedPair?.colPlayer.id === colId;
+	}
+
 	function getRecord(rowId: string, colId: string): HeadToHeadEntry | undefined {
-		return data.h2h.find((e) => e.player_id === rowId && e.opponent_id === colId);
+		return data.h2h.find((e: HeadToHeadEntry) => e.player_id === rowId && e.opponent_id === colId);
 	}
 </script>
 
@@ -14,44 +61,110 @@
 	{#if data.players.length < 2 || data.h2h.length === 0}
 		<p class="text-sm text-muted-foreground">No head-to-head data yet. Import tournaments first.</p>
 	{:else}
-		<div class="overflow-x-auto">
-			<table class="text-sm border-collapse">
-				<thead>
-					<tr>
-						<th class="w-32 pb-2 text-left text-muted-foreground font-normal pr-3"></th>
-						{#each data.players as col (col.id)}
-							<th class="pb-2 px-2 text-center font-medium" style="min-width:5rem">
-								<span class="block truncate max-w-[5rem]" title={col.name}>{col.name}</span>
-							</th>
-						{/each}
-					</tr>
-				</thead>
-				<tbody>
-					{#each data.players as row (row.id)}
+		<div class="flex gap-4 items-start flex-wrap">
+			<!-- Matrix -->
+			<div class="overflow-x-auto">
+				<table class="border-collapse text-sm">
+					<thead>
 						<tr>
-							<td class="py-1 pr-3 font-medium truncate max-w-[8rem]" title={row.name}>{row.name}</td>
+							<th class="w-32 pb-2 pr-3 text-left font-normal text-muted-foreground"></th>
 							{#each data.players as col (col.id)}
-								{#if row.id === col.id}
-									<td class="py-1 px-2 text-center text-muted-foreground">—</td>
-								{:else}
-									{@const rec = getRecord(row.id, col.id)}
-									<td class="py-1 px-2 text-center tabular-nums rounded
-										{rec ? (rec.wins > rec.losses ? 'bg-green-50 dark:bg-green-950/30' : rec.wins < rec.losses ? 'bg-red-50 dark:bg-red-950/30' : '') : ''}">
-										{#if rec}
-											<span class={rec.wins > rec.losses ? 'text-green-700 dark:text-green-400' : rec.wins < rec.losses ? 'text-red-700 dark:text-red-400' : ''}>
-												{rec.wins}–{rec.losses}
-											</span>
-										{:else}
-											<span class="text-muted-foreground">—</span>
-										{/if}
-									</td>
-								{/if}
+								<th class="px-2 pb-2 text-center font-medium" style="min-width:5rem">
+									<span class="block max-w-[5rem] truncate" title={col.name}>{col.name}</span>
+								</th>
 							{/each}
 						</tr>
-					{/each}
-				</tbody>
-			</table>
+					</thead>
+					<tbody>
+						{#each data.players as row (row.id)}
+							<tr>
+								<td class="max-w-[8rem] truncate py-1 pr-3 font-medium" title={row.name}>{row.name}</td>
+								{#each data.players as col (col.id)}
+									{#if row.id === col.id}
+										<td class="px-2 py-1 text-center text-muted-foreground">—</td>
+									{:else}
+										{@const rec = getRecord(row.id, col.id)}
+										<td class="px-2 py-1 text-center tabular-nums">
+											{#if rec}
+												<button
+													class="rounded px-1
+														{isSelected(row.id, col.id)
+															? 'ring-2 ring-primary bg-primary/10'
+															: rec.wins > rec.losses
+																? 'bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400'
+																: rec.wins < rec.losses
+																	? 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-400'
+																	: ''}"
+													onclick={() => selectCell(row, col)}
+												>
+													{rec.wins}–{rec.losses}
+												</button>
+											{:else}
+												<span class="text-muted-foreground">—</span>
+											{/if}
+										</td>
+									{/if}
+								{/each}
+							</tr>
+						{/each}
+					</tbody>
+				</table>
+				<p class="mt-1 text-xs text-muted-foreground">Row player's record vs. column player</p>
+			</div>
+
+			<!-- Side panel -->
+			{#if loading}
+				<div class="flex items-center justify-center rounded-md border border-border p-6 text-sm text-muted-foreground min-w-[200px]">
+					Loading…
+				</div>
+			{:else if selectedPair}
+				<div class="rounded-md border border-border p-3 min-w-[220px] flex-1 max-w-xs">
+					<div class="mb-3 flex items-start justify-between gap-2 border-b border-border pb-2">
+						<div>
+							<p class="font-semibold text-sm">{selectedPair.rowPlayer.name} vs {selectedPair.colPlayer.name}</p>
+							<p class="text-xs text-muted-foreground">{selectedPair.wins} wins · {selectedPair.losses} losses</p>
+						</div>
+						<button
+							class="text-muted-foreground hover:text-foreground text-lg leading-none"
+							onclick={() => (selectedPair = null)}
+							aria-label="Close panel"
+						>×</button>
+					</div>
+					{#if selectedPair.sets.length === 0}
+						<p class="text-xs text-muted-foreground">No sets found.</p>
+					{:else}
+						<div class="space-y-px">
+							{#each selectedPair.sets as set, i (i)}
+								<button
+									class="w-full flex items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-muted/50 border-b border-border last:border-0"
+									onclick={() => { selectedSet = set; selectedIsWin = set.is_win; }}
+								>
+									<span class={set.is_win ? 'font-bold text-green-600 dark:text-green-400 min-w-[12px]' : 'font-bold text-red-600 dark:text-red-400 min-w-[12px]'}>
+										{set.is_win ? 'W' : 'L'}
+									</span>
+									{#if set.winner_score !== null && set.loser_score !== null}
+										<span class="tabular-nums">
+											{set.is_win ? `${set.winner_score}–${set.loser_score}` : `${set.loser_score}–${set.winner_score}`}
+										</span>
+									{/if}
+									<span class="text-muted-foreground truncate flex-1 text-left">{set.tournament_name}</span>
+									{#if set.round_name}
+										<span class="text-muted-foreground shrink-0">{set.round_name}</span>
+									{/if}
+								</button>
+							{/each}
+						</div>
+					{/if}
+					<p class="mt-2 text-xs text-muted-foreground">Click a row for full details</p>
+				</div>
+			{/if}
 		</div>
-		<p class="text-xs text-muted-foreground">Row player's record vs. column player</p>
 	{/if}
 </div>
+
+<SetDetailModal
+	set={selectedSet}
+	isWin={selectedIsWin}
+	currentPlayerName={selectedPair?.rowPlayer.name ?? ''}
+	onClose={() => (selectedSet = null)}
+/>
