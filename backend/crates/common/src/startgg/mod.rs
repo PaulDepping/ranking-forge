@@ -15,18 +15,6 @@ use thiserror::Error;
 
 const STARTGG_BASE_URL: &str = "https://api.start.gg/gql/alpha";
 
-fn parse_complexity_error(msg: &str) -> Option<StartggError> {
-    use regex::Regex;
-    static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
-    let re = RE.get_or_init(|| {
-        Regex::new(r"A maximum of (\d+) objects may be returned.*\(actual: (\d+)\)").unwrap()
-    });
-    let caps = re.captures(msg)?;
-    let limit = caps[1].parse::<u32>().ok()?;
-    let actual = caps[2].parse::<u32>().ok()?;
-    Some(StartggError::ComplexityTooHigh { limit, actual })
-}
-
 #[derive(Debug, Error)]
 pub enum StartggError {
     #[error("HTTP error: {0}")]
@@ -37,6 +25,18 @@ pub enum StartggError {
     ComplexityTooHigh { limit: u32, actual: u32 },
     #[error("response decode error: {0}")]
     Decode(String),
+}
+
+fn parse_complexity_error(msg: &str) -> Option<StartggError> {
+    use regex::Regex;
+    static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    let re = RE.get_or_init(|| {
+        Regex::new(r"A maximum of (\d+) objects may be returned.*\(actual: (\d+)\)").unwrap()
+    });
+    let caps = re.captures(msg)?;
+    let limit = caps[1].parse::<u32>().ok()?;
+    let actual = caps[2].parse::<u32>().ok()?;
+    Some(StartggError::ComplexityTooHigh { limit, actual })
 }
 
 #[derive(Clone)]
