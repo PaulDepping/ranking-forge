@@ -84,7 +84,10 @@ impl StartggClient {
                 },
             )
             .await?;
-        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
+        tracing::debug!(
+            elapsed_ms = t.elapsed().as_millis(),
+            "startgg query complete"
+        );
         Ok(data.videogames.nodes)
     }
 
@@ -99,7 +102,10 @@ impl StartggClient {
                 },
             )
             .await?;
-        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
+        tracing::debug!(
+            elapsed_ms = t.elapsed().as_millis(),
+            "startgg query complete"
+        );
         Ok(data.user)
     }
 
@@ -123,7 +129,10 @@ impl StartggClient {
                 },
             )
             .await?;
-        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
+        tracing::debug!(
+            elapsed_ms = t.elapsed().as_millis(),
+            "startgg query complete"
+        );
         Ok(data
             .user
             .map(|u| u.tournaments)
@@ -151,7 +160,10 @@ impl StartggClient {
                 },
             )
             .await?;
-        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
+        tracing::debug!(
+            elapsed_ms = t.elapsed().as_millis(),
+            "startgg query complete"
+        );
         Ok(data
             .event
             .map(|e| e.entrants)
@@ -179,7 +191,10 @@ impl StartggClient {
                 },
             )
             .await?;
-        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
+        tracing::debug!(
+            elapsed_ms = t.elapsed().as_millis(),
+            "startgg query complete"
+        );
         Ok(data.event.map(|e| e.sets).unwrap_or_else(|| SetPage {
             page_info: None,
             nodes: vec![],

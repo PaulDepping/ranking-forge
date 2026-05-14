@@ -30,9 +30,7 @@ pub struct JobResponse {
 impl From<Job> for JobResponse {
     fn from(j: Job) -> Self {
         let params = ImportParams::from_job(&j);
-        let to_date = |ts: i64| {
-            Utc.timestamp_opt(ts, 0).single().map(|dt| dt.date_naive())
-        };
+        let to_date = |ts: i64| Utc.timestamp_opt(ts, 0).single().map(|dt| dt.date_naive());
         JobResponse {
             id: j.id,
             status: j.status,

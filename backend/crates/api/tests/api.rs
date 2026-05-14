@@ -1327,16 +1327,13 @@ async fn stats_includes_non_project_opponent(pool: PgPool) {
     let pid_str = create_project(&app, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
-    let alice_id =
-        Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
+    let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
 
     let (_, event_id) = seed_tournament_event(&pool, pid, 2010, 3010).await;
 
     // Alice (seed 2) and a non-project entrant "Outsider" (seed 7)
-    let alice_e =
-        seed_entrant_named(&pool, event_id, Some(alice_id), 110, "Alice", Some(2)).await;
-    let outside_e =
-        seed_entrant_named(&pool, event_id, None, 111, "Outsider", Some(7)).await;
+    let alice_e = seed_entrant_named(&pool, event_id, Some(alice_id), 110, "Alice", Some(2)).await;
+    let outside_e = seed_entrant_named(&pool, event_id, None, 111, "Outsider", Some(7)).await;
 
     // Outsider beats Alice
     seed_set(&pool, event_id, outside_e, alice_e, 510).await;
@@ -1353,10 +1350,7 @@ async fn stats_includes_non_project_opponent(pool: PgPool) {
     assert_eq!(alice["losses"].as_array().unwrap().len(), 1);
     assert_eq!(alice["losses"][0]["opponent_name"], "Outsider");
     // opponent_id for non-project entrants is the entrant UUID, not a player UUID
-    assert_eq!(
-        alice["losses"][0]["opponent_id"],
-        outside_e.to_string()
-    );
+    assert_eq!(alice["losses"][0]["opponent_id"], outside_e.to_string());
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -1366,10 +1360,8 @@ async fn stats_returns_game_scores(pool: PgPool) {
     let pid_str = create_project(&app, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
-    let alice_id =
-        Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
-    let bob_id =
-        Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
+    let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
+    let bob_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
 
     let (_, event_id) = seed_tournament_event(&pool, pid, 2011, 3011).await;
     let alice_e = seed_entrant(&pool, event_id, Some(alice_id), 112, Some(1)).await;

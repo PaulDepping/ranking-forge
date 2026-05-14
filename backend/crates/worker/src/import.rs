@@ -69,7 +69,10 @@ pub async fn run(
         )
         .await?;
     }
-    tracing::info!(unique_tournament_count = seen.len(), "collection complete, starting import");
+    tracing::info!(
+        unique_tournament_count = seen.len(),
+        "collection complete, starting import"
+    );
 
     // Phase 2: import each unique tournament exactly once
     for (_, tournament) in &seen {
@@ -133,7 +136,6 @@ async fn collect_user_tournaments(
             break;
         }
         page += 1;
-        tokio::time::sleep(Duration::from_millis(200)).await;
     }
 
     tracing::info!(scanned, newly_added, "user tournaments scanned");
@@ -319,7 +321,11 @@ async fn import_entrants(
             entrant_map.insert(entrant.id, row.id);
         }
 
-        tracing::debug!(page, entrant_count = entrant_page.nodes.len(), "entrants page imported");
+        tracing::debug!(
+            page,
+            entrant_count = entrant_page.nodes.len(),
+            "entrants page imported"
+        );
 
         let total_pages = entrant_page
             .page_info
@@ -330,7 +336,6 @@ async fn import_entrants(
             break;
         }
         page += 1;
-        tokio::time::sleep(Duration::from_millis(200)).await;
     }
 
     Ok(entrant_map)
@@ -413,7 +418,6 @@ async fn import_sets(
             break;
         }
         page += 1;
-        tokio::time::sleep(Duration::from_millis(200)).await;
     }
 
     Ok(total_sets)

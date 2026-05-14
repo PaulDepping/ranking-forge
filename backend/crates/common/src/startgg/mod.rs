@@ -63,26 +63,30 @@ impl StartggClient {
         use backon::{ExponentialBuilder, Retryable};
         use queries::{GqlRequest, GqlResponse};
 
-        let vars = serde_json::to_value(variables)
-            .map_err(|e| StartggError::GraphQL(e.to_string()))?;
+        let vars =
+            serde_json::to_value(variables).map_err(|e| StartggError::GraphQL(e.to_string()))?;
 
         (|| async {
             let body = self
                 .http
                 .post(&self.base_url)
                 .bearer_auth(&self.api_key)
-                .json(&GqlRequest { query, variables: &vars })
+                .json(&GqlRequest {
+                    query,
+                    variables: &vars,
+                })
                 .send()
                 .await?
                 .error_for_status()?
                 .text()
                 .await?;
 
-            let resp: GqlResponse<serde_json::Value> = serde_json::from_str(&body).map_err(|e| {
-                let preview: String = body.chars().take(500).collect();
-                tracing::error!(body = %preview, "failed to decode start.gg response: {e}");
-                StartggError::Decode(e.to_string())
-            })?;
+            let resp: GqlResponse<serde_json::Value> =
+                serde_json::from_str(&body).map_err(|e| {
+                    let preview: String = body.chars().take(500).collect();
+                    tracing::error!(body = %preview, "failed to decode start.gg response: {e}");
+                    StartggError::Decode(e.to_string())
+                })?;
 
             if let Some(errors) = resp.errors {
                 let msg = errors
@@ -94,7 +98,8 @@ impl StartggClient {
                 return Err(StartggError::GraphQL(msg));
             }
 
-            let data_value = resp.data
+            let data_value = resp
+                .data
                 .ok_or_else(|| StartggError::GraphQL("empty data field in response".into()))?;
             serde_json::from_value(data_value).map_err(|e| {
                 tracing::error!("failed to decode start.gg data: {e}");
@@ -113,7 +118,7 @@ impl StartggClient {
                 == Some(reqwest::StatusCode::TOO_MANY_REQUESTS))
         })
         .notify(|_err, dur| {
-            tracing::warn!(?dur, "start.gg rate limited; retrying");
+            tracing::info!(?dur, "start.gg rate limited; retrying");
         })
         .await
     }

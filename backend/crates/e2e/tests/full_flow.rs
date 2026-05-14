@@ -299,9 +299,14 @@ async fn full_import_flow(pool: PgPool) {
 
     let project_uuid = Uuid::parse_str(&project_id).unwrap();
     let startgg_worker = StartggClient::new_with_base_url("test-key".into(), base_url.into());
-    worker::import::run(&pool, &startgg_worker, project_uuid, common::jobs::ImportParams::default())
-        .await
-        .unwrap();
+    worker::import::run(
+        &pool,
+        &startgg_worker,
+        project_uuid,
+        common::jobs::ImportParams::default(),
+    )
+    .await
+    .unwrap();
 
     // ── Tournaments ───────────────────────────────────────────────────────────
 
@@ -339,9 +344,18 @@ async fn full_import_flow(pool: PgPool) {
     assert_eq!(armada_stats["losses"], json!([]));
 
     // Enriched fields
-    assert_eq!(armada_stats["wins"][0]["tournament_name"], json!("Test Tournament"));
-    assert_eq!(armada_stats["wins"][0]["tournament_slug"], json!("tournament/test-2024"));
-    assert_eq!(armada_stats["wins"][0]["event_name"], json!("Melee Singles"));
+    assert_eq!(
+        armada_stats["wins"][0]["tournament_name"],
+        json!("Test Tournament")
+    );
+    assert_eq!(
+        armada_stats["wins"][0]["tournament_slug"],
+        json!("tournament/test-2024")
+    );
+    assert_eq!(
+        armada_stats["wins"][0]["event_name"],
+        json!("Melee Singles")
+    );
     assert_eq!(armada_stats["wins"][0]["round_name"], json!("Round 1"));
     assert_eq!(armada_stats["wins"][0]["winner_seed"], json!(7));
     assert_eq!(armada_stats["wins"][0]["loser_seed"], json!(2));
@@ -358,7 +372,10 @@ async fn full_import_flow(pool: PgPool) {
     assert_eq!(mango_stats["losses"][0]["upset_factor"], json!(3));
 
     // Loser-side construction path covered
-    assert_eq!(mango_stats["losses"][0]["tournament_name"], json!("Test Tournament"));
+    assert_eq!(
+        mango_stats["losses"][0]["tournament_name"],
+        json!("Test Tournament")
+    );
 
     // ── Head-to-head ──────────────────────────────────────────────────────────
 

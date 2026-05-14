@@ -148,7 +148,9 @@ mod tests {
     #[sqlx::test(migrations = "../../migrations")]
     async fn mark_shutdown_marks_running_jobs_failed(pool: PgPool) {
         let project_id = setup_project(&pool).await;
-        let job = enqueue(&pool, project_id, ImportParams::default()).await.unwrap();
+        let job = enqueue(&pool, project_id, ImportParams::default())
+            .await
+            .unwrap();
         claim(&pool).await.unwrap();
 
         mark_shutdown(&pool, &[job.id]).await.unwrap();

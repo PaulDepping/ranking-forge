@@ -436,8 +436,16 @@ pub async fn get_stats(
     resp.sort_by(|a, b| {
         let a_total = a.wins.len() + a.losses.len();
         let b_total = b.wins.len() + b.losses.len();
-        let a_rate = if a_total == 0 { -1.0_f64 } else { a.wins.len() as f64 / a_total as f64 };
-        let b_rate = if b_total == 0 { -1.0_f64 } else { b.wins.len() as f64 / b_total as f64 };
+        let a_rate = if a_total == 0 {
+            -1.0_f64
+        } else {
+            a.wins.len() as f64 / a_total as f64
+        };
+        let b_rate = if b_total == 0 {
+            -1.0_f64
+        } else {
+            b.wins.len() as f64 / b_total as f64
+        };
         b_rate
             .partial_cmp(&a_rate)
             .unwrap_or(std::cmp::Ordering::Equal)

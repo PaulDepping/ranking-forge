@@ -74,7 +74,10 @@ async fn main() {
     let app = api::routes::router()
         .layer(TraceLayer::new_for_http().make_span_with(SpanWithRequestId::default()))
         .layer(PropagateRequestIdLayer::new(X_REQUEST_ID.clone()))
-        .layer(SetRequestIdLayer::new(X_REQUEST_ID.clone(), MakeRequestUuid))
+        .layer(SetRequestIdLayer::new(
+            X_REQUEST_ID.clone(),
+            MakeRequestUuid,
+        ))
         .layer(cors)
         .with_state(state);
 

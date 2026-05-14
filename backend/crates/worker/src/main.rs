@@ -1,7 +1,7 @@
 use clap::Parser;
 use sqlx::postgres::PgListener;
 use std::time::Duration;
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::signal::unix::{SignalKind, signal};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
@@ -24,7 +24,10 @@ async fn shutdown(pool: &sqlx::PgPool, in_flight: Vec<(Uuid, JoinHandle<()>)>) {
         tracing::info!("shutdown: no in-flight jobs");
         return;
     }
-    tracing::info!(count = job_ids.len(), "shutdown: aborting in-flight imports");
+    tracing::info!(
+        count = job_ids.len(),
+        "shutdown: aborting in-flight imports"
+    );
     if let Err(e) = common::jobs::mark_shutdown(pool, &job_ids).await {
         tracing::error!(%e, "shutdown: failed to mark in-flight jobs as failed");
     }
