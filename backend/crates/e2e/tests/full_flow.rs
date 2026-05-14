@@ -163,6 +163,7 @@ async fn full_import_flow(pool: PgPool) {
                 }
             }
         })))
+        .expect(2)
         .mount(&mock)
         .await;
 
@@ -194,6 +195,7 @@ async fn full_import_flow(pool: PgPool) {
                 }
             }
         })))
+        .expect(1)
         .mount(&mock)
         .await;
 
@@ -211,7 +213,7 @@ async fn full_import_flow(pool: PgPool) {
                             "winnerId": 3002_i64,
                             "round": 1,
                             "fullRoundText": "Round 1",
-                            "bestOf": 5,
+                            "totalGames": 5,
                             "completedAt": 1700050000_i64,
                             "vodUrl": null,
                             "slots": [
@@ -229,6 +231,7 @@ async fn full_import_flow(pool: PgPool) {
                 }
             }
         })))
+        .expect(1)
         .mount(&mock)
         .await;
 
@@ -296,7 +299,7 @@ async fn full_import_flow(pool: PgPool) {
 
     let project_uuid = Uuid::parse_str(&project_id).unwrap();
     let startgg_worker = StartggClient::new_with_base_url("test-key".into(), base_url.into());
-    worker::import::run(&pool, &startgg_worker, project_uuid)
+    worker::import::run(&pool, &startgg_worker, project_uuid, common::jobs::ImportParams::default())
         .await
         .unwrap();
 
