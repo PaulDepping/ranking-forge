@@ -197,7 +197,6 @@ pub struct EventNode {
     #[serde(rename = "type")]
     pub event_type: Option<i32>,
     pub team_roster_size: Option<TeamRosterSize>,
-    pub phases: Option<Vec<PhaseNode>>,
 }
 
 // ── Event entrants ────────────────────────────────────────────────────────────

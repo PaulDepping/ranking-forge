@@ -40,16 +40,6 @@ const TOURNAMENTS_BY_USER_QUERY: &str = r#"
                         id name numEntrants startAt
                         slug state isOnline type
                         teamRosterSize { minPlayers maxPlayers }
-                        phases {
-                            id name bracketType phaseOrder
-                            numSeeds groupCount state isExhibition
-                            phaseGroups(query: { perPage: 100 }) {
-                                nodes {
-                                    id displayIdentifier bracketType bracketUrl
-                                    numRounds startAt firstRoundTime state
-                                }
-                            }
-                        }
                     }
                 }
             }

@@ -285,13 +285,9 @@ async fn import_event(
     .execute(pool)
     .await?;
 
-    // Upsert phases and phase groups, building startgg_phase_group_id → UUID map
-    let phase_group_map = upsert_phases(
-        pool,
-        event_db_id,
-        event.phases.as_deref().unwrap_or(&[]),
-    )
-    .await?;
+    // Fetch phases and phase groups for this event
+    let phases = startgg.event_phases(event.id).await?;
+    let phase_group_map = upsert_phases(pool, event_db_id, &phases).await?;
 
     // Import entrants, build startgg_entrant_id → DB uuid map for set resolution
     let entrant_map = import_entrants(pool, startgg, event_db_id, event.id, account_map).await?;
