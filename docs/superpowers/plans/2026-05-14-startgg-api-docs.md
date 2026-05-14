@@ -37,17 +37,17 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
 
-# Load STARTGG_API_KEY from backend/.env if not already set in environment
+# Load STARTGG_API_KEY from root .env if not already set in environment
 if [ -z "${STARTGG_API_KEY:-}" ]; then
-  ENV_FILE="$REPO_ROOT/backend/.env"
+  ENV_FILE="$REPO_ROOT/.env"
   if [ -f "$ENV_FILE" ]; then
     export $(grep -E '^STARTGG_API_KEY=' "$ENV_FILE" | xargs)
   fi
 fi
 
 if [ -z "${STARTGG_API_KEY:-}" ]; then
-  echo "Error: STARTGG_API_KEY is not set and was not found in backend/.env" >&2
-  echo "Set it in the environment or add STARTGG_API_KEY=<your-key> to backend/.env" >&2
+  echo "Error: STARTGG_API_KEY is not set and was not found in .env" >&2
+  echo "Set it in the environment or add STARTGG_API_KEY=<your-key> to .env" >&2
   exit 1
 fi
 
@@ -74,8 +74,8 @@ STARTGG_API_KEY="" bash docs/startgg/fetch-schema.sh
 
 Expected: exits non-zero with:
 ```
-Error: STARTGG_API_KEY is not set and was not found in backend/.env
-Set it in the environment or add STARTGG_API_KEY=<your-key> to backend/.env
+Error: STARTGG_API_KEY is not set and was not found in .env
+Set it in the environment or add STARTGG_API_KEY=<your-key> to .env
 ```
 
 - [ ] **Step 4: Commit**
@@ -92,7 +92,7 @@ git commit -m "docs(startgg): add fetch-schema.sh introspection script"
 **Files:**
 - Create: `docs/startgg/schema.graphql` (generated output)
 
-> **Prerequisite:** `STARTGG_API_KEY` must be set in your environment or in `backend/.env`. This task makes a live network request to `https://api.start.gg/gql/alpha`.
+> **Prerequisite:** `STARTGG_API_KEY` must be set in your environment or in the root `.env`. This task makes a live network request to `https://api.start.gg/gql/alpha`.
 
 - [ ] **Step 1: Run the script**
 
@@ -351,7 +351,7 @@ Local documentation lives in `docs/startgg/`:
 
 - `schema.graphql` — full SDL schema from GraphQL introspection; the authoritative type and field reference for the start.gg API
 - `project-notes.md` — the 5 GraphQL operations this project uses, rate limits, auth, and known API quirks (including the `ActivityState` string/int inconsistency)
-- `fetch-schema.sh` — run this to refresh `schema.graphql` before extending the query set; requires `STARTGG_API_KEY` in environment or `backend/.env`
+- `fetch-schema.sh` — run this to refresh `schema.graphql` before extending the query set; requires `STARTGG_API_KEY` in environment or root `.env`
 
 ```
 
