@@ -47,10 +47,13 @@ test('h2h page renders the player grid', async ({ page }) => {
 
 test('stats page renders player rankings', async ({ page }) => {
 	await page.goto('/projects/proj-1/stats');
-	await expect(page.getByText('Alice')).toBeVisible();
-	await expect(page.getByText('Bob')).toBeVisible();
-	// Alice's aggregate upset factor from mock data = 2.0
-	await expect(page.getByText('2.0')).toBeVisible();
+	// Player names appear as card headers (and also inside set rows, so use first())
+	await expect(page.getByText('Alice').first()).toBeVisible();
+	await expect(page.getByText('Bob').first()).toBeVisible();
+	// W/L summary visible in Alice's card (1 win, 1 loss)
+	await expect(page.getByText('W 1 · L 1 · 50%')).toBeVisible();
+	// Set row with integer UF
+	await expect(page.getByRole('button', { name: /Bob · UF 2/ }).first()).toBeVisible();
 });
 
 test('import page shows trigger button', async ({ page }) => {

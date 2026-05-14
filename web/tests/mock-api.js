@@ -47,23 +47,31 @@ const MOCK_H2H = [
 	{ player_id: 'player-3', opponent_id: 'player-2', wins: 1, losses: 2 }
 ];
 
+const MOCK_SET_BASE = {
+	winner_score: 3, loser_score: 1,
+	tournament_name: 'Test Tournament', tournament_slug: 'tournament/test-2024',
+	event_name: 'Melee Singles', round_name: 'Winners Quarters',
+	completed_at: '2024-01-20T18:00:00Z', is_dq: false,
+	vod_url: null, startgg_set_id: 1001, winner_seed: 3, loser_seed: 7,
+};
+
 const MOCK_STATS = [
 	{
 		player_id: 'player-1',
 		name: 'Alice',
-		wins: [{ opponent_id: 'player-2', opponent_name: 'Bob', upset_factor: 2.0 }],
-		losses: [{ opponent_id: 'player-3', opponent_name: 'Charlie', upset_factor: 0.5 }]
+		wins: [{ ...MOCK_SET_BASE, opponent_id: 'player-2', opponent_name: 'Bob', upset_factor: 2 }],
+		losses: [{ ...MOCK_SET_BASE, opponent_id: 'player-3', opponent_name: 'Charlie', upset_factor: 1 }]
 	},
 	{
 		player_id: 'player-2',
 		name: 'Bob',
 		wins: [],
-		losses: [{ opponent_id: 'player-1', opponent_name: 'Alice', upset_factor: 2.0 }]
+		losses: [{ ...MOCK_SET_BASE, opponent_id: 'player-1', opponent_name: 'Alice', upset_factor: 2 }]
 	},
 	{
 		player_id: 'player-3',
 		name: 'Charlie',
-		wins: [{ opponent_id: 'player-1', opponent_name: 'Alice', upset_factor: 0.5 }],
+		wins: [{ ...MOCK_SET_BASE, opponent_id: 'player-1', opponent_name: 'Alice', upset_factor: 1 }],
 		losses: []
 	}
 ];
