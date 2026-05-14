@@ -137,7 +137,9 @@ pub struct PhaseGroupNode {
 }
 
 #[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct PhaseGroupPage {
+    pub page_info: Option<PageInfo>,
     pub nodes: Vec<PhaseGroupNode>,
 }
 
@@ -389,4 +391,25 @@ pub struct SlotStats {
 #[derive(Deserialize, Debug, Clone)]
 pub struct ScoreValue {
     pub value: Option<f64>,
+}
+
+// ── Event phases ──────────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub(crate) struct EventPhasesVars {
+    #[serde(rename = "eventId")]
+    pub event_id: i64,
+    pub page: i32,
+    #[serde(rename = "perPage")]
+    pub per_page: i32,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct EventPhasesData {
+    pub event: Option<EventWithPhases>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct EventWithPhases {
+    pub phases: Vec<PhaseNode>,
 }

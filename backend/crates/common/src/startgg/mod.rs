@@ -641,4 +641,77 @@ mod tests {
             "expected GraphQL error, got {err:?}"
         );
     }
+
+    // ── event_phases ──────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn event_phases_merges_paginated_phase_groups() {
+        let mock = MockServer::start().await;
+
+        // Page 1 of phase groups: totalPages = 2
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": {
+                    "event": {
+                        "phases": [{
+                            "id": 1,
+                            "name": "Pools",
+                            "bracketType": "DOUBLE_ELIMINATION",
+                            "phaseOrder": 1,
+                            "numSeeds": null,
+                            "groupCount": 2,
+                            "state": "COMPLETED",
+                            "isExhibition": false,
+                            "phaseGroups": {
+                                "pageInfo": { "total": 2, "totalPages": 2 },
+                                "nodes": [
+                                    { "id": 100, "displayIdentifier": "1", "bracketType": "DOUBLE_ELIMINATION",
+                                      "bracketUrl": null, "numRounds": null, "startAt": null,
+                                      "firstRoundTime": null, "state": 3 }
+                                ]
+                            }
+                        }]
+                    }
+                }
+            })))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+
+        // Page 2 of phase groups: totalPages = 2
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": {
+                    "event": {
+                        "phases": [{
+                            "id": 1,
+                            "name": "Pools",
+                            "bracketType": "DOUBLE_ELIMINATION",
+                            "phaseOrder": 1,
+                            "numSeeds": null,
+                            "groupCount": 2,
+                            "state": "COMPLETED",
+                            "isExhibition": false,
+                            "phaseGroups": {
+                                "pageInfo": { "total": 2, "totalPages": 2 },
+                                "nodes": [
+                                    { "id": 101, "displayIdentifier": "2", "bracketType": "DOUBLE_ELIMINATION",
+                                      "bracketUrl": null, "numRounds": null, "startAt": null,
+                                      "firstRoundTime": null, "state": 3 }
+                                ]
+                            }
+                        }]
+                    }
+                }
+            })))
+            .mount(&mock)
+            .await;
+
+        let phases = client(&mock.uri()).event_phases(200).await.unwrap();
+        assert_eq!(phases.len(), 1);
+        let groups = phases[0].phase_groups.as_ref().unwrap();
+        assert_eq!(groups.nodes.len(), 2, "expected groups from both pages merged");
+        assert_eq!(groups.nodes[0].id, 100);
+        assert_eq!(groups.nodes[1].id, 101);
+    }
 }

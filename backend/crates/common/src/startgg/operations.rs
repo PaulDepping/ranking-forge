@@ -3,9 +3,10 @@ use std::time::Instant;
 use tracing::instrument;
 
 use super::queries::{
-    EntrantPage, EventEntrantsData, EventEntrantsVars, EventSetsData, EventSetsVars, GameNode,
-    GameSearchData, GameSearchVars, SetPage, TournamentPage, TournamentsByUserData,
-    TournamentsByUserVars, UserBySlugData, UserBySlugVars, UserNode,
+    EntrantPage, EventEntrantsData, EventEntrantsVars, EventPhasesData, EventPhasesVars,
+    EventSetsData, EventSetsVars, GameNode, GameSearchData, GameSearchVars, PhaseNode, SetPage,
+    TournamentPage, TournamentsByUserData, TournamentsByUserVars, UserBySlugData, UserBySlugVars,
+    UserNode,
 };
 use super::{StartggClient, StartggError};
 
@@ -82,6 +83,23 @@ const EVENT_SETS_QUERY: &str = r#"
                     slots {
                         entrant { id }
                         standing { stats { score { value } } }
+                    }
+                }
+            }
+        }
+    }"#;
+
+const EVENT_PHASES_QUERY: &str = r#"
+    query($eventId: ID!, $page: Int!, $perPage: Int!) {
+        event(id: $eventId) {
+            phases {
+                id name bracketType phaseOrder
+                numSeeds groupCount state isExhibition
+                phaseGroups(query: { page: $page, perPage: $perPage }) {
+                    pageInfo { total totalPages }
+                    nodes {
+                        id displayIdentifier bracketType bracketUrl
+                        numRounds startAt firstRoundTime state
                     }
                 }
             }
@@ -215,5 +233,62 @@ impl StartggClient {
             page_info: None,
             nodes: vec![],
         }))
+    }
+
+    #[instrument(skip(self))]
+    pub async fn event_phases(&self, event_id: i64) -> Result<Vec<PhaseNode>, StartggError> {
+        let t = Instant::now();
+        let mut per_page = 25i32;
+
+        let result = 'pages: loop {
+            let mut phases_acc: Vec<PhaseNode> = Vec::new();
+            let mut page = 1i32;
+
+            loop {
+                let data: EventPhasesData = match self
+                    .gql(EVENT_PHASES_QUERY, EventPhasesVars { event_id, page, per_page })
+                    .await
+                {
+                    Err(StartggError::ComplexityTooHigh { actual, limit }) if per_page > 1 => {
+                        tracing::warn!(per_page, actual, limit, "complexity too high, halving perPage");
+                        per_page /= 2;
+                        continue 'pages;
+                    }
+                    other => other?,
+                };
+
+                let phases = data.event.map(|e| e.phases).unwrap_or_default();
+
+                let max_total_pages = phases
+                    .iter()
+                    .filter_map(|p| p.phase_groups.as_ref())
+                    .filter_map(|pg| pg.page_info.as_ref())
+                    .filter_map(|pi| pi.total_pages)
+                    .max()
+                    .unwrap_or(1);
+
+                if page == 1 {
+                    phases_acc = phases;
+                } else {
+                    for phase in phases {
+                        if let Some(existing) = phases_acc.iter_mut().find(|p| p.id == phase.id) {
+                            if let (Some(existing_pg), Some(new_pg)) =
+                                (existing.phase_groups.as_mut(), phase.phase_groups)
+                            {
+                                existing_pg.nodes.extend(new_pg.nodes);
+                            }
+                        }
+                    }
+                }
+
+                if page >= max_total_pages {
+                    break 'pages phases_acc;
+                }
+                page += 1;
+            }
+        };
+
+        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
+        Ok(result)
     }
 }
