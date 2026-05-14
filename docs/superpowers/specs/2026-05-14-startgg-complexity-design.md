@@ -42,15 +42,16 @@ In `gql()`, before falling through to the generic `GraphQL` error path, call `pa
 
 **`TOURNAMENTS_BY_USER_QUERY`** — remove the `phases { ... }` block from the `events` selection. The query becomes a flat `tournaments → events` shape. Complexity at `perPage=25` drops from ~1200+ to ~100 in the worst case.
 
-**New `EVENT_PHASES_QUERY`** — fetches phases and phase groups for a single event:
+**New `EVENT_PHASES_QUERY`** — fetches phases and a page of phase groups for a single event:
 
 ```graphql
-query($eventId: ID!) {
+query($eventId: ID!, $page: Int!, $perPage: Int!) {
     event(id: $eventId) {
         phases {
             id name bracketType phaseOrder
             numSeeds groupCount state isExhibition
-            phaseGroups(query: { perPage: 100 }) {
+            phaseGroups(query: { page: $page, perPage: $perPage }) {
+                pageInfo { total totalPages }
                 nodes {
                     id displayIdentifier bracketType bracketUrl
                     numRounds startAt firstRoundTime state
@@ -61,9 +62,9 @@ query($eventId: ID!) {
 }
 ```
 
-A single event with 4 phases × 100 phase groups = 400 objects — well under the limit.
+`PhaseGroupPage` gains a `page_info: Option<PageInfo>` field so the caller can determine when all groups have been fetched.
 
-**New `event_phases(event_id: i64) -> Result<Vec<PhaseNode>, StartggError>`** method on `StartggClient`.
+**New `event_phases(event_id: i64) -> Result<Vec<PhaseNode>, StartggError>`** method on `StartggClient`. It internally paginates through phase groups using the same `'pages: loop` complexity-retry pattern, accumulating groups across pages before returning. The caller in `import_event` sees a single call with complete results. `totalPages` is taken as the maximum across all phases returned in a given page response, since all phases are fetched together and may have different group counts.
 
 **`EventNode`** — remove the `phases: Option<Vec<PhaseNode>>` field. `PhaseNode` and `PhaseGroupNode` types are unchanged.
 
@@ -133,7 +134,7 @@ All new tests use the existing wiremock pattern in `common/src/startgg/mod.rs`:
 
 1. **Complexity error parsed correctly** — mock returns the complexity GraphQL error message; assert `StartggError::ComplexityTooHigh { limit: 1000, actual: 1203 }`.
 2. **Non-complexity GraphQL errors still surface as `GraphQL`** — assert a different error message does not match the complexity regex.
-3. **`event_phases` returns phases** — mock returns a well-formed phases + phase groups response; assert fields deserialize correctly.
+3. **`event_phases` returns phases with all phase groups** — mock returns a two-page phase groups response; assert groups from both pages are merged into the returned `Vec<PhaseNode>`.
 4. **`tournaments_by_user` deserializes without `phases` field** — assert the response is valid after removing `phases` from `EventNode`.
 
 The retry + restart behaviour (halving `per_page`, restarting from page 1) is covered by the e2e test suite which exercises the full worker pipeline.
