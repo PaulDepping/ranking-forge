@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            t.id            AS tournament_id,\n            t.startgg_id    AS tournament_startgg_id,\n            t.name          AS tournament_name,\n            t.slug          AS tournament_slug,\n            t.city,\n            t.addr_state,\n            t.country_code,\n            t.venue_name,\n            t.online,\n            t.start_at      AS tournament_start_at,\n            t.end_at,\n            e.id            AS event_id,\n            e.startgg_id    AS event_startgg_id,\n            e.name          AS event_name,\n            e.game_name,\n            e.num_entrants,\n            e.start_at      AS event_start_at,\n            pe.included\n        FROM project_events pe\n        JOIN events      e ON e.id = pe.event_id\n        JOIN tournaments t ON t.id = e.tournament_id\n        WHERE pe.project_id = $1\n        ORDER BY t.start_at DESC NULLS LAST, t.name ASC, e.name ASC\n        ",
+  "query": "\n        SELECT\n            t.id            AS tournament_id,\n            t.startgg_id    AS tournament_startgg_id,\n            t.name          AS tournament_name,\n            t.slug          AS tournament_slug,\n            t.city,\n            t.addr_state,\n            t.country_code,\n            t.venue_name,\n            t.online,\n            t.start_at      AS tournament_start_at,\n            t.end_at,\n            e.id            AS event_id,\n            e.startgg_id    AS event_startgg_id,\n            e.name          AS event_name,\n            e.game_name,\n            e.num_entrants,\n            e.start_at      AS event_start_at,\n            pe.included,\n            e.event_type,\n            ARRAY(\n                SELECT p.bracket_type\n                FROM phases p\n                WHERE p.event_id = e.id\n                  AND p.bracket_type IS NOT NULL\n                ORDER BY p.phase_order ASC NULLS LAST\n            )               AS \"bracket_types!: Vec<String>\"\n        FROM project_events pe\n        JOIN events      e ON e.id = pe.event_id\n        JOIN tournaments t ON t.id = e.tournament_id\n        WHERE pe.project_id = $1\n        ORDER BY t.start_at DESC NULLS LAST, t.name ASC, e.name ASC\n        ",
   "describe": {
     "columns": [
       {
@@ -92,6 +92,16 @@
         "ordinal": 17,
         "name": "included",
         "type_info": "Bool"
+      },
+      {
+        "ordinal": 18,
+        "name": "event_type",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 19,
+        "name": "bracket_types!: Vec<String>",
+        "type_info": "TextArray"
       }
     ],
     "parameters": {
@@ -117,8 +127,10 @@
       true,
       true,
       true,
-      false
+      false,
+      true,
+      null
     ]
   },
-  "hash": "7a362c4b2dd2e93a83b9e8628824572d9f11a67c9ecc5903571b69099aefaa9b"
+  "hash": "369a99fcd4122087feb5defd7ba985c59e1f06e0dc79011ac9c3ea53ab46a6d1"
 }

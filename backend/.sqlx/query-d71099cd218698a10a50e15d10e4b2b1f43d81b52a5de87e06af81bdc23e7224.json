@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO project_events (project_id, event_id, included)\n         VALUES ($1, $2, true)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d71099cd218698a10a50e15d10e4b2b1f43d81b52a5de87e06af81bdc23e7224"
+}

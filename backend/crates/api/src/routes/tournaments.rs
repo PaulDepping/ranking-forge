@@ -27,6 +27,8 @@ pub struct ProjectEventResponse {
     pub num_entrants: Option<i32>,
     pub start_at: Option<DateTime<Utc>>,
     pub included: bool,
+    pub event_type: Option<i32>,
+    pub bracket_types: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -111,6 +113,7 @@ pub async fn list_tournaments(
 ) -> Result<impl IntoResponse> {
     require_project(&state.db, project_id, user.id).await?;
 
+    #[derive(Debug)]
     struct Row {
         tournament_id: Uuid,
         tournament_startgg_id: i64,
@@ -130,6 +133,8 @@ pub async fn list_tournaments(
         num_entrants: Option<i32>,
         event_start_at: Option<DateTime<Utc>>,
         included: bool,
+        event_type: Option<i32>,
+        bracket_types: Vec<String>,
     }
 
     let rows = sqlx::query_as!(
@@ -153,7 +158,15 @@ pub async fn list_tournaments(
             e.game_name,
             e.num_entrants,
             e.start_at      AS event_start_at,
-            pe.included
+            pe.included,
+            e.event_type,
+            ARRAY(
+                SELECT p.bracket_type
+                FROM phases p
+                WHERE p.event_id = e.id
+                  AND p.bracket_type IS NOT NULL
+                ORDER BY p.phase_order ASC NULLS LAST
+            )               AS "bracket_types!: Vec<String>"
         FROM project_events pe
         JOIN events      e ON e.id = pe.event_id
         JOIN tournaments t ON t.id = e.tournament_id
@@ -196,6 +209,8 @@ pub async fn list_tournaments(
             num_entrants: row.num_entrants,
             start_at: row.event_start_at,
             included: row.included,
+            event_type: row.event_type,
+            bracket_types: row.bracket_types,
         });
     }
 
@@ -244,6 +259,7 @@ pub async fn patch_event(
     .await?;
 
     // Return the full event response.
+    #[derive(Debug)]
     struct EventRow {
         id: Uuid,
         startgg_id: i64,
@@ -252,13 +268,22 @@ pub async fn patch_event(
         num_entrants: Option<i32>,
         start_at: Option<DateTime<Utc>>,
         included: bool,
+        event_type: Option<i32>,
+        bracket_types: Vec<String>,
     }
 
     let ev = sqlx::query_as!(
         EventRow,
         r#"
         SELECT e.id, e.startgg_id, e.name, e.game_name, e.num_entrants,
-               e.start_at, pe.included
+               e.start_at, pe.included, e.event_type,
+               ARRAY(
+                   SELECT p.bracket_type
+                   FROM phases p
+                   WHERE p.event_id = e.id
+                     AND p.bracket_type IS NOT NULL
+                   ORDER BY p.phase_order ASC NULLS LAST
+               ) AS "bracket_types!: Vec<String>"
         FROM events e
         JOIN project_events pe ON pe.event_id = e.id AND pe.project_id = $1
         WHERE e.id = $2
@@ -277,6 +302,8 @@ pub async fn patch_event(
         num_entrants: ev.num_entrants,
         start_at: ev.start_at,
         included: ev.included,
+        event_type: ev.event_type,
+        bracket_types: ev.bracket_types,
     }))
 }
 
@@ -353,6 +380,7 @@ pub async fn get_stats(
         JOIN tournaments t ON t.id = e.tournament_id
         WHERE pe.included = true
           AND s.is_dq    = false
+          AND s.has_placeholder = false
           AND (wp.id IS NOT NULL OR lp.id IS NOT NULL)
         "#,
         project_id,
@@ -483,6 +511,7 @@ pub async fn get_head_to_head(
         JOIN project_events pe ON pe.event_id = s.event_id AND pe.project_id = $1
         WHERE pe.included = true
           AND s.is_dq    = false
+          AND s.has_placeholder = false
         GROUP BY we.player_id, le.player_id
         "#,
         project_id,
@@ -589,6 +618,7 @@ pub async fn get_h2h_sets(
         JOIN project_events pe ON pe.event_id = s.event_id AND pe.project_id = $1
         WHERE pe.included = true
           AND s.is_dq = false
+          AND s.has_placeholder = false
           AND (
               (we.player_id = $2 AND le.player_id = $3)
            OR (we.player_id = $3 AND le.player_id = $2)

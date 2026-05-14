@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT e.id, e.startgg_id, e.name, e.game_name, e.num_entrants,\n               e.start_at, pe.included\n        FROM events e\n        JOIN project_events pe ON pe.event_id = e.id AND pe.project_id = $1\n        WHERE e.id = $2\n        ",
+  "query": "\n        SELECT e.id, e.startgg_id, e.name, e.game_name, e.num_entrants,\n               e.start_at, pe.included, e.event_type,\n               ARRAY(\n                   SELECT p.bracket_type\n                   FROM phases p\n                   WHERE p.event_id = e.id\n                     AND p.bracket_type IS NOT NULL\n                   ORDER BY p.phase_order ASC NULLS LAST\n               ) AS \"bracket_types!: Vec<String>\"\n        FROM events e\n        JOIN project_events pe ON pe.event_id = e.id AND pe.project_id = $1\n        WHERE e.id = $2\n        ",
   "describe": {
     "columns": [
       {
@@ -37,6 +37,16 @@
         "ordinal": 6,
         "name": "included",
         "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "event_type",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "bracket_types!: Vec<String>",
+        "type_info": "TextArray"
       }
     ],
     "parameters": {
@@ -52,8 +62,10 @@
       true,
       true,
       true,
-      false
+      false,
+      true,
+      null
     ]
   },
-  "hash": "b9eda47f90e90e41d16c7df72cd6ae1b082181ddaa3cac5a810612b467715965"
+  "hash": "c43bdd0cc6f4baa53921f244c8010fb2fbfc3e850e768cd14876c866264c2c23"
 }

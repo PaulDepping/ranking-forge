@@ -1393,6 +1393,68 @@ async fn stats_returns_game_scores(pool: PgPool) {
     assert_eq!(bob["losses"][0]["loser_score"], 1);
 }
 
+// ── Tournament event_type / bracket_types ─────────────────────────────────────
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn list_tournaments_includes_event_type_and_bracket_types(pool: PgPool) {
+    let app = make_app(pool.clone(), "");
+    let cookie = register(&app, "usr1", "pass1234").await;
+    let pid_str = create_project(&app, &cookie).await;
+    let pid = Uuid::parse_str(&pid_str).unwrap();
+
+    // Insert a tournament with an event that has event_type=1 and two phases
+    let t_id: uuid::Uuid = sqlx::query_scalar!(
+        "INSERT INTO tournaments (startgg_id, name, slug, online)
+         VALUES (9991, 'Test Cup', 'tournament/test-cup', false)
+         RETURNING id"
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let e_id: uuid::Uuid = sqlx::query_scalar!(
+        "INSERT INTO events (tournament_id, startgg_id, name, event_type)
+         VALUES ($1, 9991, 'Melee Singles', 1)
+         RETURNING id",
+        t_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    sqlx::query!(
+        "INSERT INTO phases (startgg_id, event_id, bracket_type, phase_order)
+         VALUES (9991, $1, 'ROUND_ROBIN', 1), (9992, $1, 'DOUBLE_ELIMINATION', 2)",
+        e_id
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    sqlx::query!(
+        "INSERT INTO project_events (project_id, event_id, included)
+         VALUES ($1, $2, true)",
+        pid,
+        e_id
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let resp = get_req(&app, &format!("/projects/{pid}/tournaments"), &cookie).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = read_json(resp).await;
+
+    let tournaments = body.as_array().unwrap();
+    assert_eq!(tournaments.len(), 1);
+    let event = &tournaments[0]["events"][0];
+    assert_eq!(event["event_type"], json!(1));
+    assert_eq!(
+        event["bracket_types"],
+        json!(["ROUND_ROBIN", "DOUBLE_ELIMINATION"])
+    );
+}
+
 // ── Head-to-head ──────────────────────────────────────────────────────────────
 
 #[sqlx::test(migrations = "../../migrations")]

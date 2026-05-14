@@ -127,7 +127,7 @@ components:
 
     ProjectEvent:
       type: object
-      required: [id, name, included]
+      required: [id, name, included, bracket_types]
       properties:
         id:
           type: string
@@ -148,6 +148,15 @@ components:
           nullable: true
         included:
           type: boolean
+        event_type:
+          type: integer
+          nullable: true
+          description: "start.gg event type: 1 = singles/individual, 2 = teams"
+        bracket_types:
+          type: array
+          items:
+            type: string
+          description: "Bracket types ordered by phase_order (e.g. ROUND_ROBIN, DOUBLE_ELIMINATION)"
 
     ImportStatus:
       type: object
