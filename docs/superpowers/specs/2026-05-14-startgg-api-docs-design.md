@@ -54,6 +54,14 @@ Each documented with: purpose, the query string as used in code, important field
 - **Pagination:** All collection queries use `page`/`perPage` variables. There is no cursor-based pagination. `PageInfo.totalPages` is the correct stopping condition; `PageInfo.total` may be null on some endpoints.
 - **DQ detection:** A set where one slot's `standing.stats.score.value` is `-1` is a DQ, not a real result. Filter these before computing upset factor.
 
+## CLAUDE.md update
+
+Add a `## start.gg API reference` section to `CLAUDE.md` pointing agents to `docs/startgg/` with a one-line description of each file:
+
+- `schema.graphql` — full SDL schema from introspection; the authoritative type reference
+- `project-notes.md` — our 5 operations, rate limits, auth, and known API quirks
+- `fetch-schema.sh` — run to refresh the schema before extending the query set
+
 ## Testing
 
 No new tests. The schema file and notes are reference material; `fetch-schema.sh` is a developer tool, not part of the build or CI pipeline.
