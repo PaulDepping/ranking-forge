@@ -19,7 +19,7 @@ Parallelism (importing multiple tournaments concurrently) is explicitly out of s
 
 **Phase 1 — Collect unique tournaments**
 
-Iterate all players as before, calling `tournaments_by_user` (paginated). Instead of immediately importing each tournament, insert it into a `HashMap<i64, TournamentNode>` keyed by `tournament.startgg_id`. Use `entry().or_insert()` so the first occurrence wins and subsequent duplicates are discarded. Date-window filtering (`after_date` early-exit, `before_date` skip) applies during collection exactly as it does today.
+Iterate all players as before, calling `tournaments_by_user` (paginated). Instead of immediately importing each tournament, insert it into a `HashMap<i64, TournamentNode>` keyed by `tournament.startgg_id`. Use `entry().or_insert()` so the first occurrence wins and subsequent duplicates are discarded. Date-window filtering (`after_date` early-exit, `before_date` skip) applies during collection exactly as it does today. Note: `UserTournamentsPaginationFilter` (the filter type on `user { tournaments }`) does not expose `afterDate`/`beforeDate` — those fields only exist on the global `TournamentPageFilter` used by the top-level `tournaments()` query. Client-side filtering is therefore the only option for user-scoped discovery.
 
 **Phase 2 — Import each unique tournament once**
 
