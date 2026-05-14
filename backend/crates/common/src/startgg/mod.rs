@@ -15,12 +15,26 @@ use thiserror::Error;
 
 const STARTGG_BASE_URL: &str = "https://api.start.gg/gql/alpha";
 
+fn parse_complexity_error(msg: &str) -> Option<StartggError> {
+    use regex::Regex;
+    static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    let re = RE.get_or_init(|| {
+        Regex::new(r"A maximum of (\d+) objects may be returned.*\(actual: (\d+)\)").unwrap()
+    });
+    let caps = re.captures(msg)?;
+    let limit = caps[1].parse::<u32>().ok()?;
+    let actual = caps[2].parse::<u32>().ok()?;
+    Some(StartggError::ComplexityTooHigh { limit, actual })
+}
+
 #[derive(Debug, Error)]
 pub enum StartggError {
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
     #[error("GraphQL error: {0}")]
     GraphQL(String),
+    #[error("query complexity too high (limit: {limit}, actual: {actual})")]
+    ComplexityTooHigh { limit: u32, actual: u32 },
     #[error("response decode error: {0}")]
     Decode(String),
 }
@@ -95,6 +109,9 @@ impl StartggClient {
                     .map(|e| e.message)
                     .collect::<Vec<_>>()
                     .join("; ");
+                if let Some(err) = parse_complexity_error(&msg) {
+                    return Err(err);
+                }
                 tracing::error!(body = %body, "start.gg returned GraphQL errors: {msg}");
                 return Err(StartggError::GraphQL(msg));
             }
@@ -587,5 +604,41 @@ mod tests {
         let games = client(&mock.uri()).search_games("melee").await.unwrap();
         assert_eq!(games.len(), 1);
         assert_eq!(games[0].id, 1);
+    }
+
+    #[tokio::test]
+    async fn complexity_error_is_parsed_as_complexity_too_high() {
+        let mock = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": null,
+                "errors": [{"message": "Your query complexity is too high. A maximum of 1000 objects may be returned by each request. (actual: 1203)"}]
+            })))
+            .mount(&mock)
+            .await;
+
+        let err = client(&mock.uri()).search_games("melee").await.unwrap_err();
+        assert!(
+            matches!(err, StartggError::ComplexityTooHigh { limit: 1000, actual: 1203 }),
+            "expected ComplexityTooHigh, got {err:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn non_complexity_graphql_error_surfaces_as_graphql() {
+        let mock = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": null,
+                "errors": [{"message": "not authorized"}]
+            })))
+            .mount(&mock)
+            .await;
+
+        let err = client(&mock.uri()).search_games("melee").await.unwrap_err();
+        assert!(
+            matches!(err, StartggError::GraphQL(_)),
+            "expected GraphQL error, got {err:?}"
+        );
     }
 }
