@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE jobs SET status = 'failed', error = 'worker shutdown', updated_at = NOW() WHERE id = ANY($1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8108c8035f5b5072031ea2b34bb201356f6bbb21e4a633e5564095f5900f8879"
+}
