@@ -120,6 +120,10 @@ Protected routes receive an `AuthUser` via `impl FromRequestParts`. It reads the
 
 Use `cargo add` to add Rust dependencies. Never edit version numbers in `Cargo.toml` manually.
 
-## Frontend (Phase 6 — not yet started)
+## Frontend
 
-SvelteKit + TypeScript in `web/`. Before writing any page, create `src/lib/api.ts` as a thin fetch wrapper that sets `credentials: 'include'` and prefixes `PUBLIC_API_URL` (client-side) or `INTERNAL_API_URL` (server-side). Install shadcn/ui for Svelte before starting UI work: `npx shadcn-svelte@latest init`.
+SvelteKit + TypeScript in `web/`. See `web/CLAUDE.md` for frontend-specific guidance.
+
+**Component policy:** Always use shadcn-svelte components in preference to raw HTML elements or hand-rolled Tailwind. Never write a raw `<input>`, `<select>`, `<button>`, `<table>`, or `<dialog>` when a shadcn equivalent exists. Add new shadcn components with `npx shadcn-svelte@latest add <name>` — do not write component files by hand.
+
+Installed components: `alert`, `badge`, `button`, `card`, `dialog`, `input`, `label`, `select`, `separator`, `table`. Install others as needed with `npx shadcn-svelte@latest add <name>`.
