@@ -345,6 +345,104 @@ pub async fn bulk_add_players(
     Ok(Json(results))
 }
 
+// ── Add players by handles ────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct ByHandlesRequest {
+    pub handles: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ByHandlesResult {
+    pub handle: String,
+    pub name: Option<String>,
+    pub status: String, // "created", "skipped", "not_found"
+}
+
+pub async fn add_players_by_handles(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ByHandlesRequest>,
+) -> Result<impl IntoResponse> {
+    require_project(&state.db, id, user.id).await?;
+
+    let mut results = Vec::new();
+
+    for raw_handle in body.handles {
+        let handle = normalize_handle(&raw_handle);
+
+        // Resolve on start.gg
+        let sg_user = match state.startgg.user_by_slug(&handle).await {
+            Ok(Some(u)) => u,
+            Ok(None) => {
+                results.push(ByHandlesResult {
+                    handle,
+                    name: None,
+                    status: "not_found".to_string(),
+                });
+                continue;
+            }
+            Err(e) => return Err(AppError::from(e)),
+        };
+
+        let user_id = sg_user.id;
+        let gamer_tag = sg_user
+            .gamer_tag()
+            .unwrap_or(&handle)
+            .to_string();
+
+        // Check if already linked in this project
+        let existing = sqlx::query!(
+            "SELECT 1 AS one FROM startgg_accounts sa
+             JOIN players p ON sa.player_id = p.id
+             WHERE p.project_id = $1 AND sa.startgg_user_id = $2",
+            id,
+            user_id,
+        )
+        .fetch_optional(&state.db)
+        .await?;
+
+        if existing.is_some() {
+            results.push(ByHandlesResult {
+                handle,
+                name: Some(gamer_tag),
+                status: "skipped".to_string(),
+            });
+            continue;
+        }
+
+        // Insert player
+        let player = sqlx::query!(
+            "INSERT INTO players (project_id, name) VALUES ($1, $2) RETURNING id",
+            id,
+            &gamer_tag,
+        )
+        .fetch_one(&state.db)
+        .await?;
+
+        // Insert startgg account
+        sqlx::query!(
+            "INSERT INTO startgg_accounts (player_id, startgg_user_id, handle, display_name)
+             VALUES ($1, $2, $3, $4)",
+            player.id,
+            user_id,
+            handle,
+            &gamer_tag,
+        )
+        .execute(&state.db)
+        .await?;
+
+        results.push(ByHandlesResult {
+            handle,
+            name: Some(gamer_tag),
+            status: "created".to_string(),
+        });
+    }
+
+    Ok(Json(results))
+}
+
 // ── Tournament entrants ───────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize)]
@@ -421,6 +519,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_players).post(add_player))
         .route("/bulk", post(bulk_add_players))
+        .route("/by-handles", post(add_players_by_handles))
         .route("/{pid}", delete(delete_player))
         .route("/{pid}/accounts", post(link_account))
         .route("/{pid}/accounts/{aid}", delete(unlink_account))

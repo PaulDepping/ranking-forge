@@ -1595,6 +1595,96 @@ async fn test_bulk_add_players_skips_duplicates(pool: PgPool) {
     assert_eq!(armada["status"], "created");
 }
 
+// ── Add players by handles ────────────────────────────────────────────────────
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn test_add_players_by_handles(pool: PgPool) {
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::matchers::method;
+
+    let mock = MockServer::start().await;
+
+    // Mock: user_by_slug for "mang0" — returns user
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(startgg_user_ok(1001, "Mang0")))
+        .up_to_n_times(1)
+        .mount(&mock)
+        .await;
+
+    // Mock: user_by_slug for "notauser" — returns no user
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": { "user": null }
+        })))
+        .up_to_n_times(1)
+        .mount(&mock)
+        .await;
+
+    let app = make_app(pool, &mock.uri());
+    let cookie = register(&app, "alice", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+
+    let resp = post_json(
+        &app,
+        &format!("/projects/{pid}/players/by-handles"),
+        &cookie,
+        json!({ "handles": ["mang0", "notauser"] }),
+    )
+    .await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let results: Vec<serde_json::Value> = read_json(resp).await.as_array().unwrap().clone();
+    assert_eq!(results.len(), 2);
+
+    let mang0 = results.iter().find(|r| r["handle"] == "mang0").unwrap();
+    let notauser = results.iter().find(|r| r["handle"] == "notauser").unwrap();
+    assert_eq!(mang0["status"], "created");
+    assert_eq!(mang0["name"], "Mang0");
+    assert_eq!(notauser["status"], "not_found");
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn test_add_players_by_handles_skips_existing(pool: PgPool) {
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use wiremock::matchers::method;
+
+    let mock = MockServer::start().await;
+
+    // First call: used to create the player initially
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(startgg_user_ok(1001, "Mang0")))
+        .mount(&mock)
+        .await;
+
+    let app = make_app(pool, &mock.uri());
+    let cookie = register(&app, "alice", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+
+    // First add
+    let resp = post_json(
+        &app,
+        &format!("/projects/{pid}/players/by-handles"),
+        &cookie,
+        json!({ "handles": ["mang0"] }),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let r: Vec<serde_json::Value> = read_json(resp).await.as_array().unwrap().clone();
+    assert_eq!(r[0]["status"], "created");
+
+    // Second add — same handle, same startgg_user_id => skipped
+    let resp = post_json(
+        &app,
+        &format!("/projects/{pid}/players/by-handles"),
+        &cookie,
+        json!({ "handles": ["mang0"] }),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let r: Vec<serde_json::Value> = read_json(resp).await.as_array().unwrap().clone();
+    assert_eq!(r[0]["status"], "skipped");
+}
+
 // ── Tournament event_type / bracket_types ─────────────────────────────────────
 
 #[sqlx::test(migrations = "../../migrations")]
