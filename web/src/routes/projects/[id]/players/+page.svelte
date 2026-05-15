@@ -6,6 +6,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import * as Empty from '$lib/components/ui/empty';
 
 	let { data, form } = $props();
 
@@ -37,7 +38,12 @@
 	</form>
 
 	{#if data.players.length === 0}
-		<p class="text-sm text-muted-foreground">No players yet. Add one above.</p>
+		<Empty.Root>
+			<Empty.Header>
+				<Empty.Title>No players yet</Empty.Title>
+				<Empty.Description>Add a player above to get started.</Empty.Description>
+			</Empty.Header>
+		</Empty.Root>
 	{:else}
 		<div class="space-y-2">
 			{#each data.players as player (player.id)}

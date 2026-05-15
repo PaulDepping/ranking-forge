@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui/button';
 	import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from '$lib/components/ui/card';
+	import * as Empty from '$lib/components/ui/empty';
 
 	let { data } = $props();
 </script>
@@ -13,7 +14,12 @@
 	</div>
 
 	{#if data.projects.length === 0}
-		<p class="text-muted-foreground">No projects yet. Create one to get started.</p>
+		<Empty.Root>
+			<Empty.Header>
+				<Empty.Title>No projects yet</Empty.Title>
+				<Empty.Description>Create a project to start building a power ranking.</Empty.Description>
+			</Empty.Header>
+		</Empty.Root>
 	{:else}
 		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 			{#each data.projects as project (project.id)}
