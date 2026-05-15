@@ -36,6 +36,7 @@ Frontend-specific guidance for the SvelteKit app in this directory.
 | Label | `$lib/components/ui/label` |
 | Select | `$lib/components/ui/select` |
 | Separator | `$lib/components/ui/separator` |
+| Tabs | `$lib/components/ui/tabs` |
 | Table | `$lib/components/ui/table` |
 
 Update this list when adding new components.

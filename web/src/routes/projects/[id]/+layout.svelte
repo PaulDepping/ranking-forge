@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { Separator } from '$lib/components/ui/separator';
+	import * as Tabs from '$lib/components/ui/tabs';
 
 	let { children, data } = $props();
 
@@ -16,9 +18,9 @@
 		return `/projects/${data.project.id}/${slug}`;
 	}
 
-	function isActive(slug: string) {
-		return page.url.pathname.startsWith(`/projects/${data.project.id}/${slug}`);
-	}
+	const currentTab = $derived(
+		tabs.find(t => page.url.pathname.startsWith(tabHref(t.href)))?.href ?? tabs[0].href
+	);
 </script>
 
 <div class="space-y-4">
@@ -30,17 +32,13 @@
 		{/if}
 	</div>
 
-	<nav class="flex gap-1">
-		{#each tabs as tab (tab.href)}
-			<a
-				href={tabHref(tab.href)}
-				class="rounded-md px-3 py-1.5 text-sm font-medium transition-colors
-					{isActive(tab.href)
-						? 'bg-primary text-primary-foreground'
-						: 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'}"
-			>{tab.label}</a>
-		{/each}
-	</nav>
+	<Tabs.Root value={currentTab} onValueChange={(v) => v && goto(tabHref(v))}>
+		<Tabs.List>
+			{#each tabs as tab (tab.href)}
+				<Tabs.Trigger value={tab.href}>{tab.label}</Tabs.Trigger>
+			{/each}
+		</Tabs.List>
+	</Tabs.Root>
 
 	<Separator />
 
