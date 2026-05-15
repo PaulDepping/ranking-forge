@@ -112,20 +112,20 @@ async fn patch_json(
 async fn full_import_flow(pool: PgPool) {
     let mock = MockServer::start().await;
 
-    // user_by_slug("user/mango")
+    // user_by_slug("mango") — handle is normalized before the start.gg call
     Mock::given(method("POST"))
-        .and(body_string_contains("user/mango"))
+        .and(body_string_contains("\"mango\""))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "data": { "user": { "id": 12345_i64, "name": "Mango" } }
+            "data": { "user": { "id": 12345_i64, "player": { "gamerTag": "Mango" } } }
         })))
         .mount(&mock)
         .await;
 
-    // user_by_slug("user/armada")
+    // user_by_slug("armada") — handle is normalized before the start.gg call
     Mock::given(method("POST"))
-        .and(body_string_contains("user/armada"))
+        .and(body_string_contains("\"armada\""))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "data": { "user": { "id": 67890_i64, "name": "Armada" } }
+            "data": { "user": { "id": 67890_i64, "player": { "gamerTag": "Armada" } } }
         })))
         .mount(&mock)
         .await;
