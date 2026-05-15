@@ -80,6 +80,12 @@ export interface SetRecord {
 	startgg_set_id: number;
 	winner_seed: number | null;
 	loser_seed: number | null;
+	phase_name: string | null;
+	pool_identifier: string | null;
+	winner_placement: number | null;
+	loser_placement: number | null;
+	location: string | null;
+	num_entrants: number | null;
 }
 
 export interface H2HSet extends SetRecord {

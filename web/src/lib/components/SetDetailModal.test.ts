@@ -18,6 +18,12 @@ const baseSet: SetRecord = {
 	startgg_set_id: 12345,
 	winner_seed: 1,
 	loser_seed: 12,
+	phase_name: null,
+	pool_identifier: null,
+	winner_placement: null,
+	loser_placement: null,
+	location: null,
+	num_entrants: null,
 };
 
 describe('SetDetailModal', () => {
@@ -35,45 +41,174 @@ describe('SetDetailModal', () => {
 		expect(screen.getByText('Alice vs Bob')).toBeInTheDocument();
 	});
 
-	it('shows Win with score from winner perspective', () => {
+	it('shows Win in subtitle without score', () => {
 		render(SetDetailModal, {
 			props: { set: baseSet, isWin: true, currentPlayerName: 'Alice', onClose: () => {} }
 		});
-		expect(screen.getByText(/Win · 3–1/)).toBeInTheDocument();
+		expect(screen.getByText('Win')).toBeInTheDocument();
 	});
 
-	it('shows Loss with score from loser perspective', () => {
+	it('shows Loss in subtitle without score', () => {
 		render(SetDetailModal, {
 			props: { set: baseSet, isWin: false, currentPlayerName: 'Alice', onClose: () => {} }
 		});
-		expect(screen.getByText(/Loss · 1–3/)).toBeInTheDocument();
+		expect(screen.getByText('Loss')).toBeInTheDocument();
 	});
 
-	it('shows tournament, event and round', () => {
+	it('shows score cells labelled with player names', () => {
 		render(SetDetailModal, {
 			props: { set: baseSet, isWin: true, currentPlayerName: 'Alice', onClose: () => {} }
 		});
-		expect(screen.getByText('Genesis 9')).toBeInTheDocument();
-		expect(screen.getByText('Melee Singles')).toBeInTheDocument();
+		expect(screen.getByText('Alice score')).toBeInTheDocument();
+		expect(screen.getByText('Bob score')).toBeInTheDocument();
+		expect(screen.getByText('3')).toBeInTheDocument();
+		expect(screen.getByText('1')).toBeInTheDocument();
+	});
+
+	it('shows score cells swapped for loss perspective', () => {
+		render(SetDetailModal, {
+			props: { set: baseSet, isWin: false, currentPlayerName: 'Alice', onClose: () => {} }
+		});
+		expect(screen.getByText('Alice score')).toBeInTheDocument();
+		expect(screen.getByText('Bob score')).toBeInTheDocument();
+	});
+
+	it('hides score row when both scores are null', () => {
+		render(SetDetailModal, {
+			props: {
+				set: { ...baseSet, winner_score: null, loser_score: null },
+				isWin: true,
+				currentPlayerName: 'Alice',
+				onClose: () => {}
+			}
+		});
+		expect(screen.queryByText('Alice score')).not.toBeInTheDocument();
+	});
+
+	it('shows seed cells labelled with player names', () => {
+		render(SetDetailModal, {
+			props: { set: baseSet, isWin: true, currentPlayerName: 'Alice', onClose: () => {} }
+		});
+		expect(screen.getByText('Alice seed')).toBeInTheDocument();
+		expect(screen.getByText('Bob seed')).toBeInTheDocument();
+		expect(screen.getByText('#1')).toBeInTheDocument();
+		expect(screen.getByText('#12')).toBeInTheDocument();
+	});
+
+	it('hides seed row when both seeds are null', () => {
+		render(SetDetailModal, {
+			props: {
+				set: { ...baseSet, winner_seed: null, loser_seed: null },
+				isWin: true,
+				currentPlayerName: 'Alice',
+				onClose: () => {}
+			}
+		});
+		expect(screen.queryByText('Alice seed')).not.toBeInTheDocument();
+	});
+
+	it('shows tournament and event name combined', () => {
+		render(SetDetailModal, {
+			props: { set: baseSet, isWin: true, currentPlayerName: 'Alice', onClose: () => {} }
+		});
+		expect(screen.getByText('Genesis 9 · Melee Singles')).toBeInTheDocument();
+	});
+
+	it('shows round in tournament section', () => {
+		render(SetDetailModal, {
+			props: { set: baseSet, isWin: true, currentPlayerName: 'Alice', onClose: () => {} }
+		});
 		expect(screen.getByText('Winners Finals')).toBeInTheDocument();
 	});
 
-	it('shows upset factor as integer', () => {
+	it('shows upset factor', () => {
 		render(SetDetailModal, {
 			props: { set: baseSet, isWin: true, currentPlayerName: 'Alice', onClose: () => {} }
 		});
 		expect(screen.getByText('2')).toBeInTheDocument();
 	});
 
-	it('shows start.gg link when tournament_slug is present', () => {
+	it('shows phase when present', () => {
+		render(SetDetailModal, {
+			props: {
+				set: { ...baseSet, phase_name: 'Top 8' },
+				isWin: true,
+				currentPlayerName: 'Alice',
+				onClose: () => {}
+			}
+		});
+		expect(screen.getByText('Top 8')).toBeInTheDocument();
+	});
+
+	it('appends pool identifier to phase label', () => {
+		render(SetDetailModal, {
+			props: {
+				set: { ...baseSet, phase_name: 'Pools', pool_identifier: 'Pool A' },
+				isWin: true,
+				currentPlayerName: 'Alice',
+				onClose: () => {}
+			}
+		});
+		expect(screen.getByText('Pools · Pool A')).toBeInTheDocument();
+	});
+
+	it('hides phase row when phase_name is null', () => {
 		render(SetDetailModal, {
 			props: { set: baseSet, isWin: true, currentPlayerName: 'Alice', onClose: () => {} }
 		});
-		const link = screen.getByRole('link', { name: /View on start\.gg/ });
-		expect(link).toHaveAttribute(
-			'href',
-			'https://www.start.gg/tournament/genesis-9'
-		);
+		expect(screen.queryByText('Phase')).not.toBeInTheDocument();
+	});
+
+	it('shows location when present', () => {
+		render(SetDetailModal, {
+			props: {
+				set: { ...baseSet, location: 'Austin, TX' },
+				isWin: true,
+				currentPlayerName: 'Alice',
+				onClose: () => {}
+			}
+		});
+		expect(screen.getByText('Austin, TX')).toBeInTheDocument();
+	});
+
+	it('shows num_entrants when present', () => {
+		render(SetDetailModal, {
+			props: {
+				set: { ...baseSet, num_entrants: 256 },
+				isWin: true,
+				currentPlayerName: 'Alice',
+				onClose: () => {}
+			}
+		});
+		expect(screen.getByText('256')).toBeInTheDocument();
+	});
+
+	it('shows final placements section with player names and ordinals', () => {
+		render(SetDetailModal, {
+			props: {
+				set: { ...baseSet, winner_placement: 1, loser_placement: 3 },
+				isWin: true,
+				currentPlayerName: 'Alice',
+				onClose: () => {}
+			}
+		});
+		expect(screen.getByText('1st')).toBeInTheDocument();
+		expect(screen.getByText('3rd')).toBeInTheDocument();
+	});
+
+	it('hides placements section when both placements are null', () => {
+		render(SetDetailModal, {
+			props: { set: baseSet, isWin: true, currentPlayerName: 'Alice', onClose: () => {} }
+		});
+		expect(screen.queryByText('Final Placements')).not.toBeInTheDocument();
+	});
+
+	it('set link points to /set/{startgg_set_id}', () => {
+		render(SetDetailModal, {
+			props: { set: baseSet, isWin: true, currentPlayerName: 'Alice', onClose: () => {} }
+		});
+		const link = screen.getByRole('link', { name: /View set on start\.gg/ });
+		expect(link).toHaveAttribute('href', 'https://www.start.gg/set/12345');
 	});
 
 	it('hides VOD link when vod_url is null', () => {
