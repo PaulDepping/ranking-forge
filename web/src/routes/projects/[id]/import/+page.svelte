@@ -5,6 +5,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Alert } from '$lib/components/ui/alert';
+	import { Label } from '$lib/components/ui/label';
 	import * as Card from '$lib/components/ui/card';
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import type { Job } from '$lib/types';
@@ -110,11 +111,11 @@
 	>
 		<div class="grid grid-cols-2 gap-4">
 			<div class="space-y-1">
-				<label for="after_date" class="text-sm font-medium">From date</label>
+				<Label for="after_date">From date</Label>
 				<Input id="after_date" name="after_date" type="date" />
 			</div>
 			<div class="space-y-1">
-				<label for="before_date" class="text-sm font-medium">To date</label>
+				<Label for="before_date">To date</Label>
 				<Input id="before_date" name="before_date" type="date" />
 			</div>
 		</div>
