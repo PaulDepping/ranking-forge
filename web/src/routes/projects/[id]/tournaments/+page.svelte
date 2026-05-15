@@ -3,6 +3,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import * as Select from '$lib/components/ui/select';
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import type { Tournament, TournamentEvent } from '$lib/types';
 
@@ -177,6 +178,13 @@
 	const totalEventCount   = $derived(tournaments.reduce((n, t) => n + t.events.length, 0));
 	const visibleEventCount = $derived(visibleTournaments.reduce((n, t) => n + t.events.length, 0));
 
+	const venueLabel = $derived(
+		({ all: 'Venue: All', online: 'Online only', offline: 'Offline only' } as const)[venueFilter]
+	);
+	const eventTypeLabel = $derived(
+		({ all: 'All types', singles: 'Singles', teams: 'Teams' } as const)[eventType]
+	);
+
 	async function bulkSetIncluded(included: boolean) {
 		const toChange = visibleTournaments
 			.flatMap(t => t.events)
@@ -263,14 +271,14 @@
 						bind:value={search}
 						class="flex-1 min-w-48"
 					/>
-					<select
-						bind:value={venueFilter}
-						class="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
-					>
-						<option value="all">Venue: All</option>
-						<option value="online">Online only</option>
-						<option value="offline">Offline only</option>
-					</select>
+					<Select.Root bind:value={venueFilter}>
+						<Select.Trigger class="w-36">{venueLabel}</Select.Trigger>
+						<Select.Content>
+							<Select.Item value="all">Venue: All</Select.Item>
+							<Select.Item value="online">Online only</Select.Item>
+							<Select.Item value="offline">Offline only</Select.Item>
+						</Select.Content>
+					</Select.Root>
 				</div>
 
 				<!-- Row 2: entrant range + date range -->
@@ -293,14 +301,14 @@
 				<div class="flex flex-wrap gap-4 items-center">
 					<div class="flex items-center gap-2">
 						<span class="text-xs text-muted-foreground whitespace-nowrap">Event type</span>
-						<select
-							bind:value={eventType}
-							class="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
-						>
-							<option value="all">All</option>
-							<option value="singles">Singles</option>
-							<option value="teams">Teams</option>
-						</select>
+						<Select.Root bind:value={eventType}>
+							<Select.Trigger class="w-28">{eventTypeLabel}</Select.Trigger>
+							<Select.Content>
+								<Select.Item value="all">All types</Select.Item>
+								<Select.Item value="singles">Singles</Select.Item>
+								<Select.Item value="teams">Teams</Select.Item>
+							</Select.Content>
+						</Select.Root>
 					</div>
 
 					<div class="relative" id="bracket-popover-wrapper">
