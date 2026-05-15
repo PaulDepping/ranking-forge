@@ -28,6 +28,7 @@ Frontend-specific guidance for the SvelteKit app in this directory.
 |---|---|
 | Alert | `$lib/components/ui/alert` |
 | Badge | `$lib/components/ui/badge` |
+| Command | `$lib/components/ui/command` |
 | Button | `$lib/components/ui/button` |
 | Card | `$lib/components/ui/card` |
 | Checkbox | `$lib/components/ui/checkbox` |

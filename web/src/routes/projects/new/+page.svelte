@@ -4,6 +4,8 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Alert } from '$lib/components/ui/alert';
+	import * as Popover from '$lib/components/ui/popover';
+	import * as Command from '$lib/components/ui/command';
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import type { Game } from '$lib/types';
 
@@ -13,17 +15,17 @@
 	let gameResults = $state<Game[]>([]);
 	let selectedGame = $state<Game | null>(null);
 	let searching = $state(false);
+	let gameSearchOpen = $state(false);
 	let searchTimeout: ReturnType<typeof setTimeout>;
 
-	function onGameInput(e: Event) {
-		const q = (e.target as HTMLInputElement).value;
-		gameQuery = q;
+	function onCommandInput(value: string) {
+		gameQuery = value;
 		selectedGame = null;
 		clearTimeout(searchTimeout);
-		if (q.length < 2) { gameResults = []; return; }
+		if (value.length < 2) { gameResults = []; return; }
 		searching = true;
 		searchTimeout = setTimeout(async () => {
-			const res = await fetch(`${PUBLIC_API_URL}/games?q=${encodeURIComponent(q)}`, { credentials: 'include' });
+			const res = await fetch(`${PUBLIC_API_URL}/games?q=${encodeURIComponent(value)}`, { credentials: 'include' });
 			gameResults = res.ok ? await res.json() : [];
 			searching = false;
 		}, 300);
@@ -33,6 +35,7 @@
 		selectedGame = g;
 		gameQuery = g.display_name ?? g.name;
 		gameResults = [];
+		gameSearchOpen = false;
 	}
 </script>
 
@@ -51,31 +54,40 @@
 
 		<div class="space-y-2">
 			<Label for="game-search">Game (optional)</Label>
-			<div class="relative">
-				<Input
-					id="game-search"
-					value={gameQuery}
-					oninput={onGameInput}
-					placeholder="Search start.gg games…"
-					autocomplete="off"
-				/>
-				{#if gameResults.length > 0}
-					<ul class="absolute z-10 mt-1 w-full rounded-md border border-border bg-popover shadow-lg">
-						{#each gameResults as g (g.id)}
-							<li>
-								<button
-									type="button"
-									class="w-full px-3 py-2 text-left text-sm hover:bg-accent"
-									onclick={() => selectGame(g)}
-								>{g.display_name ?? g.name}</button>
-							</li>
-						{/each}
-					</ul>
-				{/if}
-			</div>
-			{#if searching}
-				<p class="text-xs text-muted-foreground">Searching…</p>
-			{/if}
+			<Popover.Root bind:open={gameSearchOpen}>
+				<Popover.Trigger class="w-full flex h-9 items-center justify-start rounded-md border border-input bg-transparent px-3 text-sm text-left">
+					{#if selectedGame}
+						{selectedGame.display_name ?? selectedGame.name}
+					{:else}
+						<span class="text-muted-foreground">Search start.gg games…</span>
+					{/if}
+				</Popover.Trigger>
+				<Popover.Content class="p-0 w-80" align="start">
+					<Command.Root shouldFilter={false}>
+						<Command.Input
+							placeholder="Search start.gg games…"
+							value={gameQuery}
+							oninput={(e) => onCommandInput((e.target as HTMLInputElement).value)}
+						/>
+						<Command.List>
+							{#if searching}
+								<Command.Empty>Searching…</Command.Empty>
+							{:else if gameQuery.length >= 2 && gameResults.length === 0}
+								<Command.Empty>No games found.</Command.Empty>
+							{:else}
+								{#each gameResults as g (g.id)}
+									<Command.Item
+										value={g.id.toString()}
+										onSelect={() => selectGame(g)}
+									>
+										{g.display_name ?? g.name}
+									</Command.Item>
+								{/each}
+							{/if}
+						</Command.List>
+					</Command.Root>
+				</Popover.Content>
+			</Popover.Root>
 		</div>
 
 		<input type="hidden" name="game_id" value={selectedGame?.id ?? ''} />
