@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import type { Tournament, TournamentEvent } from '$lib/types';
 
@@ -256,11 +257,11 @@
 
 				<!-- Row 1: search + venue -->
 				<div class="flex flex-wrap gap-2">
-					<input
+					<Input
 						type="text"
 						placeholder="Search tournament or event name…"
 						bind:value={search}
-						class="flex-1 min-w-48 rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+						class="flex-1 min-w-48"
 					/>
 					<select
 						bind:value={venueFilter}
@@ -276,35 +277,15 @@
 				<div class="flex flex-wrap gap-2 items-center">
 					<div class="flex items-center gap-1.5">
 						<span class="text-xs text-muted-foreground whitespace-nowrap">Entrants</span>
-						<input
-							type="number"
-							min="0"
-							placeholder="min"
-							bind:value={minEntrants}
-							class="w-20 rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-						/>
+						<Input type="number" min="0" placeholder="min" bind:value={minEntrants} class="w-20" />
 						<span class="text-muted-foreground">–</span>
-						<input
-							type="number"
-							min="0"
-							placeholder="max"
-							bind:value={maxEntrants}
-							class="w-20 rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-						/>
+						<Input type="number" min="0" placeholder="max" bind:value={maxEntrants} class="w-20" />
 					</div>
 					<div class="flex items-center gap-1.5">
 						<span class="text-xs text-muted-foreground">From</span>
-						<input
-							type="date"
-							bind:value={dateFrom}
-							class="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-						/>
+						<Input type="date" bind:value={dateFrom} class="w-auto" />
 						<span class="text-xs text-muted-foreground">To</span>
-						<input
-							type="date"
-							bind:value={dateTo}
-							class="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
-						/>
+						<Input type="date" bind:value={dateTo} class="w-auto" />
 					</div>
 				</div>
 

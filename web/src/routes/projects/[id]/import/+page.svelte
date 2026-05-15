@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Alert } from '$lib/components/ui/alert';
 	import { PUBLIC_API_URL } from '$env/static/public';
@@ -107,21 +108,11 @@
 		<div class="grid grid-cols-2 gap-4">
 			<div class="space-y-1">
 				<label for="after_date" class="text-sm font-medium">From date</label>
-				<input
-					id="after_date"
-					name="after_date"
-					type="date"
-					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-				/>
+				<Input id="after_date" name="after_date" type="date" />
 			</div>
 			<div class="space-y-1">
 				<label for="before_date" class="text-sm font-medium">To date</label>
-				<input
-					id="before_date"
-					name="before_date"
-					type="date"
-					class="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-				/>
+				<Input id="before_date" name="before_date" type="date" />
 			</div>
 		</div>
 		<p class="text-xs text-muted-foreground">Leave blank to import all tournaments.</p>
