@@ -46,7 +46,7 @@ CREATE TABLE startgg_accounts (
     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     player_id       UUID        NOT NULL REFERENCES players(id) ON DELETE CASCADE,
     startgg_user_id BIGINT      NOT NULL,
-    slug            TEXT        NOT NULL,  -- e.g. "user/abc123"
+    handle          TEXT        NOT NULL,  -- e.g. 'mang0'
     display_name    TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (player_id, startgg_user_id)
@@ -61,7 +61,7 @@ CREATE TABLE tournaments (
     id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     startgg_id     BIGINT      NOT NULL UNIQUE,
     name           TEXT        NOT NULL,
-    slug           TEXT        NOT NULL,
+    handle         TEXT        NOT NULL,  -- bare handle, e.g. 'some-weekly'
     city           TEXT,
     addr_state     TEXT,
     country_code   TEXT,
@@ -87,7 +87,7 @@ CREATE TABLE events (
     tournament_id UUID        NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
     startgg_id    BIGINT      NOT NULL UNIQUE,
     name          TEXT        NOT NULL,
-    slug          TEXT,
+    handle        TEXT        NOT NULL,  -- event segment only, e.g. 'melee-singles'
     state         TEXT,
     is_online     BOOLEAN,
     event_type    INTEGER,
