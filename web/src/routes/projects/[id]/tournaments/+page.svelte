@@ -7,6 +7,8 @@
 	import * as Collapsible from '$lib/components/ui/collapsible';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Select from '$lib/components/ui/select';
+	import Calendar from '$lib/components/ui/calendar/calendar.svelte';
+	import { type CalendarDate, getLocalTimeZone } from '@internationalized/date';
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import type { Tournament, TournamentEvent } from '$lib/types';
 
@@ -22,8 +24,13 @@
 	let venueFilter = $state<'all' | 'online' | 'offline'>('all');
 	let minEntrants = $state<number | null>(null);
 	let maxEntrants = $state<number | null>(null);
-	let dateFrom    = $state('');
-	let dateTo      = $state('');
+	let dateFrom      = $state<CalendarDate | undefined>(undefined);
+	let dateTo        = $state<CalendarDate | undefined>(undefined);
+	let dateFromOpen  = $state(false);
+	let dateToOpen    = $state(false);
+
+	const dateFromStr = $derived(dateFrom?.toString() ?? '');
+	const dateToStr   = $derived(dateTo?.toString() ?? '');
 	let eventType   = $state<'all' | 'singles' | 'teams'>('all');
 
 	// Bracket type filter
@@ -94,8 +101,8 @@
 		venueFilter = 'all';
 		minEntrants = null;
 		maxEntrants = null;
-		dateFrom    = '';
-		dateTo      = '';
+		dateFrom    = undefined;
+		dateTo      = undefined;
 		eventType   = 'all';
 		bracketFilter = Object.fromEntries(
 			BRACKET_TYPES.map(t => [t, 'neutral' as BracketTypeState])
@@ -121,8 +128,8 @@
 	function tournamentVisible(t: Tournament): boolean {
 		if (venueFilter === 'online' && !t.online) return false;
 		if (venueFilter === 'offline' && t.online) return false;
-		if (dateFrom && t.start_at && t.start_at.slice(0, 10) < dateFrom) return false;
-		if (dateTo && t.start_at && t.start_at.slice(0, 10) > dateTo) return false;
+		if (dateFromStr && t.start_at && t.start_at.slice(0, 10) < dateFromStr) return false;
+		if (dateToStr && t.start_at && t.start_at.slice(0, 10) > dateToStr) return false;
 		return true;
 	}
 
@@ -282,9 +289,45 @@
 						</div>
 						<div class="flex items-center gap-1.5">
 							<span class="text-xs text-muted-foreground">From</span>
-							<Input type="date" bind:value={dateFrom} class="w-auto" />
+							<Popover.Root bind:open={dateFromOpen}>
+								<Popover.Trigger>
+									{#snippet child({ props })}
+										<Button {...props} variant="outline" size="sm" class="w-32 justify-start font-normal">
+											{dateFrom
+												? dateFrom.toDate(getLocalTimeZone()).toLocaleDateString()
+												: 'Pick date'}
+										</Button>
+									{/snippet}
+								</Popover.Trigger>
+								<Popover.Content class="w-auto overflow-hidden p-0" align="start">
+									<Calendar
+										type="single"
+										bind:value={dateFrom}
+										captionLayout="dropdown"
+										onValueChange={() => { dateFromOpen = false; }}
+									/>
+								</Popover.Content>
+							</Popover.Root>
 							<span class="text-xs text-muted-foreground">To</span>
-							<Input type="date" bind:value={dateTo} class="w-auto" />
+							<Popover.Root bind:open={dateToOpen}>
+								<Popover.Trigger>
+									{#snippet child({ props })}
+										<Button {...props} variant="outline" size="sm" class="w-32 justify-start font-normal">
+											{dateTo
+												? dateTo.toDate(getLocalTimeZone()).toLocaleDateString()
+												: 'Pick date'}
+										</Button>
+									{/snippet}
+								</Popover.Trigger>
+								<Popover.Content class="w-auto overflow-hidden p-0" align="start">
+									<Calendar
+										type="single"
+										bind:value={dateTo}
+										captionLayout="dropdown"
+										onValueChange={() => { dateToOpen = false; }}
+									/>
+								</Popover.Content>
+							</Popover.Root>
 						</div>
 					</div>
 
