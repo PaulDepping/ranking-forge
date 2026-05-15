@@ -1523,6 +1523,78 @@ async fn test_list_tournament_entrants_normalizes_url(pool: PgPool) {
     assert_eq!(body.as_array().unwrap().len(), 0); // empty entrant list, but request succeeded
 }
 
+// ── Bulk add players ──────────────────────────────────────────────────────────
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn test_bulk_add_players(pool: PgPool) {
+    let app = make_app(pool, "http://unused");
+    let cookie = register(&app, "alice", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+
+    let resp = post_json(
+        &app,
+        &format!("/projects/{pid}/players/bulk"),
+        &cookie,
+        json!({
+            "players": [
+                { "name": "Mang0", "startgg_user_id": 1001, "handle": "mang0" },
+                { "name": "Armada", "startgg_user_id": 1002, "handle": "armada" }
+            ]
+        }),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let results: Vec<serde_json::Value> = read_json(resp).await.as_array().unwrap().clone();
+    assert_eq!(results.len(), 2);
+    // Both should be created
+    assert!(results.iter().all(|r| r["status"] == "created"));
+    let handles: Vec<&str> = results.iter().map(|r| r["handle"].as_str().unwrap()).collect();
+    assert!(handles.contains(&"mang0"));
+    assert!(handles.contains(&"armada"));
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn test_bulk_add_players_skips_duplicates(pool: PgPool) {
+    let app = make_app(pool, "http://unused");
+    let cookie = register(&app, "alice", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+
+    // Add first batch
+    let resp = post_json(
+        &app,
+        &format!("/projects/{pid}/players/bulk"),
+        &cookie,
+        json!({
+            "players": [
+                { "name": "Mang0", "startgg_user_id": 1001, "handle": "mang0" }
+            ]
+        }),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // Add again — same startgg_user_id should be skipped
+    let resp = post_json(
+        &app,
+        &format!("/projects/{pid}/players/bulk"),
+        &cookie,
+        json!({
+            "players": [
+                { "name": "Mang0", "startgg_user_id": 1001, "handle": "mang0" },
+                { "name": "Armada", "startgg_user_id": 1002, "handle": "armada" }
+            ]
+        }),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let results: Vec<serde_json::Value> = read_json(resp).await.as_array().unwrap().clone();
+    assert_eq!(results.len(), 2);
+    let mang0 = results.iter().find(|r| r["handle"] == "mang0").unwrap();
+    let armada = results.iter().find(|r| r["handle"] == "armada").unwrap();
+    assert_eq!(mang0["status"], "skipped");
+    assert_eq!(armada["status"], "created");
+}
+
 // ── Tournament event_type / bracket_types ─────────────────────────────────────
 
 #[sqlx::test(migrations = "../../migrations")]

@@ -267,6 +267,84 @@ async fn unlink_account(
     Ok(StatusCode::NO_CONTENT)
 }
 
+// ── Bulk add players ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct BulkAddEntry {
+    pub name: String,
+    pub startgg_user_id: i64,
+    pub handle: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BulkAddRequest {
+    pub players: Vec<BulkAddEntry>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BulkAddResult {
+    pub name: String,
+    pub handle: String,
+    pub status: &'static str, // "created" or "skipped"
+}
+
+pub async fn bulk_add_players(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<BulkAddRequest>,
+) -> Result<impl IntoResponse> {
+    require_project(&state.db, id, user.id).await?;
+
+    let mut results = Vec::new();
+
+    for entry in body.players {
+        let handle = normalize_handle(&entry.handle);
+        let name = entry.name;
+        let user_id = entry.startgg_user_id;
+
+        // Check if this startgg_user_id is already linked in this project
+        let existing = sqlx::query!(
+            "SELECT 1 AS one FROM startgg_accounts sa
+             JOIN players p ON sa.player_id = p.id
+             WHERE p.project_id = $1 AND sa.startgg_user_id = $2",
+            id,
+            user_id,
+        )
+        .fetch_optional(&state.db)
+        .await?;
+
+        if existing.is_some() {
+            results.push(BulkAddResult { name, handle, status: "skipped" });
+            continue;
+        }
+
+        // Insert player
+        let player = sqlx::query!(
+            "INSERT INTO players (project_id, name) VALUES ($1, $2) RETURNING id",
+            id,
+            name,
+        )
+        .fetch_one(&state.db)
+        .await?;
+
+        // Insert startgg account
+        sqlx::query!(
+            "INSERT INTO startgg_accounts (player_id, startgg_user_id, handle)
+             VALUES ($1, $2, $3)",
+            player.id,
+            user_id,
+            handle,
+        )
+        .execute(&state.db)
+        .await?;
+
+        results.push(BulkAddResult { name, handle, status: "created" });
+    }
+
+    Ok(Json(results))
+}
+
 // ── Tournament entrants ───────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize)]
@@ -342,6 +420,7 @@ fn normalize_tournament_handle(input: &str) -> String {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_players).post(add_player))
+        .route("/bulk", post(bulk_add_players))
         .route("/{pid}", delete(delete_player))
         .route("/{pid}/accounts", post(link_account))
         .route("/{pid}/accounts/{aid}", delete(unlink_account))
