@@ -146,6 +146,10 @@ pub fn router() -> Router<AppState> {
             "/{id}/import",
             post(crate::routes::import::start_import).get(crate::routes::import::get_import_status),
         )
+        .route(
+            "/{id}/tournament-entrants",
+            get(crate::routes::players::list_tournament_entrants),
+        )
         .route("/{id}/tournaments", get(t::list_tournaments))
         .route("/{id}/events/{eid}", patch(t::patch_event))
         .route("/{id}/stats", get(t::get_stats))

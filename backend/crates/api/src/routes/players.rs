@@ -1,6 +1,6 @@
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{delete, get, post},
@@ -265,6 +265,52 @@ async fn unlink_account(
     }
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ── Tournament entrants ───────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct TournamentEntrantResponse {
+    pub startgg_user_id: i64,
+    pub handle: String,
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TournamentEntrantsQuery {
+    pub tournament: String,
+}
+
+pub async fn list_tournament_entrants(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path(id): Path<Uuid>,
+    Query(q): Query<TournamentEntrantsQuery>,
+) -> Result<impl IntoResponse> {
+    let project = require_project(&state.db, id, user.id).await?;
+
+    let game_id = project.game_id.ok_or_else(|| {
+        AppError::UnprocessableEntity("project has no game configured".into())
+    })?;
+
+    let handle = normalize_tournament_handle(&q.tournament);
+
+    let entrants = state
+        .startgg
+        .tournament_entrants(&handle, game_id)
+        .await
+        .map_err(AppError::from)?;
+
+    let response: Vec<TournamentEntrantResponse> = entrants
+        .into_iter()
+        .map(|e| TournamentEntrantResponse {
+            startgg_user_id: e.startgg_user_id,
+            handle: e.handle,
+            name: e.name,
+        })
+        .collect();
+
+    Ok(Json(response))
 }
 
 // ── Handle normalization ──────────────────────────────────────────────────────

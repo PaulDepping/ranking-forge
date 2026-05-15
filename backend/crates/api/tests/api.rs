@@ -1393,6 +1393,136 @@ async fn stats_returns_game_scores(pool: PgPool) {
     assert_eq!(bob["losses"][0]["loser_score"], 1);
 }
 
+// ── Tournament entrants ───────────────────────────────────────────────────────
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn test_list_tournament_entrants(pool: PgPool) {
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    let mock = MockServer::start().await;
+
+    // Mock the tournament events query
+    Mock::given(wiremock::matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": {
+                "tournament": {
+                    "events": [{ "id": 999 }]
+                }
+            }
+        })))
+        .up_to_n_times(1)
+        .mount(&mock)
+        .await;
+
+    // Mock the entrant list query
+    Mock::given(wiremock::matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": {
+                "event": {
+                    "entrants": {
+                        "pageInfo": { "totalPages": 1 },
+                        "nodes": [
+                            {
+                                "participants": [{
+                                    "gamerTag": "Mang0",
+                                    "user": { "id": 1001, "slug": "user/mang0" }
+                                }]
+                            }
+                        ]
+                    }
+                }
+            }
+        })))
+        .up_to_n_times(1)
+        .mount(&mock)
+        .await;
+
+    let app = make_app(pool, &mock.uri());
+    let cookie = register(&app, "alice", "password123").await;
+
+    // Create project with a game_id so tournament_entrants has a game to filter by
+    let resp = post_json(
+        &app,
+        "/projects",
+        &cookie,
+        json!({"name": "Melee PR", "game_id": 1, "game_name": "Melee"}),
+    )
+    .await;
+    let pid = read_json(resp).await["id"].as_str().unwrap().to_string();
+
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid}/tournament-entrants?tournament=some-weekly"),
+        &cookie,
+    )
+    .await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = read_json(resp).await;
+    let arr = body.as_array().unwrap();
+    assert_eq!(arr.len(), 1);
+    assert_eq!(arr[0]["handle"], "mang0");
+    assert_eq!(arr[0]["name"], "Mang0");
+    assert!(arr[0]["startgg_user_id"].is_number());
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn test_list_tournament_entrants_normalizes_url(pool: PgPool) {
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    let mock = MockServer::start().await;
+
+    Mock::given(wiremock::matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": { "tournament": { "events": [{ "id": 999 }] } }
+        })))
+        .up_to_n_times(1)
+        .mount(&mock)
+        .await;
+
+    Mock::given(wiremock::matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": {
+                "event": {
+                    "entrants": {
+                        "pageInfo": { "totalPages": 1 },
+                        "nodes": []
+                    }
+                }
+            }
+        })))
+        .up_to_n_times(1)
+        .mount(&mock)
+        .await;
+
+    let app = make_app(pool, &mock.uri());
+    let cookie = register(&app, "alice", "password123").await;
+
+    // Create project with a game_id
+    let resp = post_json(
+        &app,
+        "/projects",
+        &cookie,
+        json!({"name": "Melee PR", "game_id": 1, "game_name": "Melee"}),
+    )
+    .await;
+    let pid = read_json(resp).await["id"].as_str().unwrap().to_string();
+
+    // Passing a full URL — should be normalized to "some-weekly"
+    let resp = get_req(
+        &app,
+        &format!(
+            "/projects/{pid}/tournament-entrants?tournament=https%3A%2F%2Fwww.start.gg%2Ftournament%2Fsome-weekly%2Fevent%2Fmelee-singles"
+        ),
+        &cookie,
+    )
+    .await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = read_json(resp).await;
+    assert_eq!(body.as_array().unwrap().len(), 0); // empty entrant list, but request succeeded
+}
+
 // ── Tournament event_type / bracket_types ─────────────────────────────────────
 
 #[sqlx::test(migrations = "../../migrations")]
