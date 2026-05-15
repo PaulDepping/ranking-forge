@@ -2,6 +2,7 @@
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import type { HeadToHeadEntry, H2HSet } from '$lib/types';
 	import SetDetailModal from '$lib/components/SetDetailModal.svelte';
+	import * as Table from '$lib/components/ui/table';
 
 	let { data } = $props();
 
@@ -66,28 +67,28 @@
 	{:else}
 		<div class="flex gap-4 items-start flex-wrap">
 			<!-- Matrix -->
-			<div class="overflow-x-auto">
-				<table class="border-collapse text-sm">
-					<thead>
-						<tr>
-							<th class="w-32 pb-2 pr-3 text-left font-normal text-muted-foreground"></th>
+			<div>
+				<Table.Root class="border-collapse">
+					<Table.Header>
+						<Table.Row>
+							<Table.Head class="w-32 pb-2 pr-3 font-normal text-muted-foreground h-auto"></Table.Head>
 							{#each data.players as col (col.id)}
-								<th class="px-2 pb-2 text-center font-medium" style="min-width:5rem">
+								<Table.Head class="px-2 pb-2 text-center font-medium h-auto" style="min-width:5rem">
 									<span class="block max-w-[5rem] truncate" title={col.name}>{col.name}</span>
-								</th>
+								</Table.Head>
 							{/each}
-						</tr>
-					</thead>
-					<tbody>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
 						{#each data.players as row (row.id)}
-							<tr>
-								<td class="max-w-[8rem] truncate py-1 pr-3 font-medium" title={row.name}>{row.name}</td>
+							<Table.Row class="border-0 hover:bg-transparent">
+								<Table.Cell class="max-w-[8rem] truncate py-1 pr-3 font-medium" title={row.name}>{row.name}</Table.Cell>
 								{#each data.players as col (col.id)}
 									{#if row.id === col.id}
-										<td class="px-2 py-1 text-center text-muted-foreground">—</td>
+										<Table.Cell class="px-2 py-1 text-center text-muted-foreground">—</Table.Cell>
 									{:else}
 										{@const rec = getRecord(row.id, col.id)}
-										<td class="px-2 py-1 text-center tabular-nums">
+										<Table.Cell class="px-2 py-1 text-center tabular-nums">
 											{#if rec}
 												<button
 													class="rounded px-1
@@ -105,13 +106,13 @@
 											{:else}
 												<span class="text-muted-foreground">—</span>
 											{/if}
-										</td>
+										</Table.Cell>
 									{/if}
 								{/each}
-							</tr>
+							</Table.Row>
 						{/each}
-					</tbody>
-				</table>
+					</Table.Body>
+				</Table.Root>
 				<p class="mt-1 text-xs text-muted-foreground">Row player's record vs. column player</p>
 			</div>
 
