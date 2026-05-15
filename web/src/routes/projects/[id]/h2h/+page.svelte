@@ -5,6 +5,9 @@
 	import * as Table from '$lib/components/ui/table';
 	import { Button } from '$lib/components/ui/button';
 	import * as Card from '$lib/components/ui/card';
+	import { Skeleton } from '$lib/components/ui/skeleton';
+	import * as Tooltip from '$lib/components/ui/tooltip';
+	import * as Empty from '$lib/components/ui/empty';
 
 	let { data } = $props();
 
@@ -65,7 +68,12 @@
 	<h2 class="text-lg font-semibold">Head-to-head</h2>
 
 	{#if data.players.length < 2 || data.h2h.length === 0}
-		<p class="text-sm text-muted-foreground">No head-to-head data yet. Import tournaments first.</p>
+		<Empty.Root>
+			<Empty.Header>
+				<Empty.Title>No head-to-head data yet</Empty.Title>
+				<Empty.Description>Import tournaments to generate head-to-head records.</Empty.Description>
+			</Empty.Header>
+		</Empty.Root>
 	{:else}
 		<div class="flex gap-4 items-start flex-wrap">
 			<!-- Matrix -->
@@ -76,7 +84,16 @@
 							<Table.Head class="w-32 pb-2 pr-3 font-normal text-muted-foreground h-auto"></Table.Head>
 							{#each data.players as col (col.id)}
 								<Table.Head class="px-2 pb-2 text-center font-medium h-auto" style="min-width:5rem">
-									<span class="block max-w-[5rem] truncate" title={col.name}>{col.name}</span>
+									<Tooltip.Root>
+										<Tooltip.Trigger>
+											{#snippet child({ props })}
+												<span {...props} class="block max-w-[5rem] truncate">{col.name}</span>
+											{/snippet}
+										</Tooltip.Trigger>
+										<Tooltip.Content>
+											<p>{col.name}</p>
+										</Tooltip.Content>
+									</Tooltip.Root>
 								</Table.Head>
 							{/each}
 						</Table.Row>
@@ -84,7 +101,18 @@
 					<Table.Body>
 						{#each data.players as row (row.id)}
 							<Table.Row class="border-0 hover:bg-transparent">
-								<Table.Cell class="max-w-[8rem] truncate py-1 pr-3 font-medium" title={row.name}>{row.name}</Table.Cell>
+								<Table.Cell class="py-1 pr-3 font-medium">
+									<Tooltip.Root>
+										<Tooltip.Trigger>
+											{#snippet child({ props })}
+												<span {...props} class="block max-w-[8rem] truncate">{row.name}</span>
+											{/snippet}
+										</Tooltip.Trigger>
+										<Tooltip.Content>
+											<p>{row.name}</p>
+										</Tooltip.Content>
+									</Tooltip.Root>
+								</Table.Cell>
 								{#each data.players as col (col.id)}
 									{#if row.id === col.id}
 										<Table.Cell class="px-2 py-1 text-center text-muted-foreground">—</Table.Cell>
@@ -120,8 +148,14 @@
 
 			<!-- Side panel -->
 			{#if loading}
-				<div class="flex items-center justify-center rounded-md border border-border p-6 text-sm text-muted-foreground min-w-[200px]">
-					Loading…
+				<div class="min-w-[220px] flex-1 max-w-xs space-y-3">
+					<Skeleton class="h-8 w-full rounded-md" />
+					<Skeleton class="h-4 w-3/4" />
+					<div class="space-y-1.5 mt-1">
+						<Skeleton class="h-7 w-full" />
+						<Skeleton class="h-7 w-full" />
+						<Skeleton class="h-7 w-full" />
+					</div>
 				</div>
 			{:else if selectedPair}
 				<Card.Root class="py-0 min-w-[220px] flex-1 max-w-xs">

@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import { describe, it, expect } from 'vitest';
-import Page from './+page.svelte';
+import Page from './H2HTestWrapper.svelte';
 
 vi.mock('$env/static/public', () => ({ PUBLIC_API_URL: 'http://localhost:8080' }));
 
@@ -42,8 +42,9 @@ describe('H2H page', () => {
 
 	it('shows empty message when h2h data is absent', () => {
 		render(Page, { data: { user, project, players: players.slice(0, 1), h2h: [] } });
+		expect(screen.getByText('No head-to-head data yet')).toBeInTheDocument();
 		expect(
-			screen.getByText('No head-to-head data yet. Import tournaments first.')
+			screen.getByText('Import tournaments to generate head-to-head records.')
 		).toBeInTheDocument();
 		expect(screen.queryByRole('table')).not.toBeInTheDocument();
 	});
