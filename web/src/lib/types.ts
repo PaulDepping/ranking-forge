@@ -86,6 +86,7 @@ export interface SetRecord {
 	loser_placement: number | null;
 	location: string | null;
 	num_entrants: number | null;
+	event_slug: string | null;
 }
 
 export interface H2HSet extends SetRecord {

@@ -65,7 +65,7 @@
 						{#if set.winner_score !== null || set.loser_score !== null}
 							<div>
 								<p class="text-xs uppercase tracking-wide text-muted-foreground">
-									{isWin ? currentPlayerName : set.opponent_name} score
+									{currentPlayerName} score
 								</p>
 								<p
 									class={isWin
@@ -77,7 +77,7 @@
 							</div>
 							<div>
 								<p class="text-xs uppercase tracking-wide text-muted-foreground">
-									{isWin ? set.opponent_name : currentPlayerName} score
+									{set.opponent_name} score
 								</p>
 								<p
 									class={isWin
@@ -91,7 +91,7 @@
 						{#if set.winner_seed !== null || set.loser_seed !== null}
 							<div>
 								<p class="text-xs uppercase tracking-wide text-muted-foreground">
-									{isWin ? currentPlayerName : set.opponent_name} seed
+									{currentPlayerName} seed
 								</p>
 								<p class={isWin ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
 									#{isWin ? (set.winner_seed ?? '?') : (set.loser_seed ?? '?')}
@@ -99,7 +99,7 @@
 							</div>
 							<div>
 								<p class="text-xs uppercase tracking-wide text-muted-foreground">
-									{isWin ? set.opponent_name : currentPlayerName} seed
+									{set.opponent_name} seed
 								</p>
 								<p class={isWin ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>
 									#{isWin ? (set.loser_seed ?? '?') : (set.winner_seed ?? '?')}
@@ -163,26 +163,22 @@
 						<div class="grid grid-cols-2 gap-x-4 gap-y-3">
 							<div>
 								<p class="text-xs uppercase tracking-wide text-muted-foreground">
-									{isWin ? currentPlayerName : set.opponent_name}
+									{currentPlayerName}
 								</p>
 								<p class={isWin ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-									{#if isWin}
-										{set.winner_placement !== null ? toOrdinal(set.winner_placement) : '?'}
-									{:else}
-										{set.loser_placement !== null ? toOrdinal(set.loser_placement) : '?'}
-									{/if}
+									{isWin
+										? (set.winner_placement !== null ? toOrdinal(set.winner_placement) : '?')
+										: (set.loser_placement !== null ? toOrdinal(set.loser_placement) : '?')}
 								</p>
 							</div>
 							<div>
 								<p class="text-xs uppercase tracking-wide text-muted-foreground">
-									{isWin ? set.opponent_name : currentPlayerName}
+									{set.opponent_name}
 								</p>
 								<p class={isWin ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}>
-									{#if isWin}
-										{set.loser_placement !== null ? toOrdinal(set.loser_placement) : '?'}
-									{:else}
-										{set.winner_placement !== null ? toOrdinal(set.winner_placement) : '?'}
-									{/if}
+									{isWin
+										? (set.loser_placement !== null ? toOrdinal(set.loser_placement) : '?')
+										: (set.winner_placement !== null ? toOrdinal(set.winner_placement) : '?')}
 								</p>
 							</div>
 						</div>
@@ -192,7 +188,9 @@
 
 			<div class="flex gap-4 border-t pt-3 text-sm">
 				<a
-					href="https://www.start.gg/set/{set.startgg_set_id}"
+					href={set.event_slug
+						? `https://www.start.gg/${set.tournament_slug}/event/${set.event_slug}/set/${set.startgg_set_id}`
+						: `https://www.start.gg/${set.tournament_slug}`}
 					target="_blank"
 					rel="noopener noreferrer"
 					class="text-primary hover:underline"

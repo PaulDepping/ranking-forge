@@ -87,6 +87,7 @@ pub struct SetRecord {
     pub loser_placement: Option<i32>,
     pub location: Option<String>,
     pub num_entrants: Option<i32>,
+    pub event_slug: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -378,6 +379,7 @@ pub async fn get_stats(
         city: Option<String>,
         addr_state: Option<String>,
         country_code: Option<String>,
+        event_slug: Option<String>,
     }
 
     let sets = sqlx::query_as!(
@@ -410,7 +412,8 @@ pub async fn get_stats(
             t.online,
             t.city,
             t.addr_state,
-            t.country_code
+            t.country_code,
+            e.slug                             AS "event_slug?: String"
         FROM sets s
         JOIN entrants we ON we.id = s.winner_entrant_id
         JOIN entrants le ON le.id = s.loser_entrant_id
@@ -475,6 +478,7 @@ pub async fn get_stats(
                     loser_placement: row.loser_placement,
                     location: location.clone(),
                     num_entrants: row.num_entrants,
+                    event_slug: row.event_slug.clone(),
                 });
             }
         }
@@ -502,6 +506,7 @@ pub async fn get_stats(
                     loser_placement: row.loser_placement,
                     location,
                     num_entrants: row.num_entrants,
+                    event_slug: row.event_slug,
                 });
             }
         }
@@ -656,6 +661,7 @@ pub async fn get_h2h_sets(
         city: Option<String>,
         addr_state: Option<String>,
         country_code: Option<String>,
+        event_slug: Option<String>,
     }
 
     let rows = sqlx::query_as!(
@@ -686,7 +692,8 @@ pub async fn get_h2h_sets(
             t.online,
             t.city,
             t.addr_state,
-            t.country_code
+            t.country_code,
+            e.slug                             AS "event_slug?: String"
         FROM sets s
         JOIN entrants we ON we.id = s.winner_entrant_id
         JOIN entrants le ON le.id = s.loser_entrant_id
@@ -756,6 +763,7 @@ pub async fn get_h2h_sets(
                     loser_placement: row.loser_placement,
                     location,
                     num_entrants: row.num_entrants,
+                    event_slug: row.event_slug,
                 },
             }
         })

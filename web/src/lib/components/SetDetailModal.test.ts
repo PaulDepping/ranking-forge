@@ -24,6 +24,7 @@ const baseSet: SetRecord = {
 	loser_placement: null,
 	location: null,
 	num_entrants: null,
+	event_slug: 'melee-singles',
 };
 
 describe('SetDetailModal', () => {
@@ -208,7 +209,7 @@ describe('SetDetailModal', () => {
 			props: { set: baseSet, isWin: true, currentPlayerName: 'Alice', onClose: () => {} }
 		});
 		const link = screen.getByRole('link', { name: /View set on start\.gg/ });
-		expect(link).toHaveAttribute('href', 'https://www.start.gg/set/12345');
+		expect(link).toHaveAttribute('href', 'https://www.start.gg/tournament/genesis-9/event/melee-singles/set/12345');
 	});
 
 	it('hides VOD link when vod_url is null', () => {

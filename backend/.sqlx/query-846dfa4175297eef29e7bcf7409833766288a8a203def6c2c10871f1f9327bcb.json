@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            we.player_id                       AS \"winner_player_id?: Uuid\",\n            COALESCE(wp.name, we.display_name) AS \"winner_name!\",\n            we.seed                            AS winner_seed,\n            we.id                              AS winner_entrant_id,\n            le.player_id                       AS \"loser_player_id?: Uuid\",\n            COALESCE(lp.name, le.display_name) AS \"loser_name!\",\n            le.seed                            AS loser_seed,\n            le.id                              AS loser_entrant_id,\n            s.winner_score,\n            s.loser_score,\n            e.name                             AS event_name,\n            t.name                             AS tournament_name,\n            t.slug                             AS tournament_slug,\n            s.round_name,\n            s.completed_at,\n            s.is_dq,\n            s.vod_url,\n            s.startgg_set_id,\n            ph.name                            AS \"phase_name?: String\",\n            pg.display_identifier              AS \"pool_identifier?: String\",\n            we.final_placement                 AS winner_placement,\n            le.final_placement                 AS loser_placement,\n            e.num_entrants,\n            t.online,\n            t.city,\n            t.addr_state,\n            t.country_code\n        FROM sets s\n        JOIN entrants we ON we.id = s.winner_entrant_id\n        JOIN entrants le ON le.id = s.loser_entrant_id\n        LEFT JOIN players wp ON wp.id = we.player_id AND wp.project_id = $1\n        LEFT JOIN players lp ON lp.id = le.player_id AND lp.project_id = $1\n        JOIN project_events pe ON pe.event_id = s.event_id AND pe.project_id = $1\n        JOIN events e ON e.id = s.event_id\n        JOIN tournaments t ON t.id = e.tournament_id\n        LEFT JOIN phase_groups pg ON pg.id = s.phase_group_id\n        LEFT JOIN phases ph ON ph.id = pg.phase_id\n        WHERE pe.included = true\n          AND s.is_dq    = false\n          AND s.has_placeholder = false\n          AND (wp.id IS NOT NULL OR lp.id IS NOT NULL)\n        ",
+  "query": "\n        SELECT\n            we.player_id                       AS \"winner_player_id?: Uuid\",\n            COALESCE(wp.name, we.display_name) AS \"winner_name!\",\n            we.seed                            AS winner_seed,\n            we.id                              AS winner_entrant_id,\n            le.player_id                       AS \"loser_player_id?: Uuid\",\n            COALESCE(lp.name, le.display_name) AS \"loser_name!\",\n            le.seed                            AS loser_seed,\n            le.id                              AS loser_entrant_id,\n            s.winner_score,\n            s.loser_score,\n            e.name                             AS event_name,\n            t.name                             AS tournament_name,\n            t.slug                             AS tournament_slug,\n            s.round_name,\n            s.completed_at,\n            s.is_dq,\n            s.vod_url,\n            s.startgg_set_id,\n            ph.name                            AS \"phase_name?: String\",\n            pg.display_identifier              AS \"pool_identifier?: String\",\n            we.final_placement                 AS winner_placement,\n            le.final_placement                 AS loser_placement,\n            e.num_entrants,\n            t.online,\n            t.city,\n            t.addr_state,\n            t.country_code,\n            e.slug                             AS \"event_slug?: String\"\n        FROM sets s\n        JOIN entrants we ON we.id = s.winner_entrant_id\n        JOIN entrants le ON le.id = s.loser_entrant_id\n        LEFT JOIN players wp ON wp.id = we.player_id AND wp.project_id = $1\n        LEFT JOIN players lp ON lp.id = le.player_id AND lp.project_id = $1\n        JOIN project_events pe ON pe.event_id = s.event_id AND pe.project_id = $1\n        JOIN events e ON e.id = s.event_id\n        JOIN tournaments t ON t.id = e.tournament_id\n        LEFT JOIN phase_groups pg ON pg.id = s.phase_group_id\n        LEFT JOIN phases ph ON ph.id = pg.phase_id\n        WHERE pe.included = true\n          AND s.is_dq    = false\n          AND s.has_placeholder = false\n          AND (wp.id IS NOT NULL OR lp.id IS NOT NULL)\n        ",
   "describe": {
     "columns": [
       {
@@ -137,6 +137,11 @@
         "ordinal": 26,
         "name": "country_code",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 27,
+        "name": "event_slug?: String",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -171,8 +176,9 @@
       false,
       true,
       true,
+      true,
       true
     ]
   },
-  "hash": "7a06b22ce3dbf66a5f62b5e6698223fdb2d01af68459ea2cb2c448682081a542"
+  "hash": "846dfa4175297eef29e7bcf7409833766288a8a203def6c2c10871f1f9327bcb"
 }
