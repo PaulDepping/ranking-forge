@@ -4,6 +4,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { Input } from '$lib/components/ui/input';
+	import * as Collapsible from '$lib/components/ui/collapsible';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Select from '$lib/components/ui/select';
 	import { PUBLIC_API_URL } from '$env/static/public';
@@ -228,139 +229,152 @@
 	{#if tournaments.length === 0}
 		<p class="text-sm text-muted-foreground">No tournaments imported yet. Run an import first.</p>
 	{:else}
-		<!-- Status line + toggle -->
-		<div class="flex items-center justify-between text-sm text-muted-foreground">
-			<span>
-				Showing <strong>{visibleTournaments.length}</strong> of {tournaments.length} tournaments
-				· <strong>{visibleEventCount}</strong> of {totalEventCount} events
-			</span>
-			<Button variant="outline" size="sm" onclick={() => (filterOpen = !filterOpen)}>
-				⚙ Filters &amp; Actions {filterOpen ? '▲' : '▼'}
-			</Button>
-		</div>
+		<Collapsible.Root bind:open={filterOpen}>
+			<!-- Status line + toggle -->
+			<div class="flex items-center justify-between text-sm text-muted-foreground">
+				<span>
+					Showing <strong>{visibleTournaments.length}</strong> of {tournaments.length} tournaments
+					· <strong>{visibleEventCount}</strong> of {totalEventCount} events
+				</span>
+				<Collapsible.Trigger>
+					{#snippet child({ props })}
+						<Button {...props} variant="outline" size="sm">
+							⚙ Filters &amp; Actions {filterOpen ? '▲' : '▼'}
+						</Button>
+					{/snippet}
+				</Collapsible.Trigger>
+			</div>
 
-		<!-- Collapsible filter panel -->
-		{#if filterOpen}
-			<div class="rounded-md border border-border bg-muted/30 p-4 space-y-3">
-				<!-- Header: label + clear button -->
-				<div class="flex items-center justify-between">
-					<span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Filters</span>
-					<Button type="button" variant="ghost" size="sm" onclick={resetAllFilters}>Clear filters</Button>
-				</div>
-
-				<!-- Row 1: search + venue -->
-				<div class="flex flex-wrap gap-2">
-					<Input
-						type="text"
-						placeholder="Search tournament or event name…"
-						bind:value={search}
-						class="flex-1 min-w-48"
-					/>
-					<Select.Root bind:value={venueFilter}>
-						<Select.Trigger class="w-36">{venueLabel}</Select.Trigger>
-						<Select.Content>
-							<Select.Item value="all">Venue: All</Select.Item>
-							<Select.Item value="online">Online only</Select.Item>
-							<Select.Item value="offline">Offline only</Select.Item>
-						</Select.Content>
-					</Select.Root>
-				</div>
-
-				<!-- Row 2: entrant range + date range -->
-				<div class="flex flex-wrap gap-2 items-center">
-					<div class="flex items-center gap-1.5">
-						<span class="text-xs text-muted-foreground whitespace-nowrap">Entrants</span>
-						<Input type="number" min="0" placeholder="min" bind:value={minEntrants} class="w-20" />
-						<span class="text-muted-foreground">–</span>
-						<Input type="number" min="0" placeholder="max" bind:value={maxEntrants} class="w-20" />
+			<Collapsible.Content>
+				<!-- Collapsible filter panel -->
+				<div class="rounded-md border border-border bg-muted/30 p-4 space-y-3 mt-2">
+					<!-- Header: label + clear button -->
+					<div class="flex items-center justify-between">
+						<span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Filters</span>
+						<Button type="button" variant="ghost" size="sm" onclick={resetAllFilters}>Clear filters</Button>
 					</div>
-					<div class="flex items-center gap-1.5">
-						<span class="text-xs text-muted-foreground">From</span>
-						<Input type="date" bind:value={dateFrom} class="w-auto" />
-						<span class="text-xs text-muted-foreground">To</span>
-						<Input type="date" bind:value={dateTo} class="w-auto" />
-					</div>
-				</div>
 
-				<!-- Row 3: event type + bracket filter -->
-				<div class="flex flex-wrap gap-4 items-center">
-					<div class="flex items-center gap-2">
-						<span class="text-xs text-muted-foreground whitespace-nowrap">Event type</span>
-						<Select.Root bind:value={eventType}>
-							<Select.Trigger class="w-28">{eventTypeLabel}</Select.Trigger>
+					<!-- Row 1: search + venue -->
+					<div class="flex flex-wrap gap-2">
+						<Input
+							type="text"
+							placeholder="Search tournament or event name…"
+							bind:value={search}
+							class="flex-1 min-w-48"
+						/>
+						<Select.Root bind:value={venueFilter}>
+							<Select.Trigger class="w-36">{venueLabel}</Select.Trigger>
 							<Select.Content>
-								<Select.Item value="all">All types</Select.Item>
-								<Select.Item value="singles">Singles</Select.Item>
-								<Select.Item value="teams">Teams</Select.Item>
+								<Select.Item value="all">Venue: All</Select.Item>
+								<Select.Item value="online">Online only</Select.Item>
+								<Select.Item value="offline">Offline only</Select.Item>
 							</Select.Content>
 						</Select.Root>
 					</div>
 
-					<Popover.Root bind:open={bracketPopoverOpen}>
-						<Popover.Trigger
-							class="rounded-md border px-3 py-1.5 text-sm {bracketReqCount > 0 || bracketExclCount > 0
-								? 'border-primary text-primary'
-								: 'border-input text-foreground bg-background'}"
-						>
-							{bracketTriggerLabel}
-						</Popover.Trigger>
-						<Popover.Content class="w-64 p-3" align="start">
-							<div class="flex justify-between items-center mb-2">
-								<span class="text-xs text-muted-foreground uppercase tracking-wide">Bracket Types</span>
-								<Button type="button" variant="ghost" size="sm" onclick={resetBracketFilter}>Reset</Button>
-							</div>
+					<!-- Row 2: entrant range + date range -->
+					<div class="flex flex-wrap gap-2 items-center">
+						<div class="flex items-center gap-1.5">
+							<span class="text-xs text-muted-foreground whitespace-nowrap">Entrants</span>
+							<Input type="number" min="0" placeholder="min" bind:value={minEntrants} class="w-20" />
+							<span class="text-muted-foreground">–</span>
+							<Input type="number" min="0" placeholder="max" bind:value={maxEntrants} class="w-20" />
+						</div>
+						<div class="flex items-center gap-1.5">
+							<span class="text-xs text-muted-foreground">From</span>
+							<Input type="date" bind:value={dateFrom} class="w-auto" />
+							<span class="text-xs text-muted-foreground">To</span>
+							<Input type="date" bind:value={dateTo} class="w-auto" />
+						</div>
+					</div>
 
-							<!-- Column headers -->
-							<div class="grid grid-cols-[1fr_28px_28px_28px] gap-1 mb-1">
-								<span></span>
-								<span class="text-xs text-muted-foreground text-center">–</span>
-								<span class="text-xs text-muted-foreground text-center">✓</span>
-								<span class="text-xs text-muted-foreground text-center">✕</span>
-							</div>
+					<!-- Row 3: event type + bracket filter -->
+					<div class="flex flex-wrap gap-4 items-center">
+						<div class="flex items-center gap-2">
+							<span class="text-xs text-muted-foreground whitespace-nowrap">Event type</span>
+							<Select.Root bind:value={eventType}>
+								<Select.Trigger class="w-28">{eventTypeLabel}</Select.Trigger>
+								<Select.Content>
+									<Select.Item value="all">All types</Select.Item>
+									<Select.Item value="singles">Singles</Select.Item>
+									<Select.Item value="teams">Teams</Select.Item>
+								</Select.Content>
+							</Select.Root>
+						</div>
 
-							<!-- Common bracket types -->
-							{#each COMMON_BRACKET_TYPES as bt}
-								{@render bracketRow(bt)}
-							{/each}
+						<Popover.Root bind:open={bracketPopoverOpen}>
+							<Popover.Trigger>
+								{#snippet child({ props })}
+									<Button
+										{...props}
+										variant="outline"
+										size="sm"
+										class={bracketReqCount > 0 || bracketExclCount > 0
+											? 'border-primary text-primary'
+											: ''}
+									>
+										{bracketTriggerLabel}
+									</Button>
+								{/snippet}
+							</Popover.Trigger>
+							<Popover.Content class="w-64 p-3" align="start">
+								<div class="flex justify-between items-center mb-2">
+									<span class="text-xs text-muted-foreground uppercase tracking-wide">Bracket Types</span>
+									<Button type="button" variant="ghost" size="sm" onclick={resetBracketFilter}>Reset</Button>
+								</div>
 
-							<div class="border-t border-border my-1.5"></div>
+								<!-- Column headers -->
+								<div class="grid grid-cols-[1fr_28px_28px_28px] gap-1 mb-1">
+									<span></span>
+									<span class="text-xs text-muted-foreground text-center">–</span>
+									<span class="text-xs text-muted-foreground text-center">✓</span>
+									<span class="text-xs text-muted-foreground text-center">✕</span>
+								</div>
 
-							<!-- Rarer bracket types -->
-							{#each RARE_BRACKET_TYPES as bt}
-								{@render bracketRow(bt)}
-							{/each}
+								<!-- Common bracket types -->
+								{#each COMMON_BRACKET_TYPES as bt}
+									{@render bracketRow(bt)}
+								{/each}
 
-							<!-- Legend -->
-							<div class="mt-2 pt-2 border-t border-border flex gap-3 flex-wrap">
-								<span class="text-[10px] text-muted-foreground"><span class="text-indigo-400">–</span> don't care</span>
-								<span class="text-[10px] text-muted-foreground"><span class="text-green-400">✓</span> required</span>
-								<span class="text-[10px] text-muted-foreground"><span class="text-red-400">✕</span> excluded</span>
-							</div>
-						</Popover.Content>
-					</Popover.Root>
-				</div>
+								<div class="border-t border-border my-1.5"></div>
 
-				<!-- Divider + bulk actions -->
-				<div class="flex items-center justify-between border-t border-border pt-3">
-					<span class="text-xs text-muted-foreground">
-						Bulk actions apply to {visibleEventCount} visible event{visibleEventCount !== 1 ? 's' : ''}
-					</span>
-					<div class="flex gap-2">
-						<Button variant="outline" size="sm" onclick={() => bulkSetIncluded(true)}>
-							✓ Include all visible
-						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							class="border-destructive text-destructive hover:bg-destructive/10"
-							onclick={() => bulkSetIncluded(false)}
-						>
-							✕ Exclude all visible
-						</Button>
+								<!-- Rarer bracket types -->
+								{#each RARE_BRACKET_TYPES as bt}
+									{@render bracketRow(bt)}
+								{/each}
+
+								<!-- Legend -->
+								<div class="mt-2 pt-2 border-t border-border flex gap-3 flex-wrap">
+									<span class="text-[10px] text-muted-foreground"><span class="text-indigo-400">–</span> don't care</span>
+									<span class="text-[10px] text-muted-foreground"><span class="text-green-400">✓</span> required</span>
+									<span class="text-[10px] text-muted-foreground"><span class="text-red-400">✕</span> excluded</span>
+								</div>
+							</Popover.Content>
+						</Popover.Root>
+					</div>
+
+					<!-- Divider + bulk actions -->
+					<div class="flex items-center justify-between border-t border-border pt-3">
+						<span class="text-xs text-muted-foreground">
+							Bulk actions apply to {visibleEventCount} visible event{visibleEventCount !== 1 ? 's' : ''}
+						</span>
+						<div class="flex gap-2">
+							<Button variant="outline" size="sm" onclick={() => bulkSetIncluded(true)}>
+								✓ Include all visible
+							</Button>
+							<Button
+								variant="outline"
+								size="sm"
+								class="border-destructive text-destructive hover:bg-destructive/10"
+								onclick={() => bulkSetIncluded(false)}
+							>
+								✕ Exclude all visible
+							</Button>
+						</div>
 					</div>
 				</div>
-			</div>
-		{/if}
+			</Collapsible.Content>
+		</Collapsible.Root>
 
 		<!-- Tournament list — iterate visibleTournaments -->
 		{#if visibleTournaments.length === 0}
