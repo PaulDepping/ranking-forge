@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { Input } from '$lib/components/ui/input';
 	import * as Select from '$lib/components/ui/select';
 	import { PUBLIC_API_URL } from '$env/static/public';
@@ -409,11 +410,9 @@
 										<span class="ml-2 text-xs text-muted-foreground">{event.num_entrants} entrants</span>
 									{/if}
 								</div>
-								<input
-									type="checkbox"
+								<Checkbox
 									checked={event.included}
-									onchange={() => handleToggle(data.project.id, event)}
-									class="h-4 w-4 rounded border-border accent-primary"
+									onCheckedChange={() => handleToggle(data.project.id, event)}
 								/>
 							</label>
 						{/each}

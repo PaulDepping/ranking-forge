@@ -30,6 +30,7 @@ Frontend-specific guidance for the SvelteKit app in this directory.
 | Badge | `$lib/components/ui/badge` |
 | Button | `$lib/components/ui/button` |
 | Card | `$lib/components/ui/card` |
+| Checkbox | `$lib/components/ui/checkbox` |
 | Dialog | `$lib/components/ui/dialog` |
 | Input | `$lib/components/ui/input` |
 | Label | `$lib/components/ui/label` |
