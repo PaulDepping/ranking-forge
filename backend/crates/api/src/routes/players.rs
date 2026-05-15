@@ -27,14 +27,14 @@ struct CreatePlayerRequest {
 
 #[derive(Deserialize)]
 struct LinkAccountRequest {
-    slug: String,
+    handle: String,
 }
 
 #[derive(Serialize)]
 pub struct AccountResponse {
     pub id: Uuid,
     pub startgg_user_id: i64,
-    pub slug: String,
+    pub handle: String,
     pub display_name: Option<String>,
 }
 
@@ -43,7 +43,7 @@ impl From<StartggAccount> for AccountResponse {
         AccountResponse {
             id: a.id,
             startgg_user_id: a.startgg_user_id,
-            slug: a.slug.unwrap_or_default(),
+            handle: a.handle,
             display_name: a.display_name,
         }
     }
@@ -100,7 +100,7 @@ async fn list_players(
     } else {
         sqlx::query_as!(
             StartggAccount,
-            "SELECT id, player_id, startgg_user_id, slug, display_name, created_at
+            "SELECT id, player_id, startgg_user_id, handle, display_name, created_at
              FROM startgg_accounts
              WHERE player_id = ANY($1)",
             &player_ids as &[Uuid],
@@ -211,18 +211,18 @@ async fn link_account(
 
     let sg_user = state
         .startgg
-        .user_by_slug(&body.slug)
+        .user_by_slug(&body.handle)
         .await?
         .ok_or_else(|| AppError::UnprocessableEntity("user not found on start.gg".into()))?;
 
     let account = sqlx::query_as!(
         StartggAccount,
-        "INSERT INTO startgg_accounts (player_id, startgg_user_id, slug, display_name)
+        "INSERT INTO startgg_accounts (player_id, startgg_user_id, handle, display_name)
          VALUES ($1, $2, $3, $4)
-         RETURNING id, player_id, startgg_user_id, slug, display_name, created_at",
+         RETURNING id, player_id, startgg_user_id, handle, display_name, created_at",
         path.pid,
         sg_user.id,
-        body.slug,
+        body.handle,
         sg_user.gamer_tag(),
     )
     .fetch_one(&state.db)

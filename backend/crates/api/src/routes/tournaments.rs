@@ -36,7 +36,7 @@ pub struct TournamentResponse {
     pub id: Uuid,
     pub startgg_id: i64,
     pub name: String,
-    pub slug: String,
+    pub handle: String,
     pub city: Option<String>,
     pub addr_state: Option<String>,
     pub country_code: Option<String>,
@@ -72,7 +72,7 @@ pub struct SetRecord {
     pub winner_score: Option<i16>,
     pub loser_score: Option<i16>,
     pub tournament_name: String,
-    pub tournament_slug: String,
+    pub tournament_handle: String,
     pub event_name: String,
     pub round_name: Option<String>,
     pub completed_at: Option<DateTime<Utc>>,
@@ -87,7 +87,7 @@ pub struct SetRecord {
     pub loser_placement: Option<i32>,
     pub location: Option<String>,
     pub num_entrants: Option<i32>,
-    pub event_slug: Option<String>,
+    pub event_handle: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -142,7 +142,7 @@ pub async fn list_tournaments(
         tournament_id: Uuid,
         tournament_startgg_id: i64,
         tournament_name: String,
-        tournament_slug: String,
+        tournament_handle: String,
         city: Option<String>,
         addr_state: Option<String>,
         country_code: Option<String>,
@@ -168,7 +168,7 @@ pub async fn list_tournaments(
             t.id            AS tournament_id,
             t.startgg_id    AS tournament_startgg_id,
             t.name          AS tournament_name,
-            t.slug          AS tournament_slug,
+            t.handle        AS tournament_handle,
             t.city,
             t.addr_state,
             t.country_code,
@@ -213,7 +213,7 @@ pub async fn list_tournaments(
                 id: row.tournament_id,
                 startgg_id: row.tournament_startgg_id,
                 name: row.tournament_name.clone(),
-                slug: row.tournament_slug.clone(),
+                handle: row.tournament_handle.clone(),
                 city: row.city.clone(),
                 addr_state: row.addr_state.clone(),
                 country_code: row.country_code.clone(),
@@ -364,7 +364,7 @@ pub async fn get_stats(
         loser_score: Option<i16>,
         event_name: String,
         tournament_name: String,
-        tournament_slug: String,
+        tournament_handle: String,
         round_name: Option<String>,
         completed_at: Option<DateTime<Utc>>,
         is_dq: bool,
@@ -379,7 +379,7 @@ pub async fn get_stats(
         city: Option<String>,
         addr_state: Option<String>,
         country_code: Option<String>,
-        event_slug: Option<String>,
+        event_handle: Option<String>,
     }
 
     let sets = sqlx::query_as!(
@@ -398,7 +398,7 @@ pub async fn get_stats(
             s.loser_score,
             e.name                             AS event_name,
             t.name                             AS tournament_name,
-            t.slug                             AS tournament_slug,
+            t.handle                           AS tournament_handle,
             s.round_name,
             s.completed_at,
             s.is_dq,
@@ -413,7 +413,7 @@ pub async fn get_stats(
             t.city,
             t.addr_state,
             t.country_code,
-            e.slug                             AS "event_slug?: String"
+            e.handle                           AS "event_handle?: String"
         FROM sets s
         JOIN entrants we ON we.id = s.winner_entrant_id
         JOIN entrants le ON le.id = s.loser_entrant_id
@@ -463,7 +463,7 @@ pub async fn get_stats(
                     winner_score: row.winner_score,
                     loser_score: row.loser_score,
                     tournament_name: row.tournament_name.clone(),
-                    tournament_slug: row.tournament_slug.clone(),
+                    tournament_handle: row.tournament_handle.clone(),
                     event_name: row.event_name.clone(),
                     round_name: row.round_name.clone(),
                     completed_at: row.completed_at,
@@ -478,7 +478,7 @@ pub async fn get_stats(
                     loser_placement: row.loser_placement,
                     location: location.clone(),
                     num_entrants: row.num_entrants,
-                    event_slug: row.event_slug.clone(),
+                    event_handle: row.event_handle.clone(),
                 });
             }
         }
@@ -491,7 +491,7 @@ pub async fn get_stats(
                     winner_score: row.winner_score,
                     loser_score: row.loser_score,
                     tournament_name: row.tournament_name,
-                    tournament_slug: row.tournament_slug,
+                    tournament_handle: row.tournament_handle,
                     event_name: row.event_name,
                     round_name: row.round_name,
                     completed_at: row.completed_at,
@@ -506,7 +506,7 @@ pub async fn get_stats(
                     loser_placement: row.loser_placement,
                     location,
                     num_entrants: row.num_entrants,
-                    event_slug: row.event_slug,
+                    event_handle: row.event_handle,
                 });
             }
         }
@@ -646,7 +646,7 @@ pub async fn get_h2h_sets(
         loser_score: Option<i16>,
         event_name: String,
         tournament_name: String,
-        tournament_slug: String,
+        tournament_handle: String,
         round_name: Option<String>,
         completed_at: Option<DateTime<Utc>>,
         is_dq: bool,
@@ -661,7 +661,7 @@ pub async fn get_h2h_sets(
         city: Option<String>,
         addr_state: Option<String>,
         country_code: Option<String>,
-        event_slug: Option<String>,
+        event_handle: Option<String>,
     }
 
     let rows = sqlx::query_as!(
@@ -678,7 +678,7 @@ pub async fn get_h2h_sets(
             s.loser_score,
             e.name                             AS event_name,
             t.name                             AS tournament_name,
-            t.slug                             AS tournament_slug,
+            t.handle                           AS tournament_handle,
             s.round_name,
             s.completed_at,
             s.is_dq,
@@ -693,7 +693,7 @@ pub async fn get_h2h_sets(
             t.city,
             t.addr_state,
             t.country_code,
-            e.slug                             AS "event_slug?: String"
+            e.handle                           AS "event_handle?: String"
         FROM sets s
         JOIN entrants we ON we.id = s.winner_entrant_id
         JOIN entrants le ON le.id = s.loser_entrant_id
@@ -748,7 +748,7 @@ pub async fn get_h2h_sets(
                     winner_score: row.winner_score,
                     loser_score: row.loser_score,
                     tournament_name: row.tournament_name,
-                    tournament_slug: row.tournament_slug,
+                    tournament_handle: row.tournament_handle,
                     event_name: row.event_name,
                     round_name: row.round_name,
                     completed_at: row.completed_at,
@@ -763,7 +763,7 @@ pub async fn get_h2h_sets(
                     loser_placement: row.loser_placement,
                     location,
                     num_entrants: row.num_entrants,
-                    event_slug: row.event_slug,
+                    event_handle: row.event_handle,
                 },
             }
         })

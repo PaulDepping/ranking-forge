@@ -307,7 +307,7 @@ async fn full_import_flow(pool: PgPool) {
         &app,
         &format!("/projects/{project_id}/players/{mango_id}/accounts"),
         &cookie,
-        json!({"slug": "user/mango"}),
+        json!({"handle": "user/mango"}),
     )
     .await;
     assert_eq!(resp.status(), StatusCode::CREATED);
@@ -326,7 +326,7 @@ async fn full_import_flow(pool: PgPool) {
         &app,
         &format!("/projects/{project_id}/players/{armada_id}/accounts"),
         &cookie,
-        json!({"slug": "user/armada"}),
+        json!({"handle": "user/armada"}),
     )
     .await;
     assert_eq!(resp.status(), StatusCode::CREATED);
@@ -385,8 +385,8 @@ async fn full_import_flow(pool: PgPool) {
         json!("Test Tournament")
     );
     assert_eq!(
-        armada_stats["wins"][0]["tournament_slug"],
-        json!("tournament/test-2024")
+        armada_stats["wins"][0]["tournament_handle"],
+        json!("test-2024")
     );
     assert_eq!(
         armada_stats["wins"][0]["event_name"],

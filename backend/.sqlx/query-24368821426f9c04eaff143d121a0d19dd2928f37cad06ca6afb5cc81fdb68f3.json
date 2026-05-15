@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO events (tournament_id, startgg_id, name, num_entrants)\n         VALUES ($1, 8001, 'Melee Singles', 128)\n         RETURNING id",
+  "query": "INSERT INTO events (tournament_id, startgg_id, name, event_type, handle)\n         VALUES ($1, 9991, 'Melee Singles', 1, 'melee-singles')\n         RETURNING id",
   "describe": {
     "columns": [
       {
@@ -18,5 +18,5 @@
       false
     ]
   },
-  "hash": "b8fc878a5089025c599c420441673dba8ff698dc15f45f53bc074bf0e68cb9ba"
+  "hash": "24368821426f9c04eaff143d121a0d19dd2928f37cad06ca6afb5cc81fdb68f3"
 }

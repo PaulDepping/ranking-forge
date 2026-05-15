@@ -133,7 +133,7 @@ async fn seed_tournament_event(
     startgg_event_id: i64,
 ) -> (Uuid, Uuid) {
     let tournament_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO tournaments (startgg_id, name, slug, online)
+        "INSERT INTO tournaments (startgg_id, name, handle, online)
          VALUES ($1, 'Test Tournament', 'test-tournament', false)
          RETURNING id",
         startgg_tournament_id,
@@ -143,8 +143,8 @@ async fn seed_tournament_event(
     .unwrap();
 
     let event_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO events (tournament_id, startgg_id, name)
-         VALUES ($1, $2, 'Singles')
+        "INSERT INTO events (tournament_id, startgg_id, name, handle)
+         VALUES ($1, $2, 'Singles', 'singles')
          RETURNING id",
         tournament_id,
         startgg_event_id,
@@ -724,14 +724,14 @@ async fn accounts_link_and_unlink(pool: PgPool) {
         &app,
         &format!("/projects/{pid}/players/{player_id}/accounts"),
         &cookie,
-        json!({"slug": "user/mango"}),
+        json!({"handle": "user/mango"}),
     )
     .await;
     assert_eq!(resp.status(), StatusCode::CREATED);
 
     let account = read_json(resp).await;
     assert_eq!(account["startgg_user_id"], 12345);
-    assert_eq!(account["slug"], "user/mango");
+    assert_eq!(account["handle"], "user/mango");
     assert_eq!(account["display_name"], "Mango");
 
     let account_id = account["id"].as_str().unwrap().to_string();
@@ -740,7 +740,7 @@ async fn accounts_link_and_unlink(pool: PgPool) {
     let resp = get_req(&app, &format!("/projects/{pid}/players"), &cookie).await;
     let players = read_json(resp).await;
     assert_eq!(players[0]["accounts"].as_array().unwrap().len(), 1);
-    assert_eq!(players[0]["accounts"][0]["slug"], "user/mango");
+    assert_eq!(players[0]["accounts"][0]["handle"], "user/mango");
 
     // Unlink
     let resp = delete_req(
@@ -780,7 +780,7 @@ async fn accounts_link_user_not_found_on_startgg(pool: PgPool) {
         &app,
         &format!("/projects/{pid}/players/{player_id}/accounts"),
         &cookie,
-        json!({"slug": "user/doesnotexist"}),
+        json!({"handle": "user/doesnotexist"}),
     )
     .await;
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
@@ -811,7 +811,7 @@ async fn accounts_link_duplicate(pool: PgPool) {
         &app,
         &format!("/projects/{pid}/players/{player_id}/accounts"),
         &cookie,
-        json!({"slug": "user/mango"}),
+        json!({"handle": "user/mango"}),
     )
     .await;
     assert_eq!(first.status(), StatusCode::CREATED);
@@ -820,7 +820,7 @@ async fn accounts_link_duplicate(pool: PgPool) {
         &app,
         &format!("/projects/{pid}/players/{player_id}/accounts"),
         &cookie,
-        json!({"slug": "user/mango"}),
+        json!({"handle": "user/mango"}),
     )
     .await;
     assert_eq!(second.status(), StatusCode::UNPROCESSABLE_ENTITY);
@@ -1404,7 +1404,7 @@ async fn list_tournaments_includes_event_type_and_bracket_types(pool: PgPool) {
 
     // Insert a tournament with an event that has event_type=1 and two phases
     let t_id: uuid::Uuid = sqlx::query_scalar!(
-        "INSERT INTO tournaments (startgg_id, name, slug, online)
+        "INSERT INTO tournaments (startgg_id, name, handle, online)
          VALUES (9991, 'Test Cup', 'tournament/test-cup', false)
          RETURNING id"
     )
@@ -1413,8 +1413,8 @@ async fn list_tournaments_includes_event_type_and_bracket_types(pool: PgPool) {
     .unwrap();
 
     let e_id: uuid::Uuid = sqlx::query_scalar!(
-        "INSERT INTO events (tournament_id, startgg_id, name, event_type)
-         VALUES ($1, 9991, 'Melee Singles', 1)
+        "INSERT INTO events (tournament_id, startgg_id, name, event_type, handle)
+         VALUES ($1, 9991, 'Melee Singles', 1, 'melee-singles')
          RETURNING id",
         t_id
     )
@@ -1553,7 +1553,7 @@ async fn stats_returns_enriched_set_fields(pool: PgPool) {
 
     // Tournament with location
     let t_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO tournaments (startgg_id, name, slug, online, city, addr_state)
+        "INSERT INTO tournaments (startgg_id, name, handle, online, city, addr_state)
          VALUES (9001, 'LACS', 'tournament/lacs', false, 'Los Angeles', 'CA')
          RETURNING id"
     )
@@ -1563,8 +1563,8 @@ async fn stats_returns_enriched_set_fields(pool: PgPool) {
 
     // Event with num_entrants
     let e_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO events (tournament_id, startgg_id, name, num_entrants)
-         VALUES ($1, 8001, 'Melee Singles', 128)
+        "INSERT INTO events (tournament_id, startgg_id, name, num_entrants, handle)
+         VALUES ($1, 8001, 'Melee Singles', 128, 'melee-singles')
          RETURNING id",
         t_id
     )
@@ -1672,7 +1672,7 @@ async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
 
     // Online tournament (location should be "Online")
     let t_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO tournaments (startgg_id, name, slug, online, city, addr_state)
+        "INSERT INTO tournaments (startgg_id, name, handle, online, city, addr_state)
          VALUES (9002, 'Online Major', 'tournament/online-major', true, 'Austin', 'TX')
          RETURNING id"
     )
@@ -1681,8 +1681,8 @@ async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
     .unwrap();
 
     let e_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO events (tournament_id, startgg_id, name, num_entrants)
-         VALUES ($1, 8002, 'Melee Singles', 64)
+        "INSERT INTO events (tournament_id, startgg_id, name, num_entrants, handle)
+         VALUES ($1, 8002, 'Melee Singles', 64, 'melee-singles')
          RETURNING id",
         t_id
     )
