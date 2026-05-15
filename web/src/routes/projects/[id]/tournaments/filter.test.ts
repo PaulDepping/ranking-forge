@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import type { Tournament, TournamentEvent } from '$lib/types';
 
+type BracketTypeState = 'neutral' | 'required' | 'excluded';
+
 function makeEvent(overrides: Partial<TournamentEvent> = {}): TournamentEvent {
     return {
         id: 'e1', startgg_id: 1, name: 'Melee Singles',
@@ -42,7 +44,7 @@ function eventVisible(
     minEntrants: number | null,
     maxEntrants: number | null,
     eventType: 'all' | 'singles' | 'teams',
-    excludeLadder: boolean,
+    bracketFilter: Record<string, BracketTypeState>,
 ): boolean {
     if (search.trim()) {
         const q = search.trim().toLowerCase();
@@ -52,8 +54,24 @@ function eventVisible(
     if (+maxEntrants > 0 && (e.num_entrants ?? 0) > +maxEntrants) return false;
     if (eventType === 'singles' && e.event_type !== null && e.event_type !== 1) return false;
     if (eventType === 'teams' && e.event_type !== null && e.event_type !== 2) return false;
-    if (excludeLadder && e.bracket_types.length > 0 &&
-        e.bracket_types.every(bt => bt === 'MATCHMAKING')) return false;
+
+    const required = Object.entries(bracketFilter)
+        .filter(([, s]) => s === 'required')
+        .map(([t]) => t);
+    const excluded = Object.entries(bracketFilter)
+        .filter(([, s]) => s === 'excluded')
+        .map(([t]) => t);
+
+    if (required.length > 0 || excluded.length > 0) {
+        if (e.bracket_types.length === 0) return true;
+        for (const r of required) {
+            if (!e.bracket_types.includes(r)) return false;
+        }
+        for (const x of excluded) {
+            if (e.bracket_types.includes(x)) return false;
+        }
+    }
+
     return true;
 }
 
@@ -80,60 +98,108 @@ describe('tournament filter', () => {
     it('name search matches event name', () => {
         const t = makeTournament([]);
         const e = makeEvent({ name: 'Melee Doubles' });
-        expect(eventVisible(e, t, 'doubles', null, null, 'all', false)).toBe(true);
-        expect(eventVisible(e, t, 'singles', null, null, 'all', false)).toBe(false);
+        expect(eventVisible(e, t, 'doubles', null, null, 'all', {})).toBe(true);
+        expect(eventVisible(e, t, 'singles', null, null, 'all', {})).toBe(false);
     });
 
     it('name search on tournament name shows all events', () => {
         const t = makeTournament([]);
         const e = makeEvent({ name: 'Melee Doubles' });
-        expect(eventVisible(e, t, 'genesis', null, null, 'all', false)).toBe(true);
+        expect(eventVisible(e, t, 'genesis', null, null, 'all', {})).toBe(true);
     });
 
     it('entrant range filter', () => {
         const t = makeTournament([]);
         const small = makeEvent({ num_entrants: 16 });
         const large = makeEvent({ num_entrants: 512 });
-        expect(eventVisible(small, t, '', 32, null, 'all', false)).toBe(false);
-        expect(eventVisible(large, t, '', 32, 200, 'all', false)).toBe(false);
-        expect(eventVisible(large, t, '', 32, null, 'all', false)).toBe(true);
+        expect(eventVisible(small, t, '', 32, null, 'all', {})).toBe(false);
+        expect(eventVisible(large, t, '', 32, 200, 'all', {})).toBe(false);
+        expect(eventVisible(large, t, '', 32, null, 'all', {})).toBe(true);
     });
 
     it('null num_entrants passes min/max filter', () => {
         const t = makeTournament([]);
         const e = makeEvent({ num_entrants: null });
-        expect(eventVisible(e, t, '', 32, 100, 'all', false)).toBe(true);
+        expect(eventVisible(e, t, '', 32, 100, 'all', {})).toBe(true);
     });
 
     it('eventType singles filter', () => {
         const t = makeTournament([]);
         const singles = makeEvent({ event_type: 1 });
         const teams = makeEvent({ event_type: 2 });
-        expect(eventVisible(singles, t, '', null, null, 'singles', false)).toBe(true);
-        expect(eventVisible(teams, t, '', null, null, 'singles', false)).toBe(false);
+        expect(eventVisible(singles, t, '', null, null, 'singles', {})).toBe(true);
+        expect(eventVisible(teams, t, '', null, null, 'singles', {})).toBe(false);
     });
 
     it('null event_type passes all eventType filters', () => {
         const t = makeTournament([]);
         const e = makeEvent({ event_type: null });
-        expect(eventVisible(e, t, '', null, null, 'singles', false)).toBe(true);
-        expect(eventVisible(e, t, '', null, null, 'teams', false)).toBe(true);
+        expect(eventVisible(e, t, '', null, null, 'singles', {})).toBe(true);
+        expect(eventVisible(e, t, '', null, null, 'teams', {})).toBe(true);
     });
+});
 
-    it('excludeLadder only hides pure MATCHMAKING events', () => {
+describe('bracket type filter', () => {
+    it('all neutral — no filtering applied', () => {
         const t = makeTournament([]);
-        const ladder = makeEvent({ bracket_types: ['MATCHMAKING'] });
-        const mixed = makeEvent({ bracket_types: ['ROUND_ROBIN', 'DOUBLE_ELIMINATION'] });
-        const pools_bracket = makeEvent({ bracket_types: ['ROUND_ROBIN', 'MATCHMAKING'] });
-        expect(eventVisible(ladder, t, '', null, null, 'all', true)).toBe(false);
-        expect(eventVisible(mixed, t, '', null, null, 'all', true)).toBe(true);
-        // pools_bracket has ROUND_ROBIN + MATCHMAKING — not ALL are MATCHMAKING, so it passes
-        expect(eventVisible(pools_bracket, t, '', null, null, 'all', true)).toBe(true);
+        const e = makeEvent({ bracket_types: ['MATCHMAKING'] });
+        expect(eventVisible(e, t, '', null, null, 'all', {})).toBe(true);
     });
 
-    it('empty bracket_types passes excludeLadder filter', () => {
+    it('required type present — passes', () => {
+        const t = makeTournament([]);
+        const e = makeEvent({ bracket_types: ['DOUBLE_ELIMINATION'] });
+        expect(eventVisible(e, t, '', null, null, 'all', { DOUBLE_ELIMINATION: 'required' })).toBe(true);
+    });
+
+    it('required type absent — filtered out', () => {
+        const t = makeTournament([]);
+        const e = makeEvent({ bracket_types: ['ROUND_ROBIN'] });
+        expect(eventVisible(e, t, '', null, null, 'all', { DOUBLE_ELIMINATION: 'required' })).toBe(false);
+    });
+
+    it('excluded type present — filtered out', () => {
+        const t = makeTournament([]);
+        const e = makeEvent({ bracket_types: ['MATCHMAKING'] });
+        expect(eventVisible(e, t, '', null, null, 'all', { MATCHMAKING: 'excluded' })).toBe(false);
+    });
+
+    it('excluded type absent — passes', () => {
+        const t = makeTournament([]);
+        const e = makeEvent({ bracket_types: ['DOUBLE_ELIMINATION'] });
+        expect(eventVisible(e, t, '', null, null, 'all', { MATCHMAKING: 'excluded' })).toBe(true);
+    });
+
+    it('multiple required types — event must have all of them', () => {
+        const t = makeTournament([]);
+        const hasAll = makeEvent({ bracket_types: ['ROUND_ROBIN', 'DOUBLE_ELIMINATION'] });
+        const missingOne = makeEvent({ bracket_types: ['DOUBLE_ELIMINATION'] });
+        const filter: Record<string, BracketTypeState> = {
+            ROUND_ROBIN: 'required',
+            DOUBLE_ELIMINATION: 'required',
+        };
+        expect(eventVisible(hasAll, t, '', null, null, 'all', filter)).toBe(true);
+        expect(eventVisible(missingOne, t, '', null, null, 'all', filter)).toBe(false);
+    });
+
+    it('required + excluded on different types — excluded wins when both present', () => {
+        const t = makeTournament([]);
+        // Event has the required type but also the excluded type → rejected
+        const e = makeEvent({ bracket_types: ['DOUBLE_ELIMINATION', 'MATCHMAKING'] });
+        const filter: Record<string, BracketTypeState> = {
+            DOUBLE_ELIMINATION: 'required',
+            MATCHMAKING: 'excluded',
+        };
+        expect(eventVisible(e, t, '', null, null, 'all', filter)).toBe(false);
+    });
+
+    it('empty bracket_types passes regardless of filter state', () => {
         const t = makeTournament([]);
         const e = makeEvent({ bracket_types: [] });
-        expect(eventVisible(e, t, '', null, null, 'all', true)).toBe(true);
+        const filter: Record<string, BracketTypeState> = {
+            DOUBLE_ELIMINATION: 'required',
+            MATCHMAKING: 'excluded',
+        };
+        expect(eventVisible(e, t, '', null, null, 'all', filter)).toBe(true);
     });
 });
