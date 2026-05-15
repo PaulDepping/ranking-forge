@@ -55,12 +55,16 @@
 		<div class="space-y-2">
 			<Label for="game-search">Game (optional)</Label>
 			<Popover.Root bind:open={gameSearchOpen}>
-				<Popover.Trigger class="w-full flex h-9 items-center justify-start rounded-md border border-input bg-transparent px-3 text-sm text-left">
-					{#if selectedGame}
-						{selectedGame.display_name ?? selectedGame.name}
-					{:else}
-						<span class="text-muted-foreground">Search start.gg games…</span>
-					{/if}
+				<Popover.Trigger>
+					{#snippet child({ props })}
+						<Button variant="outline" class="w-full justify-start font-normal" {...props}>
+							{#if selectedGame}
+								{selectedGame.display_name ?? selectedGame.name}
+							{:else}
+								<span class="text-muted-foreground">Search start.gg games…</span>
+							{/if}
+						</Button>
+					{/snippet}
 				</Popover.Trigger>
 				<Popover.Content class="p-0 w-80" align="start">
 					<Command.Root shouldFilter={false}>
@@ -71,7 +75,7 @@
 						/>
 						<Command.List>
 							{#if searching}
-								<Command.Empty>Searching…</Command.Empty>
+								<Command.Loading>Searching…</Command.Loading>
 							{:else if gameQuery.length >= 2 && gameResults.length === 0}
 								<Command.Empty>No games found.</Command.Empty>
 							{:else}
