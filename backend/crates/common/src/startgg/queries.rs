@@ -412,3 +412,81 @@ pub(crate) struct EventPhasesData {
 pub(crate) struct EventWithPhases {
     pub phases: Option<Vec<PhaseNode>>,
 }
+
+// ── Tournament entrants ───────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub(crate) struct TournamentEventsVars {
+    pub slug: String,
+    #[serde(rename = "gameId")]
+    pub game_id: i64,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TournamentEventsData {
+    pub tournament: Option<TournamentWithEventIds>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TournamentWithEventIds {
+    pub events: Option<Vec<TournamentEventId>>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TournamentEventId {
+    pub id: i64,
+}
+
+#[derive(Serialize)]
+pub(crate) struct TournamentEntrantListVars {
+    #[serde(rename = "eventId")]
+    pub event_id: i64,
+    pub page: i32,
+    #[serde(rename = "perPage")]
+    pub per_page: i32,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TournamentEntrantListData {
+    pub event: Option<EventWithEntrantList>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct EventWithEntrantList {
+    pub entrants: Option<TournamentEntrantPage>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TournamentEntrantPage {
+    pub page_info: PageInfo,
+    pub nodes: Vec<TournamentEntrantNode>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TournamentEntrantNode {
+    pub participants: Option<Vec<TournamentEntrantParticipant>>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TournamentEntrantParticipant {
+    pub gamer_tag: String,
+    pub user: Option<TournamentEntrantUser>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TournamentEntrantUser {
+    pub id: i64,
+    pub slug: String,
+}
+
+/// Public output type for `tournament_entrants`.
+#[derive(Debug, Clone)]
+pub struct TournamentEntrant {
+    pub startgg_user_id: i64,
+    /// Bare handle extracted from the start.gg slug, e.g. "mang0".
+    pub handle: String,
+    /// Gamer tag as displayed on start.gg, e.g. "Mang0".
+    pub name: String,
+}

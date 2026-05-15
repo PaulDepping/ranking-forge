@@ -5,8 +5,9 @@ use tracing::instrument;
 use super::queries::{
     EntrantPage, EventEntrantsData, EventEntrantsVars, EventPhasesData, EventPhasesVars,
     EventSetsData, EventSetsVars, GameNode, GameSearchData, GameSearchVars, PhaseNode, SetPage,
-    TournamentPage, TournamentsByUserData, TournamentsByUserVars, UserBySlugData, UserBySlugVars,
-    UserNode,
+    TournamentEntrant, TournamentEntrantListData, TournamentEntrantListVars, TournamentEventsData,
+    TournamentEventsVars, TournamentPage, TournamentsByUserData, TournamentsByUserVars,
+    UserBySlugData, UserBySlugVars, UserNode,
 };
 use super::{StartggClient, StartggError};
 
@@ -90,6 +91,30 @@ const EVENT_PHASES_QUERY: &str = r#"
                     nodes {
                         id displayIdentifier bracketType bracketUrl
                         numRounds startAt firstRoundTime state
+                    }
+                }
+            }
+        }
+    }"#;
+
+const TOURNAMENT_EVENTS_QUERY: &str = r#"
+    query($slug: String!, $gameId: ID!) {
+        tournament(slug: $slug) {
+            events(filter: { videogameId: [$gameId] }) {
+                id
+            }
+        }
+    }"#;
+
+const TOURNAMENT_ENTRANT_LIST_QUERY: &str = r#"
+    query($eventId: ID!, $page: Int!, $perPage: Int!) {
+        event(id: $eventId) {
+            entrants(query: { page: $page, perPage: $perPage }) {
+                pageInfo { totalPages }
+                nodes {
+                    participants {
+                        gamerTag
+                        user { id slug }
                     }
                 }
             }
@@ -223,6 +248,92 @@ impl StartggClient {
             page_info: None,
             nodes: vec![],
         }))
+    }
+
+    #[instrument(skip(self))]
+    pub async fn tournament_entrants(
+        &self,
+        tournament_handle: &str,
+        game_id: i64,
+    ) -> Result<Vec<TournamentEntrant>, StartggError> {
+        let t = Instant::now();
+
+        // Query 1: get event IDs for this tournament filtered by game.
+        let events_data: TournamentEventsData = self
+            .gql(
+                TOURNAMENT_EVENTS_QUERY,
+                TournamentEventsVars {
+                    slug: tournament_handle.to_string(),
+                    game_id,
+                },
+            )
+            .await?;
+
+        let event_ids: Vec<i64> = events_data
+            .tournament
+            .and_then(|t| t.events)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|e| e.id)
+            .collect();
+
+        let mut seen = std::collections::HashSet::new();
+        let mut result = Vec::new();
+
+        for event_id in event_ids {
+            let mut page = 1i32;
+            let mut per_page = 64i32;
+
+            'pages: loop {
+                let data: TournamentEntrantListData = match self
+                    .gql(
+                        TOURNAMENT_ENTRANT_LIST_QUERY,
+                        TournamentEntrantListVars { event_id, page, per_page },
+                    )
+                    .await
+                {
+                    Err(StartggError::ComplexityTooHigh { actual, limit }) if per_page > 1 => {
+                        tracing::warn!(per_page, actual, limit, "complexity too high, halving perPage");
+                        per_page /= 2;
+                        continue 'pages;
+                    }
+                    other => other?,
+                };
+
+                let entrant_data = match data.event.and_then(|e| e.entrants) {
+                    Some(d) => d,
+                    None => break,
+                };
+
+                for node in entrant_data.nodes {
+                    let Some(participants) = node.participants else {
+                        continue;
+                    };
+                    for participant in participants {
+                        let Some(user) = participant.user else {
+                            continue;
+                        };
+                        if seen.insert(user.id) {
+                            let handle = user.slug.trim_start_matches("user/").to_string();
+                            result.push(TournamentEntrant {
+                                startgg_user_id: user.id,
+                                handle,
+                                name: participant.gamer_tag,
+                            });
+                        }
+                    }
+                }
+
+                let total_pages = entrant_data.page_info.total_pages.unwrap_or(1);
+                if page >= total_pages {
+                    break;
+                }
+                page += 1;
+            }
+        }
+
+        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
+        Ok(result)
     }
 
     #[instrument(skip(self))]

@@ -4,8 +4,8 @@ mod queries;
 pub use queries::{
     EntrantNode, EntrantPage, EntrantStanding, EventNode, GameNode, PageInfo, Participant,
     ParticipantUser, PhaseGroupNode, PhaseGroupPage, PhaseNode, ScoreValue, SetNode, SetPage,
-    SetPhaseGroup, SetSlot, SlotEntrant, SlotStanding, SlotStats, TeamRosterSize, TournamentNode,
-    TournamentPage, UserNode,
+    SetPhaseGroup, SetSlot, SlotEntrant, SlotStanding, SlotStats, TeamRosterSize, TournamentEntrant,
+    TournamentNode, TournamentPage, UserNode,
 };
 
 use reqwest::Client;
@@ -640,6 +640,147 @@ mod tests {
             matches!(err, StartggError::GraphQL(_)),
             "expected GraphQL error, got {err:?}"
         );
+    }
+
+    // ── tournament_entrants ───────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn tournament_entrants_returns_entrants() {
+        let mock = MockServer::start().await;
+
+        // First request: fetch event IDs
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": {
+                    "tournament": {
+                        "events": [
+                            { "id": 101 },
+                            { "id": 102 }
+                        ]
+                    }
+                }
+            })))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+
+        // Second request: entrants for event 101
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": {
+                    "event": {
+                        "entrants": {
+                            "pageInfo": { "totalPages": 1 },
+                            "nodes": [
+                                {
+                                    "participants": [{
+                                        "gamerTag": "Mang0",
+                                        "user": { "id": 1001, "slug": "user/mang0" }
+                                    }]
+                                },
+                                {
+                                    "participants": [{
+                                        "gamerTag": "Armada",
+                                        "user": { "id": 1002, "slug": "user/armada" }
+                                    }]
+                                }
+                            ]
+                        }
+                    }
+                }
+            })))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+
+        // Third request: entrants for event 102 (Mang0 also in this event — dedup test)
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": {
+                    "event": {
+                        "entrants": {
+                            "pageInfo": { "totalPages": 1 },
+                            "nodes": [
+                                {
+                                    "participants": [{
+                                        "gamerTag": "Mang0",
+                                        "user": { "id": 1001, "slug": "user/mang0" }
+                                    }]
+                                },
+                                {
+                                    "participants": [{
+                                        "gamerTag": "Leffen",
+                                        "user": { "id": 1003, "slug": "user/leffen" }
+                                    }]
+                                }
+                            ]
+                        }
+                    }
+                }
+            })))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+
+        let entrants = client(&mock.uri())
+            .tournament_entrants("some-weekly", 1)
+            .await
+            .unwrap();
+
+        assert_eq!(entrants.len(), 3); // Mang0, Armada, Leffen (Mang0 deduplicated)
+        let handles: Vec<&str> = entrants.iter().map(|e| e.handle.as_str()).collect();
+        assert!(handles.contains(&"mang0"));
+        assert!(handles.contains(&"armada"));
+        assert!(handles.contains(&"leffen"));
+    }
+
+    #[tokio::test]
+    async fn tournament_entrants_omits_guests() {
+        let mock = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": { "tournament": { "events": [{ "id": 101 }] } }
+            })))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": {
+                    "event": {
+                        "entrants": {
+                            "pageInfo": { "totalPages": 1 },
+                            "nodes": [
+                                {
+                                    "participants": [{
+                                        "gamerTag": "Mang0",
+                                        "user": { "id": 1001, "slug": "user/mang0" }
+                                    }]
+                                },
+                                {
+                                    "participants": [{
+                                        "gamerTag": "GuestPlayer",
+                                        "user": null
+                                    }]
+                                }
+                            ]
+                        }
+                    }
+                }
+            })))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+
+        let entrants = client(&mock.uri())
+            .tournament_entrants("some-weekly", 1)
+            .await
+            .unwrap();
+
+        assert_eq!(entrants.len(), 1);
+        assert_eq!(entrants[0].handle, "mang0");
     }
 
     // ── event_phases ──────────────────────────────────────────────────────────
