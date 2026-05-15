@@ -11,6 +11,7 @@
 	import { type CalendarDate, getLocalTimeZone } from '@internationalized/date';
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import type { Job } from '$lib/types';
+	import { formatDate, formatDateTime } from '$lib/utils';
 
 	let { data, form } = $props();
 
@@ -81,7 +82,7 @@
 					<p class="text-sm text-destructive">{job.error}</p>
 				{/if}
 				<p class="text-xs text-muted-foreground">
-					Started {new Date(job.created_at).toLocaleString()}
+					Started {formatDateTime(job.created_at)}
 				</p>
 				{#if job.status === 'failed'}
 					<form
@@ -129,7 +130,7 @@
 						{#snippet child({ props })}
 							<Button {...props} variant="outline" class="w-full justify-start font-normal">
 								{afterDate
-									? afterDate.toDate(getLocalTimeZone()).toLocaleDateString()
+									? formatDate(afterDate.toDate(getLocalTimeZone()))
 									: 'Pick date'}
 							</Button>
 						{/snippet}
@@ -151,7 +152,7 @@
 						{#snippet child({ props })}
 							<Button {...props} variant="outline" class="w-full justify-start font-normal">
 								{beforeDate
-									? beforeDate.toDate(getLocalTimeZone()).toLocaleDateString()
+									? formatDate(beforeDate.toDate(getLocalTimeZone()))
 									: 'Pick date'}
 							</Button>
 						{/snippet}

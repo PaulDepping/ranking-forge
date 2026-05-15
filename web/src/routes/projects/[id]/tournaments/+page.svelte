@@ -12,6 +12,7 @@
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import type { Tournament, TournamentEvent } from '$lib/types';
 	import * as Empty from '$lib/components/ui/empty';
+	import { formatDate } from '$lib/utils';
 
 	let { data } = $props();
 
@@ -300,7 +301,7 @@
 									{#snippet child({ props })}
 										<Button {...props} variant="outline" size="sm" class="w-32 justify-start font-normal">
 											{dateFrom
-												? dateFrom.toDate(getLocalTimeZone()).toLocaleDateString()
+												? formatDate(dateFrom.toDate(getLocalTimeZone()))
 												: 'Pick date'}
 										</Button>
 									{/snippet}
@@ -320,7 +321,7 @@
 									{#snippet child({ props })}
 										<Button {...props} variant="outline" size="sm" class="w-32 justify-start font-normal">
 											{dateTo
-												? dateTo.toDate(getLocalTimeZone()).toLocaleDateString()
+												? formatDate(dateTo.toDate(getLocalTimeZone()))
 												: 'Pick date'}
 										</Button>
 									{/snippet}
@@ -445,7 +446,7 @@
 									.filter(Boolean)
 									.join(', ')}
 								{tournament.online ? '(Online)' : ''}
-								{tournament.start_at ? '· ' + new Date(tournament.start_at).toLocaleDateString() : ''}
+								{tournament.start_at ? '· ' + formatDate(tournament.start_at) : ''}
 							</p>
 						</div>
 						<Badge variant="outline">

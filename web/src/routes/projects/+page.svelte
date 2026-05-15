@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from '$lib/components/ui/card';
 	import * as Empty from '$lib/components/ui/empty';
+	import { formatDate } from '$lib/utils';
 
 	let { data } = $props();
 </script>
@@ -34,7 +35,7 @@
 					</CardHeader>
 					<CardFooter class="flex items-center justify-between">
 						<span class="text-xs text-muted-foreground">
-							{new Date(project.created_at).toLocaleDateString()}
+							{formatDate(project.created_at)}
 						</span>
 						<form method="POST" action="?/delete" use:enhance>
 							<input type="hidden" name="id" value={project.id} />

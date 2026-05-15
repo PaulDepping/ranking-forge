@@ -1,6 +1,7 @@
 <script lang="ts">
 	import * as Dialog from '$lib/components/ui/dialog';
 	import type { SetRecord } from '$lib/types';
+	import { formatDate } from '$lib/utils';
 
 	interface Props {
 		set: SetRecord | null;
@@ -13,16 +14,7 @@
 
 	let open = $derived(set !== null);
 
-	function formatDate(s: string | null): string {
-		if (!s) return 'Unknown';
-		return new Date(s).toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric'
-		});
-	}
-
-	function toOrdinal(n: number): string {
+function toOrdinal(n: number): string {
 		const s = ['th', 'st', 'nd', 'rd'];
 		const v = n % 100;
 		return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
