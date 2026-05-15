@@ -12,15 +12,90 @@
 	$effect(() => { tournaments = [...data.tournaments]; });
 
 	// Filter state
-	let filterOpen    = $state(false);
-	let search        = $state('');
-	let venueFilter   = $state<'all' | 'online' | 'offline'>('all');
-	let minEntrants   = $state<number | null>(null);
-	let maxEntrants   = $state<number | null>(null);
-	let dateFrom      = $state('');
-	let dateTo        = $state('');
-	let eventType     = $state<'all' | 'singles' | 'teams'>('all');
-	let excludeLadder = $state(false);
+	let filterOpen  = $state(false);
+	let search      = $state('');
+	let venueFilter = $state<'all' | 'online' | 'offline'>('all');
+	let minEntrants = $state<number | null>(null);
+	let maxEntrants = $state<number | null>(null);
+	let dateFrom    = $state('');
+	let dateTo      = $state('');
+	let eventType   = $state<'all' | 'singles' | 'teams'>('all');
+
+	// Bracket type filter
+	type BracketTypeState = 'neutral' | 'required' | 'excluded';
+
+	const BRACKET_TYPES = [
+		'DOUBLE_ELIMINATION',
+		'SINGLE_ELIMINATION',
+		'ROUND_ROBIN',
+		'MATCHMAKING',
+		'SWISS',
+		'EXHIBITION',
+		'RACE',
+		'CIRCUIT',
+		'CUSTOM_SCHEDULE',
+		'ELIMINATION_ROUNDS',
+	] as const;
+
+	// First 5 are common; last 5 are rare (separated by a divider in the UI)
+	const COMMON_BRACKET_TYPES = BRACKET_TYPES.slice(0, 5);
+	const RARE_BRACKET_TYPES   = BRACKET_TYPES.slice(5);
+
+	const BRACKET_TYPE_LABELS: Record<string, string> = {
+		DOUBLE_ELIMINATION:  'Double Elim',
+		SINGLE_ELIMINATION:  'Single Elim',
+		ROUND_ROBIN:         'Round Robin',
+		MATCHMAKING:         'Matchmaking',
+		SWISS:               'Swiss',
+		EXHIBITION:          'Exhibition',
+		RACE:                'Race',
+		CIRCUIT:             'Circuit',
+		CUSTOM_SCHEDULE:     'Custom Schedule',
+		ELIMINATION_ROUNDS:  'Elim. Rounds',
+	};
+
+	let bracketFilter = $state<Record<string, BracketTypeState>>(
+		Object.fromEntries(BRACKET_TYPES.map(t => [t, 'neutral' as BracketTypeState]))
+	);
+	let bracketPopoverOpen = $state(false);
+
+	const bracketReqCount  = $derived(Object.values(bracketFilter).filter(s => s === 'required').length);
+	const bracketExclCount = $derived(Object.values(bracketFilter).filter(s => s === 'excluded').length);
+	const bracketTriggerLabel = $derived(
+		bracketReqCount === 0 && bracketExclCount === 0
+			? 'Brackets ▾'
+			: [
+				bracketReqCount  > 0 ? `${bracketReqCount} req`  : '',
+				bracketExclCount > 0 ? `${bracketExclCount} excl` : '',
+			  ].filter(Boolean).join(' · ') + ' ▾'
+	);
+
+	function setBracketState(type: string, clicked: BracketTypeState) {
+		// Clicking the already-active state resets to neutral
+		bracketFilter = {
+			...bracketFilter,
+			[type]: bracketFilter[type] === clicked ? 'neutral' : clicked,
+		};
+	}
+
+	function resetBracketFilter() {
+		bracketFilter = Object.fromEntries(
+			BRACKET_TYPES.map(t => [t, 'neutral' as BracketTypeState])
+		);
+	}
+
+	// Close popover on outside click
+	$effect(() => {
+		if (!bracketPopoverOpen) return;
+		function handleClick(ev: MouseEvent) {
+			const wrapper = document.getElementById('bracket-popover-wrapper');
+			if (wrapper && !wrapper.contains(ev.target as Node)) {
+				bracketPopoverOpen = false;
+			}
+		}
+		document.addEventListener('click', handleClick);
+		return () => document.removeEventListener('click', handleClick);
+	});
 
 	async function toggleEvent(projectId: string, eventId: string, included: boolean) {
 		const res = await fetch(`${PUBLIC_API_URL}/projects/${projectId}/events/${eventId}`, {
@@ -31,7 +106,6 @@
 		});
 		if (!res.ok) return;
 
-		// Optimistic update already applied; sync from server response
 		const updated = await res.json();
 		tournaments = tournaments.map((t) => ({
 			...t,
@@ -54,13 +128,28 @@
 			const tournamentMatch = t.name.toLowerCase().includes(q);
 			if (!nameMatch && !tournamentMatch) return false;
 		}
-		// Svelte's bind:value on number inputs can produce "" when cleared — guard with > 0
 		if (+minEntrants > 0 && (e.num_entrants ?? Infinity) < +minEntrants) return false;
 		if (+maxEntrants > 0 && (e.num_entrants ?? 0) > +maxEntrants) return false;
 		if (eventType === 'singles' && e.event_type !== null && e.event_type !== 1) return false;
 		if (eventType === 'teams' && e.event_type !== null && e.event_type !== 2) return false;
-		if (excludeLadder && e.bracket_types.length > 0 &&
-			e.bracket_types.every(bt => bt === 'MATCHMAKING')) return false;
+
+		const required = Object.entries(bracketFilter)
+			.filter(([, s]) => s === 'required')
+			.map(([t]) => t);
+		const excluded = Object.entries(bracketFilter)
+			.filter(([, s]) => s === 'excluded')
+			.map(([t]) => t);
+
+		if (required.length > 0 || excluded.length > 0) {
+			if (e.bracket_types.length === 0) return true;
+			for (const r of required) {
+				if (!e.bracket_types.includes(r)) return false;
+			}
+			for (const x of excluded) {
+				if (e.bracket_types.includes(x)) return false;
+			}
+		}
+
 		return true;
 	}
 
@@ -71,7 +160,7 @@
 			.filter(t => t.events.length > 0)
 	);
 
-	const totalEventCount = $derived(tournaments.reduce((n, t) => n + t.events.length, 0));
+	const totalEventCount   = $derived(tournaments.reduce((n, t) => n + t.events.length, 0));
 	const visibleEventCount = $derived(visibleTournaments.reduce((n, t) => n + t.events.length, 0));
 
 	async function bulkSetIncluded(included: boolean) {
@@ -85,7 +174,6 @@
 	}
 
 	function handleToggle(projectId: string, event: TournamentEvent) {
-		// Optimistic update
 		tournaments = tournaments.map((t) => ({
 			...t,
 			events: t.events.map((e) => (e.id === event.id ? { ...e, included: !e.included } : e))
@@ -93,6 +181,28 @@
 		toggleEvent(projectId, event.id, !event.included);
 	}
 </script>
+
+{#snippet bracketRow(bt: string)}
+	<div class="grid grid-cols-[1fr_28px_28px_28px] gap-1 items-center py-0.5">
+		<span class="text-xs">{BRACKET_TYPE_LABELS[bt]}</span>
+		{#each (['neutral', 'required', 'excluded'] as const) as s}
+			<button
+				type="button"
+				onclick={() => setBracketState(bt, s)}
+				class="h-6 w-6 rounded border text-xs font-bold flex items-center justify-center
+					{bracketFilter[bt] === s
+						? s === 'required'
+							? 'border-green-500 bg-green-950 text-green-400'
+							: s === 'excluded'
+								? 'border-red-500 bg-red-950 text-red-400'
+								: 'border-indigo-500 bg-indigo-950 text-indigo-400'
+						: 'border-border bg-muted/30 text-transparent hover:text-muted-foreground'}"
+			>
+				{s === 'neutral' ? '–' : s === 'required' ? '✓' : '✕'}
+			</button>
+		{/each}
+	</div>
+{/snippet}
 
 <div class="space-y-4">
 	<h2 class="text-lg font-semibold">Tournaments</h2>
@@ -168,7 +278,7 @@
 					</div>
 				</div>
 
-				<!-- Row 3: event type + ladder -->
+				<!-- Row 3: event type + bracket filter -->
 				<div class="flex flex-wrap gap-4 items-center">
 					<div class="flex items-center gap-2">
 						<span class="text-xs text-muted-foreground whitespace-nowrap">Event type</span>
@@ -181,10 +291,58 @@
 							<option value="teams">Teams</option>
 						</select>
 					</div>
-					<label class="flex items-center gap-2 cursor-pointer text-sm">
-						<input type="checkbox" bind:checked={excludeLadder} class="h-4 w-4 accent-primary" />
-						Exclude ladder / matchmaking
-					</label>
+
+					<div class="relative" id="bracket-popover-wrapper">
+						<button
+							type="button"
+							onclick={() => (bracketPopoverOpen = !bracketPopoverOpen)}
+							class="rounded-md border px-3 py-1.5 text-sm {bracketReqCount > 0 || bracketExclCount > 0
+								? 'border-primary text-primary'
+								: 'border-input text-foreground bg-background'}"
+						>
+							{bracketTriggerLabel}
+						</button>
+
+						{#if bracketPopoverOpen}
+							<div class="absolute top-full mt-1 left-0 z-50 w-64 rounded-md border border-border bg-popover shadow-lg p-3">
+								<div class="flex justify-between items-center mb-2">
+									<span class="text-xs text-muted-foreground uppercase tracking-wide">Bracket Types</span>
+									<button
+										type="button"
+										onclick={resetBracketFilter}
+										class="text-xs text-muted-foreground hover:text-foreground"
+									>Reset</button>
+								</div>
+
+								<!-- Column headers -->
+								<div class="grid grid-cols-[1fr_28px_28px_28px] gap-1 mb-1">
+									<span></span>
+									<span class="text-xs text-muted-foreground text-center">–</span>
+									<span class="text-xs text-muted-foreground text-center">✓</span>
+									<span class="text-xs text-muted-foreground text-center">✕</span>
+								</div>
+
+								<!-- Common bracket types -->
+								{#each COMMON_BRACKET_TYPES as bt}
+									{@render bracketRow(bt)}
+								{/each}
+
+								<div class="border-t border-border my-1.5"></div>
+
+								<!-- Rarer bracket types -->
+								{#each RARE_BRACKET_TYPES as bt}
+									{@render bracketRow(bt)}
+								{/each}
+
+								<!-- Legend -->
+								<div class="mt-2 pt-2 border-t border-border flex gap-3 flex-wrap">
+									<span class="text-[10px] text-muted-foreground"><span class="text-indigo-400">–</span> don't care</span>
+									<span class="text-[10px] text-muted-foreground"><span class="text-green-400">✓</span> required</span>
+									<span class="text-[10px] text-muted-foreground"><span class="text-red-400">✕</span> excluded</span>
+								</div>
+							</div>
+						{/if}
+					</div>
 				</div>
 
 				<!-- Divider + bulk actions -->
