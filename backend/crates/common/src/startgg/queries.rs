@@ -410,5 +410,5 @@ pub(crate) struct EventPhasesData {
 
 #[derive(Deserialize)]
 pub(crate) struct EventWithPhases {
-    pub phases: Vec<PhaseNode>,
+    pub phases: Option<Vec<PhaseNode>>,
 }

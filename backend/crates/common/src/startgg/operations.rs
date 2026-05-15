@@ -247,7 +247,7 @@ impl StartggClient {
                     other => other?,
                 };
 
-                let phases = data.event.map(|e| e.phases).unwrap_or_default();
+                let phases = data.event.and_then(|e| e.phases).unwrap_or_default();
 
                 let max_total_pages = phases
                     .iter()
