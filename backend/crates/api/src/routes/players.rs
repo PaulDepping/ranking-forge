@@ -209,9 +209,11 @@ async fn link_account(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    let handle = normalize_handle(&body.handle);
+
     let sg_user = state
         .startgg
-        .user_by_slug(&body.handle)
+        .user_by_slug(&handle)
         .await?
         .ok_or_else(|| AppError::UnprocessableEntity("user not found on start.gg".into()))?;
 
@@ -222,7 +224,7 @@ async fn link_account(
          RETURNING id, player_id, startgg_user_id, handle, display_name, created_at",
         path.pid,
         sg_user.id,
-        body.handle,
+        handle,
         sg_user.gamer_tag(),
     )
     .fetch_one(&state.db)
@@ -265,6 +267,30 @@ async fn unlink_account(
     Ok(StatusCode::NO_CONTENT)
 }
 
+// ── Handle normalization ──────────────────────────────────────────────────────
+
+fn normalize_handle(input: &str) -> String {
+    let s = input.trim();
+    let s = s
+        .trim_start_matches("https://")
+        .trim_start_matches("http://")
+        .trim_start_matches("www.start.gg/")
+        .trim_start_matches("start.gg/")
+        .trim_start_matches("user/");
+    s.to_string()
+}
+
+fn normalize_tournament_handle(input: &str) -> String {
+    let s = input.trim();
+    let s = s
+        .trim_start_matches("https://")
+        .trim_start_matches("http://")
+        .trim_start_matches("www.start.gg/")
+        .trim_start_matches("start.gg/")
+        .trim_start_matches("tournament/");
+    s.split('/').next().unwrap_or(s).to_string()
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
@@ -273,4 +299,57 @@ pub fn router() -> Router<AppState> {
         .route("/{pid}", delete(delete_player))
         .route("/{pid}/accounts", post(link_account))
         .route("/{pid}/accounts/{aid}", delete(unlink_account))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_handle_bare() {
+        assert_eq!(normalize_handle("mang0"), "mang0");
+    }
+
+    #[test]
+    fn normalize_handle_user_prefix() {
+        assert_eq!(normalize_handle("user/mang0"), "mang0");
+    }
+
+    #[test]
+    fn normalize_handle_full_url() {
+        assert_eq!(normalize_handle("https://www.start.gg/user/mang0"), "mang0");
+    }
+
+    #[test]
+    fn normalize_handle_full_url_http() {
+        assert_eq!(normalize_handle("http://start.gg/user/mang0"), "mang0");
+    }
+
+    #[test]
+    fn normalize_handle_trims_whitespace() {
+        assert_eq!(normalize_handle("  mang0  "), "mang0");
+    }
+
+    #[test]
+    fn normalize_tournament_handle_bare() {
+        assert_eq!(normalize_tournament_handle("some-weekly"), "some-weekly");
+    }
+
+    #[test]
+    fn normalize_tournament_handle_full_url() {
+        assert_eq!(
+            normalize_tournament_handle("https://www.start.gg/tournament/some-weekly/event/melee-singles"),
+            "some-weekly"
+        );
+    }
+
+    #[test]
+    fn normalize_tournament_handle_with_tournament_prefix() {
+        assert_eq!(normalize_tournament_handle("tournament/some-weekly"), "some-weekly");
+    }
+
+    #[test]
+    fn normalize_tournament_handle_trims_whitespace() {
+        assert_eq!(normalize_tournament_handle("  some-weekly  "), "some-weekly");
+    }
 }
