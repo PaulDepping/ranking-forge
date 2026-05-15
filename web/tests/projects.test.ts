@@ -28,11 +28,11 @@ test('projects list has a link to create a new project', async ({ page }) => {
 
 test('project layout shows tab navigation', async ({ page }) => {
 	await page.goto('/projects/proj-1/players');
-	await expect(page.getByRole('link', { name: 'Players' })).toBeVisible();
-	await expect(page.getByRole('link', { name: 'Import' })).toBeVisible();
-	await expect(page.getByRole('link', { name: 'Tournaments' })).toBeVisible();
-	await expect(page.getByRole('link', { name: 'Stats' })).toBeVisible();
-	await expect(page.getByRole('link', { name: 'H2H' })).toBeVisible();
+	await expect(page.getByRole('tab', { name: 'Players' })).toBeVisible();
+	await expect(page.getByRole('tab', { name: 'Import' })).toBeVisible();
+	await expect(page.getByRole('tab', { name: 'Tournaments' })).toBeVisible();
+	await expect(page.getByRole('tab', { name: 'Stats' })).toBeVisible();
+	await expect(page.getByRole('tab', { name: 'H2H' })).toBeVisible();
 });
 
 test('h2h page renders the player grid', async ({ page }) => {
@@ -63,8 +63,9 @@ test('import page shows trigger button', async ({ page }) => {
 
 test('tournaments page shows empty state before import', async ({ page }) => {
 	await page.goto('/projects/proj-1/tournaments');
+	await expect(page.getByText('No tournaments yet')).toBeVisible();
 	await expect(
-		page.getByText('No tournaments imported yet. Run an import first.')
+		page.getByText('Run an import to pull in tournaments from start.gg.')
 	).toBeVisible();
 });
 
