@@ -54,7 +54,7 @@ pub struct StartggAccount {
     pub id: Uuid,
     pub player_id: Uuid,
     pub startgg_user_id: i64,
-    pub slug: Option<String>,
+    pub handle: String,
     pub display_name: Option<String>,
     pub created_at: DateTime<Utc>,
 }
