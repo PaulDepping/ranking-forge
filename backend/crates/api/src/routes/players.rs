@@ -489,6 +489,46 @@ pub async fn list_tournament_entrants(
     Ok(Json(response))
 }
 
+// ── Rename player ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct RenamePlayerRequest {
+    pub name: String,
+}
+
+async fn rename_player(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path(path): Path<ProjectPlayerPath>,
+    Json(body): Json<RenamePlayerRequest>,
+) -> Result<impl IntoResponse> {
+    if body.name.trim().is_empty() {
+        return Err(AppError::UnprocessableEntity("name cannot be empty".into()));
+    }
+
+    require_project(&state.db, path.id, user.id).await?;
+
+    let player = sqlx::query_as!(
+        Player,
+        "UPDATE players SET name = $1 WHERE id = $2 AND project_id = $3
+         RETURNING id, project_id, name, created_at",
+        body.name.trim(),
+        path.pid,
+        path.id,
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    Ok(Json(PlayerResponse {
+        id: player.id,
+        project_id: player.project_id,
+        name: player.name,
+        created_at: player.created_at,
+        accounts: vec![],
+    }))
+}
+
 // ── Handle normalization ──────────────────────────────────────────────────────
 
 fn normalize_handle(input: &str) -> String {
@@ -520,7 +560,7 @@ pub fn router() -> Router<AppState> {
         .route("/", get(list_players).post(add_player))
         .route("/bulk", post(bulk_add_players))
         .route("/by-handles", post(add_players_by_handles))
-        .route("/{pid}", delete(delete_player))
+        .route("/{pid}", delete(delete_player).patch(rename_player))
         .route("/{pid}/accounts", post(link_account))
         .route("/{pid}/accounts/{aid}", delete(unlink_account))
 }

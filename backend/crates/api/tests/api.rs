@@ -1523,6 +1523,47 @@ async fn test_list_tournament_entrants_normalizes_url(pool: PgPool) {
     assert_eq!(body.as_array().unwrap().len(), 0); // empty entrant list, but request succeeded
 }
 
+// ── Rename player ─────────────────────────────────────────────────────────────
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn test_rename_player(pool: PgPool) {
+    let app = make_app(pool, "http://unused");
+    let cookie = register(&app, "alice", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+    let player_id = create_player(&app, &cookie, &pid, "OldName").await;
+
+    let resp = patch_json(
+        &app,
+        &format!("/projects/{pid}/players/{player_id}"),
+        &cookie,
+        json!({"name": "NewName"}),
+    )
+    .await;
+
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = read_json(resp).await;
+    assert_eq!(body["name"], "NewName");
+    assert_eq!(body["id"], player_id);
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn test_rename_player_empty_name_returns_422(pool: PgPool) {
+    let app = make_app(pool, "http://unused");
+    let cookie = register(&app, "alice", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+    let player_id = create_player(&app, &cookie, &pid, "OldName").await;
+
+    let resp = patch_json(
+        &app,
+        &format!("/projects/{pid}/players/{player_id}"),
+        &cookie,
+        json!({"name": ""}),
+    )
+    .await;
+
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
 // ── Bulk add players ──────────────────────────────────────────────────────────
 
 #[sqlx::test(migrations = "../../migrations")]
