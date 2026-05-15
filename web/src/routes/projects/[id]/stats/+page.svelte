@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { SetRecord } from '$lib/types';
 	import SetDetailModal from '$lib/components/SetDetailModal.svelte';
+	import * as Card from '$lib/components/ui/card';
 
 	let { data } = $props();
 
@@ -29,7 +30,8 @@
 	{:else}
 		<div class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr))">
 			{#each data.stats as player (player.player_id)}
-				<div class="rounded-md border border-border p-3">
+				<Card.Root class="py-0">
+					<Card.Content class="p-3">
 					<div class="mb-2 flex items-baseline justify-between">
 						<span class="font-semibold">{player.name}</span>
 						<span class="text-xs text-muted-foreground">
@@ -68,7 +70,8 @@
 							</div>
 						</div>
 					</div>
-				</div>
+					</Card.Content>
+				</Card.Root>
 			{/each}
 		</div>
 	{/if}

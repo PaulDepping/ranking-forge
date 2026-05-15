@@ -256,11 +256,7 @@
 				<!-- Header: label + clear button -->
 				<div class="flex items-center justify-between">
 					<span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Filters</span>
-					<button
-						type="button"
-						onclick={resetAllFilters}
-						class="text-xs text-muted-foreground hover:text-foreground"
-					>Clear filters</button>
+					<Button type="button" variant="ghost" size="sm" onclick={resetAllFilters}>Clear filters</Button>
 				</div>
 
 				<!-- Row 1: search + venue -->
@@ -326,11 +322,7 @@
 							<div class="absolute top-full mt-1 left-0 z-50 w-64 rounded-md border border-border bg-popover shadow-lg p-3">
 								<div class="flex justify-between items-center mb-2">
 									<span class="text-xs text-muted-foreground uppercase tracking-wide">Bracket Types</span>
-									<button
-										type="button"
-										onclick={resetBracketFilter}
-										class="text-xs text-muted-foreground hover:text-foreground"
-									>Reset</button>
+									<Button type="button" variant="ghost" size="sm" onclick={resetBracketFilter}>Reset</Button>
 								</div>
 
 								<!-- Column headers -->

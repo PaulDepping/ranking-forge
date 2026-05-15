@@ -4,6 +4,7 @@
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import { ModeWatcher } from 'mode-watcher';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import { Button } from '$lib/components/ui/button';
 
 	let { children, data } = $props();
 
@@ -26,10 +27,7 @@
 			<div class="flex items-center gap-4">
 				<span class="text-sm text-muted-foreground">{data.user.username}</span>
 				<ThemeToggle />
-				<button
-					onclick={logout}
-					class="text-sm text-muted-foreground hover:text-foreground"
-				>Logout</button>
+				<Button variant="ghost" size="sm" onclick={logout}>Logout</Button>
 			</div>
 		</div>
 	</header>

@@ -3,6 +3,8 @@
 	import type { HeadToHeadEntry, H2HSet } from '$lib/types';
 	import SetDetailModal from '$lib/components/SetDetailModal.svelte';
 	import * as Table from '$lib/components/ui/table';
+	import { Button } from '$lib/components/ui/button';
+	import * as Card from '$lib/components/ui/card';
 
 	let { data } = $props();
 
@@ -122,45 +124,48 @@
 					Loading…
 				</div>
 			{:else if selectedPair}
-				<div class="rounded-md border border-border p-3 min-w-[220px] flex-1 max-w-xs">
-					<div class="mb-3 flex items-start justify-between gap-2 border-b border-border pb-2">
-						<div>
-							<p class="font-semibold text-sm">{selectedPair.rowPlayer.name} vs {selectedPair.colPlayer.name}</p>
-							<p class="text-xs text-muted-foreground">{selectedPair.wins} wins · {selectedPair.losses} losses</p>
+				<Card.Root class="py-0 min-w-[220px] flex-1 max-w-xs">
+					<Card.Content class="p-3">
+						<div class="mb-3 flex items-start justify-between gap-2 border-b border-border pb-2">
+							<div>
+								<p class="font-semibold text-sm">{selectedPair.rowPlayer.name} vs {selectedPair.colPlayer.name}</p>
+								<p class="text-xs text-muted-foreground">{selectedPair.wins} wins · {selectedPair.losses} losses</p>
+							</div>
+							<Button
+								variant="ghost"
+								size="icon"
+								onclick={() => (selectedPair = null)}
+								aria-label="Close panel"
+							>×</Button>
 						</div>
-						<button
-							class="text-muted-foreground hover:text-foreground text-lg leading-none"
-							onclick={() => (selectedPair = null)}
-							aria-label="Close panel"
-						>×</button>
-					</div>
-					{#if selectedPair.sets.length === 0}
-						<p class="text-xs text-muted-foreground">No sets found.</p>
-					{:else}
-						<div class="space-y-px">
-							{#each selectedPair.sets as set, i (i)}
-								<button
-									class="w-full flex items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-muted/50 border-b border-border last:border-0"
-									onclick={() => { selectedSet = set; selectedIsWin = set.is_win; }}
-								>
-									<span class={set.is_win ? 'font-bold text-green-600 dark:text-green-400 min-w-[12px]' : 'font-bold text-red-600 dark:text-red-400 min-w-[12px]'}>
-										{set.is_win ? 'W' : 'L'}
-									</span>
-									{#if set.winner_score !== null && set.loser_score !== null}
-										<span class="tabular-nums">
-											{set.is_win ? `${set.winner_score}–${set.loser_score}` : `${set.loser_score}–${set.winner_score}`}
+						{#if selectedPair.sets.length === 0}
+							<p class="text-xs text-muted-foreground">No sets found.</p>
+						{:else}
+							<div class="space-y-px">
+								{#each selectedPair.sets as set, i (i)}
+									<button
+										class="w-full flex items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-muted/50 border-b border-border last:border-0"
+										onclick={() => { selectedSet = set; selectedIsWin = set.is_win; }}
+									>
+										<span class={set.is_win ? 'font-bold text-green-600 dark:text-green-400 min-w-[12px]' : 'font-bold text-red-600 dark:text-red-400 min-w-[12px]'}>
+											{set.is_win ? 'W' : 'L'}
 										</span>
-									{/if}
-									<span class="text-muted-foreground truncate flex-1 text-left">{set.tournament_name}</span>
-									{#if set.round_name}
-										<span class="text-muted-foreground shrink-0">{set.round_name}</span>
-									{/if}
-								</button>
-							{/each}
-						</div>
-					{/if}
-					<p class="mt-2 text-xs text-muted-foreground">Click a row for full details</p>
-				</div>
+										{#if set.winner_score !== null && set.loser_score !== null}
+											<span class="tabular-nums">
+												{set.is_win ? `${set.winner_score}–${set.loser_score}` : `${set.loser_score}–${set.winner_score}`}
+											</span>
+										{/if}
+										<span class="text-muted-foreground truncate flex-1 text-left">{set.tournament_name}</span>
+										{#if set.round_name}
+											<span class="text-muted-foreground shrink-0">{set.round_name}</span>
+										{/if}
+									</button>
+								{/each}
+							</div>
+						{/if}
+						<p class="mt-2 text-xs text-muted-foreground">Click a row for full details</p>
+					</Card.Content>
+				</Card.Root>
 			{/if}
 		</div>
 	{/if}

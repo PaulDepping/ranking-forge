@@ -5,6 +5,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Alert } from '$lib/components/ui/alert';
+	import * as Card from '$lib/components/ui/card';
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import type { Job } from '$lib/types';
 
@@ -56,38 +57,40 @@
 	{/if}
 
 	{#if job}
-		<div class="rounded-md border border-border p-4 space-y-2">
-			<div class="flex items-center gap-2">
-				<span class="text-sm font-medium">Status:</span>
-				<Badge variant={statusColors[job.status]}>{job.status}</Badge>
-				{#if polling}
-					<span class="text-xs text-muted-foreground animate-pulse">updating…</span>
+		<Card.Root class="py-0">
+			<Card.Content class="p-4 space-y-2">
+				<div class="flex items-center gap-2">
+					<span class="text-sm font-medium">Status:</span>
+					<Badge variant={statusColors[job.status]}>{job.status}</Badge>
+					{#if polling}
+						<span class="text-xs text-muted-foreground animate-pulse">updating…</span>
+					{/if}
+				</div>
+				{#if job.error}
+					<p class="text-sm text-destructive">{job.error}</p>
 				{/if}
-			</div>
-			{#if job.error}
-				<p class="text-sm text-destructive">{job.error}</p>
-			{/if}
-			<p class="text-xs text-muted-foreground">
-				Started {new Date(job.created_at).toLocaleString()}
-			</p>
-			{#if job.status === 'failed'}
-				<form
-					method="POST"
-					use:enhance={() => {
-						return ({ result }) => {
-							if (result.type === 'success' && result.data?.job) {
-								job = result.data.job as Job;
-								startPolling();
-							}
-						};
-					}}
-				>
-					<input type="hidden" name="after_date" value={job.after_date ?? ''} />
-					<input type="hidden" name="before_date" value={job.before_date ?? ''} />
-					<Button type="submit" variant="outline" size="sm">Retry</Button>
-				</form>
-			{/if}
-		</div>
+				<p class="text-xs text-muted-foreground">
+					Started {new Date(job.created_at).toLocaleString()}
+				</p>
+				{#if job.status === 'failed'}
+					<form
+						method="POST"
+						use:enhance={() => {
+							return ({ result }) => {
+								if (result.type === 'success' && result.data?.job) {
+									job = result.data.job as Job;
+									startPolling();
+								}
+							};
+						}}
+					>
+						<input type="hidden" name="after_date" value={job.after_date ?? ''} />
+						<input type="hidden" name="before_date" value={job.before_date ?? ''} />
+						<Button type="submit" variant="outline" size="sm">Retry</Button>
+					</form>
+				{/if}
+			</Card.Content>
+		</Card.Root>
 	{/if}
 
 	<form
