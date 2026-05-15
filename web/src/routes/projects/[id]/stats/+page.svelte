@@ -2,6 +2,8 @@
 	import type { SetRecord } from '$lib/types';
 	import SetDetailModal from '$lib/components/SetDetailModal.svelte';
 	import * as Card from '$lib/components/ui/card';
+	import { ScrollArea } from '$lib/components/ui/scroll-area';
+	import * as Empty from '$lib/components/ui/empty';
 
 	let { data } = $props();
 
@@ -26,7 +28,12 @@
 	<h2 class="text-lg font-semibold">Stats</h2>
 
 	{#if data.stats.length === 0}
-		<p class="text-sm text-muted-foreground">No stats yet. Import tournaments and include some events first.</p>
+		<Empty.Root>
+			<Empty.Header>
+				<Empty.Title>No stats yet</Empty.Title>
+				<Empty.Description>Import tournaments and include some events to generate stats.</Empty.Description>
+			</Empty.Header>
+		</Empty.Root>
 	{:else}
 		<div class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr))">
 			{#each data.stats as player (player.player_id)}
@@ -43,7 +50,7 @@
 							<p class="mb-1 text-xs font-semibold uppercase tracking-wide text-green-600 dark:text-green-400">
 								WINS ({player.wins.length})
 							</p>
-							<div class="h-24 overflow-y-auto rounded border border-border bg-muted/20">
+							<ScrollArea class="h-24 rounded border border-border bg-muted/20">
 								{#each player.wins as set, i (i)}
 									<button
 										class="w-full border-b border-border px-2 py-1 text-left text-xs last:border-0 hover:bg-muted/50"
@@ -52,13 +59,13 @@
 										<span>{set.opponent_name} · UF {set.upset_factor}</span>
 									</button>
 								{/each}
-							</div>
+							</ScrollArea>
 						</div>
 						<div class="flex-1">
 							<p class="mb-1 text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">
 								LOSSES ({player.losses.length})
 							</p>
-							<div class="h-24 overflow-y-auto rounded border border-border bg-muted/20">
+							<ScrollArea class="h-24 rounded border border-border bg-muted/20">
 								{#each player.losses as set, i (i)}
 									<button
 										class="w-full border-b border-border px-2 py-1 text-left text-xs last:border-0 hover:bg-muted/50"
@@ -67,7 +74,7 @@
 										<span>{set.opponent_name} · UF {set.upset_factor}</span>
 									</button>
 								{/each}
-							</div>
+							</ScrollArea>
 						</div>
 					</div>
 					</Card.Content>

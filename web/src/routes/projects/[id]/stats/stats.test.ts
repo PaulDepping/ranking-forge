@@ -86,7 +86,10 @@ describe('Stats page', () => {
 	it('shows empty state when stats is empty', () => {
 		render(Page, { data: { user, project, stats: [] } });
 		expect(
-			screen.getByText('No stats yet. Import tournaments and include some events first.')
+			screen.getByText('No stats yet')
+		).toBeInTheDocument();
+		expect(
+			screen.getByText('Import tournaments and include some events to generate stats.')
 		).toBeInTheDocument();
 		expect(screen.queryByRole('table')).not.toBeInTheDocument();
 	});
