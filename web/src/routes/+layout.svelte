@@ -2,6 +2,8 @@
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { PUBLIC_API_URL } from '$env/static/public';
+	import { ModeWatcher } from 'mode-watcher';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	let { children, data } = $props();
 
@@ -15,12 +17,15 @@
 	<link rel="icon" href={favicon} />
 </svelte:head>
 
+<ModeWatcher />
+
 {#if data.user}
 	<header class="border-b border-border bg-card">
 		<div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
 			<a href="/projects" class="font-semibold text-foreground hover:text-primary">RankingForge</a>
 			<div class="flex items-center gap-4">
 				<span class="text-sm text-muted-foreground">{data.user.username}</span>
+				<ThemeToggle />
 				<button
 					onclick={logout}
 					class="text-sm text-muted-foreground hover:text-foreground"
