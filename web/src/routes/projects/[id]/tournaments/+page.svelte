@@ -4,6 +4,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { Input } from '$lib/components/ui/input';
+	import * as Popover from '$lib/components/ui/popover';
 	import * as Select from '$lib/components/ui/select';
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import type { Tournament, TournamentEvent } from '$lib/types';
@@ -99,19 +100,6 @@
 			BRACKET_TYPES.map(t => [t, 'neutral' as BracketTypeState])
 		);
 	}
-
-	// Close popover on outside click
-	$effect(() => {
-		if (!bracketPopoverOpen) return;
-		function handleClick(ev: MouseEvent) {
-			const wrapper = document.getElementById('bracket-popover-wrapper');
-			if (wrapper && !wrapper.contains(ev.target as Node)) {
-				bracketPopoverOpen = false;
-			}
-		}
-		document.addEventListener('click', handleClick);
-		return () => document.removeEventListener('click', handleClick);
-	});
 
 	async function toggleEvent(projectId: string, eventId: string, included: boolean) {
 		const res = await fetch(`${PUBLIC_API_URL}/projects/${projectId}/events/${eventId}`, {
@@ -308,53 +296,48 @@
 						</Select.Root>
 					</div>
 
-					<div class="relative" id="bracket-popover-wrapper">
-						<button
-							type="button"
-							onclick={() => (bracketPopoverOpen = !bracketPopoverOpen)}
+					<Popover.Root bind:open={bracketPopoverOpen}>
+						<Popover.Trigger
 							class="rounded-md border px-3 py-1.5 text-sm {bracketReqCount > 0 || bracketExclCount > 0
 								? 'border-primary text-primary'
 								: 'border-input text-foreground bg-background'}"
 						>
 							{bracketTriggerLabel}
-						</button>
-
-						{#if bracketPopoverOpen}
-							<div class="absolute top-full mt-1 left-0 z-50 w-64 rounded-md border border-border bg-popover shadow-lg p-3">
-								<div class="flex justify-between items-center mb-2">
-									<span class="text-xs text-muted-foreground uppercase tracking-wide">Bracket Types</span>
-									<Button type="button" variant="ghost" size="sm" onclick={resetBracketFilter}>Reset</Button>
-								</div>
-
-								<!-- Column headers -->
-								<div class="grid grid-cols-[1fr_28px_28px_28px] gap-1 mb-1">
-									<span></span>
-									<span class="text-xs text-muted-foreground text-center">–</span>
-									<span class="text-xs text-muted-foreground text-center">✓</span>
-									<span class="text-xs text-muted-foreground text-center">✕</span>
-								</div>
-
-								<!-- Common bracket types -->
-								{#each COMMON_BRACKET_TYPES as bt}
-									{@render bracketRow(bt)}
-								{/each}
-
-								<div class="border-t border-border my-1.5"></div>
-
-								<!-- Rarer bracket types -->
-								{#each RARE_BRACKET_TYPES as bt}
-									{@render bracketRow(bt)}
-								{/each}
-
-								<!-- Legend -->
-								<div class="mt-2 pt-2 border-t border-border flex gap-3 flex-wrap">
-									<span class="text-[10px] text-muted-foreground"><span class="text-indigo-400">–</span> don't care</span>
-									<span class="text-[10px] text-muted-foreground"><span class="text-green-400">✓</span> required</span>
-									<span class="text-[10px] text-muted-foreground"><span class="text-red-400">✕</span> excluded</span>
-								</div>
+						</Popover.Trigger>
+						<Popover.Content class="w-64 p-3" align="start">
+							<div class="flex justify-between items-center mb-2">
+								<span class="text-xs text-muted-foreground uppercase tracking-wide">Bracket Types</span>
+								<Button type="button" variant="ghost" size="sm" onclick={resetBracketFilter}>Reset</Button>
 							</div>
-						{/if}
-					</div>
+
+							<!-- Column headers -->
+							<div class="grid grid-cols-[1fr_28px_28px_28px] gap-1 mb-1">
+								<span></span>
+								<span class="text-xs text-muted-foreground text-center">–</span>
+								<span class="text-xs text-muted-foreground text-center">✓</span>
+								<span class="text-xs text-muted-foreground text-center">✕</span>
+							</div>
+
+							<!-- Common bracket types -->
+							{#each COMMON_BRACKET_TYPES as bt}
+								{@render bracketRow(bt)}
+							{/each}
+
+							<div class="border-t border-border my-1.5"></div>
+
+							<!-- Rarer bracket types -->
+							{#each RARE_BRACKET_TYPES as bt}
+								{@render bracketRow(bt)}
+							{/each}
+
+							<!-- Legend -->
+							<div class="mt-2 pt-2 border-t border-border flex gap-3 flex-wrap">
+								<span class="text-[10px] text-muted-foreground"><span class="text-indigo-400">–</span> don't care</span>
+								<span class="text-[10px] text-muted-foreground"><span class="text-green-400">✓</span> required</span>
+								<span class="text-[10px] text-muted-foreground"><span class="text-red-400">✕</span> excluded</span>
+							</div>
+						</Popover.Content>
+					</Popover.Root>
 				</div>
 
 				<!-- Divider + bulk actions -->

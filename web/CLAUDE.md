@@ -34,6 +34,7 @@ Frontend-specific guidance for the SvelteKit app in this directory.
 | Dialog | `$lib/components/ui/dialog` |
 | Input | `$lib/components/ui/input` |
 | Label | `$lib/components/ui/label` |
+| Popover | `$lib/components/ui/popover` |
 | Select | `$lib/components/ui/select` |
 | Separator | `$lib/components/ui/separator` |
 | Tabs | `$lib/components/ui/tabs` |
