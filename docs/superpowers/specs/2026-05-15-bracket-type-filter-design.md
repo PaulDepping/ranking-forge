@@ -27,8 +27,8 @@ const BRACKET_TYPES = [
   'SINGLE_ELIMINATION',
   'ROUND_ROBIN',
   'MATCHMAKING',
-  // divider in UI
   'SWISS',
+  // divider in UI
   'EXHIBITION',
   'RACE',
   'CIRCUIT',
@@ -68,8 +68,8 @@ Double Elim  [ ]  [✓]  [ ]
 Single Elim  [–]  [ ]  [ ]
 Round Robin  [–]  [ ]  [ ]
 Matchmaking  [ ]  [ ]  [✕]
-──────────────────────────
 Swiss        [–]  [ ]  [ ]
+──────────────────────────
 Exhibition   [–]  [ ]  [ ]
 Race         [–]  [ ]  [ ]
 Circuit      [–]  [ ]  [ ]
@@ -80,7 +80,7 @@ Elim. Rounds [–]  [ ]  [ ]
 ```
 
 - Column header row labels: `–`, `✓`, `✕`
-- A visual divider separates the top 4 common types from the bottom 6 rarer types.
+- A visual divider separates the top 5 common types (DE, SE, RR, Matchmaking, Swiss) from the bottom 5 rarer types.
 - Each cell is a clickable button (28×24 px). Clicking the already-active button resets that type back to neutral.
 - Active button colours:
   - Neutral (–): indigo tint (`bg-indigo-950 border-indigo-500 text-indigo-400`)
