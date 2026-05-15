@@ -731,7 +731,7 @@ async fn accounts_link_and_unlink(pool: PgPool) {
 
     let account = read_json(resp).await;
     assert_eq!(account["startgg_user_id"], 12345);
-    assert_eq!(account["handle"], "user/mango");
+    assert_eq!(account["handle"], "mango");
     assert_eq!(account["display_name"], "Mango");
 
     let account_id = account["id"].as_str().unwrap().to_string();
@@ -740,7 +740,7 @@ async fn accounts_link_and_unlink(pool: PgPool) {
     let resp = get_req(&app, &format!("/projects/{pid}/players"), &cookie).await;
     let players = read_json(resp).await;
     assert_eq!(players[0]["accounts"].as_array().unwrap().len(), 1);
-    assert_eq!(players[0]["accounts"][0]["handle"], "user/mango");
+    assert_eq!(players[0]["accounts"][0]["handle"], "mango");
 
     // Unlink
     let resp = delete_req(
