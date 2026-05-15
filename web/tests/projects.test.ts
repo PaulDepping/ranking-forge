@@ -81,3 +81,17 @@ test('retry button transitions import status to pending', async ({ page }) => {
 	await page.getByRole('button', { name: 'Retry' }).click();
 	await expect(page.getByText('pending')).toBeVisible();
 });
+
+test('tournaments filter panel has Clear filters button that resets search', async ({ page }) => {
+	await page.goto('/projects/proj-tournaments/tournaments');
+	await page.waitForLoadState('networkidle');
+	// Open filter panel
+	await page.getByRole('button', { name: /Filters & Actions/ }).click();
+	// Type in the search box
+	await page.getByPlaceholder('Search tournament or event name…').fill('melee');
+	await expect(page.getByPlaceholder('Search tournament or event name…')).toHaveValue('melee');
+	// Click "Clear filters"
+	await page.getByRole('button', { name: 'Clear filters' }).click();
+	// Search should be cleared
+	await expect(page.getByPlaceholder('Search tournament or event name…')).toHaveValue('');
+});

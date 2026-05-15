@@ -84,6 +84,19 @@
 		);
 	}
 
+	function resetAllFilters() {
+		search      = '';
+		venueFilter = 'all';
+		minEntrants = null;
+		maxEntrants = null;
+		dateFrom    = '';
+		dateTo      = '';
+		eventType   = 'all';
+		bracketFilter = Object.fromEntries(
+			BRACKET_TYPES.map(t => [t, 'neutral' as BracketTypeState])
+		);
+	}
+
 	// Close popover on outside click
 	$effect(() => {
 		if (!bracketPopoverOpen) return;
@@ -164,13 +177,20 @@
 	const visibleEventCount = $derived(visibleTournaments.reduce((n, t) => n + t.events.length, 0));
 
 	async function bulkSetIncluded(included: boolean) {
-		for (const t of visibleTournaments) {
-			for (const e of t.events) {
-				if (e.included !== included) {
-					await toggleEvent(data.project.id, e.id, included);
-				}
-			}
-		}
+		const toChange = visibleTournaments
+			.flatMap(t => t.events)
+			.filter(e => e.included !== included);
+
+		if (toChange.length === 0) return;
+
+		// Optimistic update so checkboxes reflect the change immediately
+		const idSet = new Set(toChange.map(e => e.id));
+		tournaments = tournaments.map(t => ({
+			...t,
+			events: t.events.map(e => idSet.has(e.id) ? { ...e, included } : e)
+		}));
+
+		await Promise.all(toChange.map(e => toggleEvent(data.project.id, e.id, included)));
 	}
 
 	function handleToggle(projectId: string, event: TournamentEvent) {
@@ -224,6 +244,16 @@
 		<!-- Collapsible filter panel -->
 		{#if filterOpen}
 			<div class="rounded-md border border-border bg-muted/30 p-4 space-y-3">
+				<!-- Header: label + clear button -->
+				<div class="flex items-center justify-between">
+					<span class="text-xs font-medium text-muted-foreground uppercase tracking-wide">Filters</span>
+					<button
+						type="button"
+						onclick={resetAllFilters}
+						class="text-xs text-muted-foreground hover:text-foreground"
+					>Clear filters</button>
+				</div>
+
 				<!-- Row 1: search + venue -->
 				<div class="flex flex-wrap gap-2">
 					<input

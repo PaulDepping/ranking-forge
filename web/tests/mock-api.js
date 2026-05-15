@@ -18,6 +18,23 @@ const MOCK_PLAYERS = [
 	{ id: 'player-3', project_id: 'proj-1', name: 'Charlie', created_at: '2026-01-01T00:00:00Z', accounts: [] }
 ];
 
+const MOCK_TOURNAMENTS = [
+	{
+		id: 't1', startgg_id: 1, name: 'Genesis 10', slug: 'tournament/genesis-10',
+		city: 'San Jose', addr_state: 'CA', country_code: 'US',
+		venue_name: null, online: false,
+		start_at: '2025-01-12T00:00:00Z', end_at: null,
+		events: [
+			{
+				id: 'e1', startgg_id: 1, name: 'Melee Singles',
+				game_name: null, num_entrants: 256, start_at: null,
+				included: true, event_type: 1,
+				bracket_types: ['DOUBLE_ELIMINATION'],
+			}
+		]
+	}
+];
+
 const MOCK_FAILED_JOB = {
 	id: 'job-1',
 	status: 'failed',
@@ -207,7 +224,8 @@ function createMockServer() {
 
 		const tournamentsMatch = path.match(/^\/projects\/([^/]+)\/tournaments$/);
 		if (tournamentsMatch && req.method === 'GET') {
-			respond(res, 200, []);
+			const projectId = tournamentsMatch[1];
+			respond(res, 200, projectId === 'proj-tournaments' ? MOCK_TOURNAMENTS : []);
 			return;
 		}
 
