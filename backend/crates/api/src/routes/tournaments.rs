@@ -47,6 +47,23 @@ pub struct TournamentResponse {
     pub events: Vec<ProjectEventResponse>,
 }
 
+fn compute_location(
+    online: bool,
+    city: Option<&str>,
+    state: Option<&str>,
+    country: Option<&str>,
+) -> Option<String> {
+    if online {
+        return Some("Online".to_string());
+    }
+    match (city, state, country) {
+        (Some(c), Some(s), _) => Some(format!("{c}, {s}")),
+        (Some(c), None, Some(cc)) => Some(format!("{c}, {cc}")),
+        (Some(c), None, None) => Some(c.to_string()),
+        _ => None,
+    }
+}
+
 #[derive(Serialize)]
 pub struct SetRecord {
     pub opponent_id: Uuid,
@@ -59,11 +76,17 @@ pub struct SetRecord {
     pub event_name: String,
     pub round_name: Option<String>,
     pub completed_at: Option<DateTime<Utc>>,
-    pub is_dq: bool, // always false currently (filtered in SQL); kept for forward-compat
+    pub is_dq: bool,
     pub vod_url: Option<String>,
     pub startgg_set_id: i64,
     pub winner_seed: Option<i32>,
     pub loser_seed: Option<i32>,
+    pub phase_name: Option<String>,
+    pub pool_identifier: Option<String>,
+    pub winner_placement: Option<i32>,
+    pub loser_placement: Option<i32>,
+    pub location: Option<String>,
+    pub num_entrants: Option<i32>,
 }
 
 #[derive(Serialize)]
@@ -346,6 +369,15 @@ pub async fn get_stats(
         is_dq: bool,
         vod_url: Option<String>,
         startgg_set_id: i64,
+        phase_name: Option<String>,
+        pool_identifier: Option<String>,
+        winner_placement: Option<i32>,
+        loser_placement: Option<i32>,
+        num_entrants: Option<i32>,
+        online: bool,
+        city: Option<String>,
+        addr_state: Option<String>,
+        country_code: Option<String>,
     }
 
     let sets = sqlx::query_as!(
@@ -369,7 +401,16 @@ pub async fn get_stats(
             s.completed_at,
             s.is_dq,
             s.vod_url,
-            s.startgg_set_id
+            s.startgg_set_id,
+            ph.name                            AS "phase_name?: String",
+            pg.display_identifier              AS "pool_identifier?: String",
+            we.final_placement                 AS winner_placement,
+            le.final_placement                 AS loser_placement,
+            e.num_entrants,
+            t.online,
+            t.city,
+            t.addr_state,
+            t.country_code
         FROM sets s
         JOIN entrants we ON we.id = s.winner_entrant_id
         JOIN entrants le ON le.id = s.loser_entrant_id
@@ -378,6 +419,8 @@ pub async fn get_stats(
         JOIN project_events pe ON pe.event_id = s.event_id AND pe.project_id = $1
         JOIN events e ON e.id = s.event_id
         JOIN tournaments t ON t.id = e.tournament_id
+        LEFT JOIN phase_groups pg ON pg.id = s.phase_group_id
+        LEFT JOIN phases ph ON ph.id = pg.phase_id
         WHERE pe.included = true
           AND s.is_dq    = false
           AND s.has_placeholder = false
@@ -399,6 +442,12 @@ pub async fn get_stats(
             (Some(ws), Some(ls)) => set_upset_factor(ws, ls) as i64,
             _ => 0,
         };
+        let location = compute_location(
+            row.online,
+            row.city.as_deref(),
+            row.addr_state.as_deref(),
+            row.country_code.as_deref(),
+        );
         let loser_opp_id = row.loser_player_id.unwrap_or(row.loser_entrant_id);
         let winner_opp_id = row.winner_player_id.unwrap_or(row.winner_entrant_id);
 
@@ -420,6 +469,12 @@ pub async fn get_stats(
                     startgg_set_id: row.startgg_set_id,
                     winner_seed: row.winner_seed,
                     loser_seed: row.loser_seed,
+                    phase_name: row.phase_name.clone(),
+                    pool_identifier: row.pool_identifier.clone(),
+                    winner_placement: row.winner_placement,
+                    loser_placement: row.loser_placement,
+                    location: location.clone(),
+                    num_entrants: row.num_entrants,
                 });
             }
         }
@@ -441,6 +496,12 @@ pub async fn get_stats(
                     startgg_set_id: row.startgg_set_id,
                     winner_seed: row.winner_seed,
                     loser_seed: row.loser_seed,
+                    phase_name: row.phase_name,
+                    pool_identifier: row.pool_identifier,
+                    winner_placement: row.winner_placement,
+                    loser_placement: row.loser_placement,
+                    location,
+                    num_entrants: row.num_entrants,
                 });
             }
         }
@@ -586,6 +647,15 @@ pub async fn get_h2h_sets(
         is_dq: bool,
         vod_url: Option<String>,
         startgg_set_id: i64,
+        phase_name: Option<String>,
+        pool_identifier: Option<String>,
+        winner_placement: Option<i32>,
+        loser_placement: Option<i32>,
+        num_entrants: Option<i32>,
+        online: bool,
+        city: Option<String>,
+        addr_state: Option<String>,
+        country_code: Option<String>,
     }
 
     let rows = sqlx::query_as!(
@@ -607,7 +677,16 @@ pub async fn get_h2h_sets(
             s.completed_at,
             s.is_dq,
             s.vod_url,
-            s.startgg_set_id
+            s.startgg_set_id,
+            ph.name                            AS "phase_name?: String",
+            pg.display_identifier              AS "pool_identifier?: String",
+            we.final_placement                 AS winner_placement,
+            le.final_placement                 AS loser_placement,
+            e.num_entrants,
+            t.online,
+            t.city,
+            t.addr_state,
+            t.country_code
         FROM sets s
         JOIN entrants we ON we.id = s.winner_entrant_id
         JOIN entrants le ON le.id = s.loser_entrant_id
@@ -616,6 +695,8 @@ pub async fn get_h2h_sets(
         JOIN events   e  ON e.id  = s.event_id
         JOIN tournaments t ON t.id = e.tournament_id
         JOIN project_events pe ON pe.event_id = s.event_id AND pe.project_id = $1
+        LEFT JOIN phase_groups pg ON pg.id = s.phase_group_id
+        LEFT JOIN phases ph ON ph.id = pg.phase_id
         WHERE pe.included = true
           AND s.is_dq = false
           AND s.has_placeholder = false
@@ -645,6 +726,12 @@ pub async fn get_h2h_sets(
             } else {
                 (row.winner_player_id, row.winner_name)
             };
+            let location = compute_location(
+                row.online,
+                row.city.as_deref(),
+                row.addr_state.as_deref(),
+                row.country_code.as_deref(),
+            );
             H2HSet {
                 is_win,
                 set: SetRecord {
@@ -663,6 +750,12 @@ pub async fn get_h2h_sets(
                     startgg_set_id: row.startgg_set_id,
                     winner_seed: row.winner_seed,
                     loser_seed: row.loser_seed,
+                    phase_name: row.phase_name,
+                    pool_identifier: row.pool_identifier,
+                    winner_placement: row.winner_placement,
+                    loser_placement: row.loser_placement,
+                    location,
+                    num_entrants: row.num_entrants,
                 },
             }
         })

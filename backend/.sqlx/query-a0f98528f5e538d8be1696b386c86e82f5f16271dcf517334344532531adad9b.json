@@ -1,0 +1,168 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            we.player_id                       AS \"winner_player_id!: Uuid\",\n            COALESCE(wp.name, we.display_name) AS \"winner_name!\",\n            we.seed                            AS winner_seed,\n            le.player_id                       AS \"loser_player_id!: Uuid\",\n            COALESCE(lp.name, le.display_name) AS \"loser_name!\",\n            le.seed                            AS loser_seed,\n            s.winner_score,\n            s.loser_score,\n            e.name                             AS event_name,\n            t.name                             AS tournament_name,\n            t.slug                             AS tournament_slug,\n            s.round_name,\n            s.completed_at,\n            s.is_dq,\n            s.vod_url,\n            s.startgg_set_id,\n            ph.name                            AS \"phase_name?: String\",\n            pg.display_identifier              AS \"pool_identifier?: String\",\n            we.final_placement                 AS winner_placement,\n            le.final_placement                 AS loser_placement,\n            e.num_entrants,\n            t.online,\n            t.city,\n            t.addr_state,\n            t.country_code\n        FROM sets s\n        JOIN entrants we ON we.id = s.winner_entrant_id\n        JOIN entrants le ON le.id = s.loser_entrant_id\n        JOIN players  wp ON wp.id = we.player_id AND wp.project_id = $1\n        JOIN players  lp ON lp.id = le.player_id AND lp.project_id = $1\n        JOIN events   e  ON e.id  = s.event_id\n        JOIN tournaments t ON t.id = e.tournament_id\n        JOIN project_events pe ON pe.event_id = s.event_id AND pe.project_id = $1\n        LEFT JOIN phase_groups pg ON pg.id = s.phase_group_id\n        LEFT JOIN phases ph ON ph.id = pg.phase_id\n        WHERE pe.included = true\n          AND s.is_dq = false\n          AND s.has_placeholder = false\n          AND (\n              (we.player_id = $2 AND le.player_id = $3)\n           OR (we.player_id = $3 AND le.player_id = $2)\n          )\n        ORDER BY s.completed_at DESC NULLS LAST\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "winner_player_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "winner_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "winner_seed",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "loser_player_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "loser_name!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "loser_seed",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "winner_score",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 7,
+        "name": "loser_score",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 8,
+        "name": "event_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "tournament_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "tournament_slug",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "round_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "completed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 13,
+        "name": "is_dq",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 14,
+        "name": "vod_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "startgg_set_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 16,
+        "name": "phase_name?: String",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 17,
+        "name": "pool_identifier?: String",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 18,
+        "name": "winner_placement",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 19,
+        "name": "loser_placement",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 20,
+        "name": "num_entrants",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 21,
+        "name": "online",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 22,
+        "name": "city",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 23,
+        "name": "addr_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 24,
+        "name": "country_code",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      null,
+      true,
+      true,
+      null,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "a0f98528f5e538d8be1696b386c86e82f5f16271dcf517334344532531adad9b"
+}

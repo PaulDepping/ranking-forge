@@ -1538,3 +1538,237 @@ async fn h2h_enforces_ownership(pool: PgPool) {
     let resp = get_req(&app, &format!("/projects/{pid}/head-to-head"), &bob).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn stats_returns_enriched_set_fields(pool: PgPool) {
+    let app = make_app(pool.clone(), "");
+    let cookie = register(&app, "alice", "password123").await;
+    let pid_str = create_project(&app, &cookie).await;
+    let pid = Uuid::parse_str(&pid_str).unwrap();
+
+    let alice_id =
+        Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
+    let bob_id =
+        Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
+
+    // Tournament with location
+    let t_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO tournaments (startgg_id, name, slug, online, city, addr_state)
+         VALUES (9001, 'LACS', 'tournament/lacs', false, 'Los Angeles', 'CA')
+         RETURNING id"
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    // Event with num_entrants
+    let e_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO events (tournament_id, startgg_id, name, num_entrants)
+         VALUES ($1, 8001, 'Melee Singles', 128)
+         RETURNING id",
+        t_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    sqlx::query!(
+        "INSERT INTO project_events (project_id, event_id, included) VALUES ($1, $2, true)",
+        pid,
+        e_id
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // Phase and phase_group
+    let phase_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO phases (startgg_id, event_id, name, phase_order)
+         VALUES (7001, $1, 'Top 8', 2)
+         RETURNING id",
+        e_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let pg_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO phase_groups (startgg_id, phase_id, display_identifier)
+         VALUES (6001, $1, 'Pool A')
+         RETURNING id",
+        phase_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    // Entrants with final_placement: Bob placed 1st, Alice placed 2nd
+    let bob_e: Uuid = sqlx::query_scalar!(
+        "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name, seed, final_placement)
+         VALUES ($1, $2, 501, 'Bob', 1, 1)
+         RETURNING id",
+        e_id,
+        bob_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let alice_e: Uuid = sqlx::query_scalar!(
+        "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name, seed, final_placement)
+         VALUES ($1, $2, 502, 'Alice', 2, 2)
+         RETURNING id",
+        e_id,
+        alice_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    // Set: Bob beats Alice, in the phase_group
+    sqlx::query!(
+        "INSERT INTO sets (event_id, phase_group_id, startgg_set_id, winner_entrant_id, loser_entrant_id, is_dq)
+         VALUES ($1, $2, 901, $3, $4, false)",
+        e_id,
+        pg_id,
+        bob_e,
+        alice_e
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let resp = get_req(&app, &format!("/projects/{pid}/stats"), &cookie).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let stats = read_json(resp).await;
+    let bob = stats
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["name"] == "Bob")
+        .unwrap();
+    let win = &bob["wins"][0];
+
+    assert_eq!(win["location"], "Los Angeles, CA");
+    assert_eq!(win["num_entrants"], 128);
+    assert_eq!(win["phase_name"], "Top 8");
+    assert_eq!(win["pool_identifier"], "Pool A");
+    assert_eq!(win["winner_placement"], 1);
+    assert_eq!(win["loser_placement"], 2);
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
+    let app = make_app(pool.clone(), "");
+    let cookie = register(&app, "alice", "password123").await;
+    let pid_str = create_project(&app, &cookie).await;
+    let pid = Uuid::parse_str(&pid_str).unwrap();
+
+    let alice_id =
+        Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
+    let bob_id =
+        Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
+
+    // Online tournament (location should be "Online")
+    let t_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO tournaments (startgg_id, name, slug, online, city, addr_state)
+         VALUES (9002, 'Online Major', 'tournament/online-major', true, 'Austin', 'TX')
+         RETURNING id"
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let e_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO events (tournament_id, startgg_id, name, num_entrants)
+         VALUES ($1, 8002, 'Melee Singles', 64)
+         RETURNING id",
+        t_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    sqlx::query!(
+        "INSERT INTO project_events (project_id, event_id, included) VALUES ($1, $2, true)",
+        pid,
+        e_id
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let phase_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO phases (startgg_id, event_id, name, phase_order)
+         VALUES (7002, $1, 'Bracket', 1)
+         RETURNING id",
+        e_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let pg_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO phase_groups (startgg_id, phase_id, display_identifier)
+         VALUES (6002, $1, NULL)
+         RETURNING id",
+        phase_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let alice_e: Uuid = sqlx::query_scalar!(
+        "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name, seed, final_placement)
+         VALUES ($1, $2, 503, 'Alice', 1, 1)
+         RETURNING id",
+        e_id,
+        alice_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let bob_e: Uuid = sqlx::query_scalar!(
+        "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name, seed, final_placement)
+         VALUES ($1, $2, 504, 'Bob', 2, 2)
+         RETURNING id",
+        e_id,
+        bob_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    sqlx::query!(
+        "INSERT INTO sets (event_id, phase_group_id, startgg_set_id, winner_entrant_id, loser_entrant_id, is_dq)
+         VALUES ($1, $2, 902, $3, $4, false)",
+        e_id,
+        pg_id,
+        alice_e,
+        bob_e
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid}/head-to-head/{alice_id}/{bob_id}/sets"),
+        &cookie,
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let sets = read_json(resp).await;
+    let set = &sets[0];
+
+    // online=true overrides city/state
+    assert_eq!(set["location"], "Online");
+    assert_eq!(set["num_entrants"], 64);
+    assert_eq!(set["phase_name"], "Bracket");
+    assert_eq!(set["pool_identifier"], json!(null));
+    assert_eq!(set["winner_placement"], 1);
+    assert_eq!(set["loser_placement"], 2);
+}

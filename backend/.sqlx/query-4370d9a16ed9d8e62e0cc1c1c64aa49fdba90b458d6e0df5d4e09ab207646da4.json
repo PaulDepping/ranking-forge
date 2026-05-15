@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO phases (startgg_id, event_id, name, phase_order)\n         VALUES (7001, $1, 'Top 8', 2)\n         RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4370d9a16ed9d8e62e0cc1c1c64aa49fdba90b458d6e0df5d4e09ab207646da4"
+}

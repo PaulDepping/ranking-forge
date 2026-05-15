@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO sets (event_id, phase_group_id, startgg_set_id, winner_entrant_id, loser_entrant_id, is_dq)\n         VALUES ($1, $2, 901, $3, $4, false)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fd8879aa7ccb24b1916b7ff54d7ac2f9bc8d13d9cb7b093b30fbe17fff3c498d"
+}
