@@ -12,6 +12,16 @@ fn ts_to_dt(ts: i64) -> DateTime<Utc> {
     DateTime::from_timestamp(ts, 0).unwrap_or_default()
 }
 
+fn extract_tournament_handle(slug: &str) -> &str {
+    slug.trim_start_matches("tournament/")
+}
+
+fn extract_event_handle(slug: Option<&str>, event_id: i64) -> String {
+    slug.and_then(|s| s.split('/').last())
+        .map(|h| h.to_string())
+        .unwrap_or_else(|| event_id.to_string())
+}
+
 #[instrument(skip(pool, startgg), fields(%project_id))]
 pub async fn run(
     pool: &PgPool,
@@ -178,7 +188,7 @@ async fn import_tournament(
 
     let row = sqlx::query!(
         r#"INSERT INTO tournaments
-               (startgg_id, name, slug, city, addr_state, country_code,
+               (startgg_id, name, handle, city, addr_state, country_code,
                 venue_name, venue_address, timezone, online, num_attendees,
                 lat, lng, state, start_at, end_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
@@ -193,7 +203,7 @@ async fn import_tournament(
            RETURNING id"#,
         tournament.id,
         tournament.name,
-        tournament.slug,
+        extract_tournament_handle(&tournament.slug),
         tournament.city,
         tournament.addr_state,
         tournament.country_code,
@@ -256,12 +266,12 @@ async fn import_event(
 
     let row = sqlx::query!(
         r#"INSERT INTO events
-               (tournament_id, startgg_id, name, slug, state, is_online, event_type,
+               (tournament_id, startgg_id, name, handle, state, is_online, event_type,
                 min_team_size, max_team_size, game_id, game_name, num_entrants, start_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
            ON CONFLICT (startgg_id) DO UPDATE SET
                name          = EXCLUDED.name,
-               slug          = EXCLUDED.slug,
+               handle        = EXCLUDED.handle,
                state         = EXCLUDED.state,
                is_online     = EXCLUDED.is_online,
                event_type    = EXCLUDED.event_type,
@@ -273,7 +283,7 @@ async fn import_event(
         tournament_db_id,
         event.id,
         event.name,
-        event.slug,
+        extract_event_handle(event.slug.as_deref(), event.id),
         event.state,
         event.is_online,
         event.event_type,
