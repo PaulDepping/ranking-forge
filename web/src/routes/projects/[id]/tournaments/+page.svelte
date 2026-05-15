@@ -11,6 +11,7 @@
 	import { type CalendarDate, getLocalTimeZone } from '@internationalized/date';
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import type { Tournament, TournamentEvent } from '$lib/types';
+	import * as Empty from '$lib/components/ui/empty';
 
 	let { data } = $props();
 
@@ -234,7 +235,12 @@
 	<h2 class="text-lg font-semibold">Tournaments</h2>
 
 	{#if tournaments.length === 0}
-		<p class="text-sm text-muted-foreground">No tournaments imported yet. Run an import first.</p>
+		<Empty.Root>
+			<Empty.Header>
+				<Empty.Title>No tournaments yet</Empty.Title>
+				<Empty.Description>Run an import to pull in tournaments from start.gg.</Empty.Description>
+			</Empty.Header>
+		</Empty.Root>
 	{:else}
 		<Collapsible.Root bind:open={filterOpen}>
 			<!-- Status line + toggle -->
@@ -421,7 +427,12 @@
 
 		<!-- Tournament list — iterate visibleTournaments -->
 		{#if visibleTournaments.length === 0}
-			<p class="text-sm text-muted-foreground">No tournaments match the current filters.</p>
+			<Empty.Root>
+				<Empty.Header>
+					<Empty.Title>No results</Empty.Title>
+					<Empty.Description>No tournaments match the current filters.</Empty.Description>
+				</Empty.Header>
+			</Empty.Root>
 		{/if}
 		<div class="space-y-3">
 			{#each visibleTournaments as tournament (tournament.id)}
