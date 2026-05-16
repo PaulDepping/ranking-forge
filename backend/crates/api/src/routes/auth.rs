@@ -13,6 +13,7 @@ use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::{Cookie, SameSite};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::sync::LazyLock;
 use uuid::Uuid;
 
 use crate::{
@@ -79,6 +80,16 @@ impl FromRequestParts<AppState> for AuthUser {
         Ok(AuthUser(user))
     }
 }
+
+// Equalize login response time when a username isn't found: verify_password against
+// this hash so the code path matches a real wrong-password attempt (~100ms Argon2).
+static DUMMY_HASH: LazyLock<String> = LazyLock::new(|| {
+    let salt = SaltString::generate(&mut OsRng);
+    Argon2::default()
+        .hash_password(b"dummy_sentinel_never_matches", &salt)
+        .unwrap()
+        .to_string()
+});
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -204,8 +215,15 @@ async fn login(
         body.username,
     )
     .fetch_optional(&state.db)
-    .await?
-    .ok_or(AppError::Unauthorized)?;
+    .await?;
+
+    let user = match user {
+        Some(u) => u,
+        None => {
+            let _ = verify_password(body.password, (*DUMMY_HASH).clone()).await;
+            return Err(AppError::Unauthorized);
+        }
+    };
 
     verify_password(body.password, user.password_hash.clone()).await?;
 
