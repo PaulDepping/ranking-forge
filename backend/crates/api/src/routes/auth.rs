@@ -25,8 +25,10 @@ use crate::{
 };
 use common::models::User;
 
-// Falls back to LOCALHOST when no IP header/extension is present (test environments).
-// Each test creates a fresh GovernorLayer instance, so test-isolation is preserved.
+// In production, the reverse proxy sets X-Forwarded-For — that's the primary extraction path.
+// ConnectInfo is a fallback for direct connections (not used with the current axum::serve setup).
+// LOCALHOST fallback is intentional for tests: each test creates a fresh GovernorLayer with
+// an independent bucket, so no rate-limit state leaks between tests.
 #[derive(Clone)]
 struct ClientIpExtractor;
 
@@ -293,7 +295,7 @@ pub fn router() -> Router<AppState> {
             .per_second(1)
             .burst_size(5)
             .finish()
-            .unwrap(),
+            .expect("invalid rate-limit config"),
     );
 
     Router::new()
