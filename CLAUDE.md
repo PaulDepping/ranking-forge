@@ -29,7 +29,11 @@ ROADMAP.md        Phase breakdown and implementation decisions
 
 ```bash
 # Run all tests (backend + frontend unit + frontend e2e)
+# Quiet by default: prints PASS/FAIL per section, dumps output only on failure
 bash test.sh
+
+# Stream all output (useful when debugging a failure interactively)
+bash test.sh --verbose   # or -v
 
 # Backend only — spins up an ephemeral Postgres container via Docker, then runs cargo test --workspace
 bash backend/test.sh
