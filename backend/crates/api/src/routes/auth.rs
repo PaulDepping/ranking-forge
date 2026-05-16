@@ -126,6 +126,7 @@ fn session_cookie(id: Uuid) -> Cookie<'static> {
         .http_only(true)
         .same_site(SameSite::Strict)
         .path("/")
+        .secure(true)
         .max_age(cookie::time::Duration::seconds(2_592_000))
         .build()
 }
@@ -135,6 +136,7 @@ fn clear_cookie() -> Cookie<'static> {
         .http_only(true)
         .same_site(SameSite::Strict)
         .path("/")
+        .secure(true)
         .max_age(cookie::time::Duration::seconds(0))
         .build()
 }

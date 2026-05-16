@@ -21,7 +21,6 @@ fn make_app(pool: PgPool, startgg_base_url: &str) -> Router {
     let state = AppState {
         db: pool,
         startgg,
-        session_secret: "test-secret-key-at-least-32-bytes!!".to_string(),
         cors_origin: "http://localhost".to_string(),
     };
     routes::router().with_state(state)
@@ -2104,4 +2103,40 @@ async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
     assert_eq!(set["pool_identifier"], json!(null));
     assert_eq!(set["winner_placement"], 1);
     assert_eq!(set["loser_placement"], 2);
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn auth_register_cookie_is_secure(pool: PgPool) {
+    let app = make_app(pool, "");
+    let req = Request::builder()
+        .method("POST")
+        .uri("/auth/register")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::to_vec(&json!({"username": "alice", "password": "password123"})).unwrap(),
+        ))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let cookie = resp.headers().get("set-cookie").unwrap().to_str().unwrap();
+    assert!(cookie.contains("Secure"), "register cookie must have Secure flag; got: {cookie}");
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn auth_login_cookie_is_secure(pool: PgPool) {
+    let app = make_app(pool, "");
+    register(&app, "alice", "password123").await;
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/auth/login")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::to_vec(&json!({"username": "alice", "password": "password123"})).unwrap(),
+        ))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let cookie = resp.headers().get("set-cookie").unwrap().to_str().unwrap();
+    assert!(cookie.contains("Secure"), "login cookie must have Secure flag; got: {cookie}");
 }
