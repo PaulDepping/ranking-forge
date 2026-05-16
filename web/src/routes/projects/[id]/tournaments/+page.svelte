@@ -223,7 +223,7 @@
 			<button
 				type="button"
 				onclick={() => setBracketState(bt, s)}
-				class="h-6 w-6 rounded border text-xs font-bold flex items-center justify-center
+				class="h-5 w-5 rounded border text-xs font-bold flex items-center justify-center
 					{bracketFilter[bt] === s
 						? s === 'required'
 							? 'border-green-500 bg-green-950 text-green-400'
@@ -373,7 +373,7 @@
 									</Button>
 								{/snippet}
 							</Popover.Trigger>
-							<Popover.Content class="w-64 p-3" align="start">
+							<Popover.Content class="w-64 p-3 gap-1" align="start">
 								<div class="flex justify-between items-center mb-2">
 									<span class="text-xs text-muted-foreground uppercase tracking-wide">Bracket Types</span>
 									<Button type="button" variant="ghost" size="sm" onclick={resetBracketFilter}>Reset</Button>
@@ -437,35 +437,37 @@
 		</Collapsible.Root>
 
 		<Dialog.Root bind:open={bracketDialogOpen}>
-			<Dialog.Content class="sm:max-w-sm">
+			<Dialog.Content class="sm:max-w-sm p-4 gap-3">
 				<Dialog.Header>
 					<Dialog.Title>Bracket Types</Dialog.Title>
 				</Dialog.Header>
 
-				<!-- Column headers -->
-				<div class="grid grid-cols-[1fr_28px_28px_28px] gap-1 mb-1">
-					<span></span>
-					<span class="text-xs text-muted-foreground text-center">–</span>
-					<span class="text-xs text-muted-foreground text-center">✓</span>
-					<span class="text-xs text-muted-foreground text-center">✕</span>
-				</div>
+				<div>
+					<!-- Column headers -->
+					<div class="grid grid-cols-[1fr_28px_28px_28px] gap-1 mb-1">
+						<span></span>
+						<span class="text-xs text-muted-foreground text-center">–</span>
+						<span class="text-xs text-muted-foreground text-center">✓</span>
+						<span class="text-xs text-muted-foreground text-center">✕</span>
+					</div>
 
-				<!-- Common types -->
-				{#each COMMON_BRACKET_TYPES as bt}
-					{@render bracketRow(bt)}
-				{/each}
+					<!-- Common types -->
+					{#each COMMON_BRACKET_TYPES as bt}
+						{@render bracketRow(bt)}
+					{/each}
 
-				<!-- Rare types -->
-				<p class="text-[10px] uppercase tracking-wide text-muted-foreground mt-3 mb-1">Rare formats</p>
-				{#each RARE_BRACKET_TYPES as bt}
-					{@render bracketRow(bt)}
-				{/each}
+					<!-- Rare types -->
+					<p class="text-[10px] uppercase tracking-wide text-muted-foreground mt-3 mb-1">Rare formats</p>
+					{#each RARE_BRACKET_TYPES as bt}
+						{@render bracketRow(bt)}
+					{/each}
 
-				<!-- Legend -->
-				<div class="flex gap-3 flex-wrap border-t border-border pt-2 mt-2">
-					<span class="text-[10px] text-muted-foreground"><span class="text-indigo-400">–</span> don't care</span>
-					<span class="text-[10px] text-muted-foreground"><span class="text-green-400">✓</span> required</span>
-					<span class="text-[10px] text-muted-foreground"><span class="text-red-400">✕</span> excluded</span>
+					<!-- Legend -->
+					<div class="flex gap-3 flex-wrap border-t border-border pt-2 mt-2">
+						<span class="text-[10px] text-muted-foreground"><span class="text-indigo-400">–</span> don't care</span>
+						<span class="text-[10px] text-muted-foreground"><span class="text-green-400">✓</span> required</span>
+						<span class="text-[10px] text-muted-foreground"><span class="text-red-400">✕</span> excluded</span>
+					</div>
 				</div>
 
 				<Dialog.Footer>
