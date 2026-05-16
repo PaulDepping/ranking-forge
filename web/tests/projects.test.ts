@@ -105,6 +105,7 @@ test('players page shows Add players button and no inline name form', async ({ p
 
 test('Add players dialog opens with three tabs', async ({ page }) => {
 	await page.goto('/projects/proj-1/players');
+	await page.waitForLoadState('networkidle');
 	await page.getByRole('button', { name: 'Add players' }).click();
 	await expect(page.getByRole('tab', { name: 'From tournament' })).toBeVisible();
 	await expect(page.getByRole('tab', { name: 'By handle' })).toBeVisible();
@@ -113,15 +114,17 @@ test('Add players dialog opens with three tabs', async ({ page }) => {
 
 test('By name tab adds a player and clears the input', async ({ page }) => {
 	await page.goto('/projects/proj-1/players');
+	await page.waitForLoadState('networkidle');
 	await page.getByRole('button', { name: 'Add players' }).click();
 	await page.getByRole('tab', { name: 'By name' }).click();
 	await page.getByLabel('Player name').fill('TestPlayer');
-	await page.getByRole('button', { name: 'Add player' }).click();
+	await page.getByRole('button', { name: 'Add player', exact: true }).click();
 	await expect(page.getByLabel('Player name')).toHaveValue('');
 });
 
 test('player row has Edit button; clicking it shows inline input', async ({ page }) => {
 	await page.goto('/projects/proj-1/players');
+	await page.waitForLoadState('networkidle');
 	await page.getByRole('button', { name: 'Edit' }).first().click();
 	await expect(page.getByRole('textbox').first()).toBeVisible();
 	await page.getByRole('button', { name: 'Cancel' }).click();
