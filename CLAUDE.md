@@ -132,3 +132,5 @@ SvelteKit + TypeScript in `web/`. See `web/CLAUDE.md` for frontend-specific guid
 **Component policy:** Always use shadcn-svelte components in preference to raw HTML elements or hand-rolled Tailwind. Never write a raw `<input>`, `<select>`, `<button>`, `<table>`, or `<dialog>` when a shadcn equivalent exists. Add new shadcn components with `npx shadcn-svelte@latest add --yes --overwrite <name>` — do not write component files by hand.
 
 Installed components: `alert`, `badge`, `button`, `calendar`, `card`, `checkbox`, `collapsible`, `command`, `dialog`, `empty`, `input`, `label`, `popover`, `scroll-area`, `select`, `separator`, `skeleton`, `table`, `tabs`, `tooltip`. Install others as needed with `npx shadcn-svelte@latest add --yes --overwrite <name>`.
+
+**shadcn-svelte reference docs** are cached locally in `docs/shadcn-svelte/`. Index: `docs/shadcn-svelte.md`. Individual component docs: `docs/shadcn-svelte/docs/components/<name>.md`. Read the relevant file instead of fetching from the web.

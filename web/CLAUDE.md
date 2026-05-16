@@ -20,7 +20,12 @@ Frontend-specific guidance for the SvelteKit app in this directory.
 - For dropdowns and autocomplete, use the `Command` + `Popover` pattern rather than a hand-rolled `<ul>/<li>` list.
 - For popovers, use `Popover` + `PopoverTrigger` + `PopoverContent` — never manage click-outside detection manually.
 
-**Adding components:** `npx shadcn-svelte@latest add --yes --overwrite <name>` — do not write component files by hand. Installed components live in `src/lib/components/ui/`. LLM-friendly reference: https://shadcn-svelte.com/llms.txt.
+**Adding components:** `npx shadcn-svelte@latest add --yes --overwrite <name>` — do not write component files by hand. Installed components live in `src/lib/components/ui/`.
+
+**Reference docs are cached locally** — read these instead of fetching from the web:
+- Index: `docs/shadcn-svelte.md` (mirrors https://shadcn-svelte.com/llms.txt)
+- Per-component: `docs/shadcn-svelte/docs/components/<name>.md`
+- To refresh: `curl -s https://shadcn-svelte.com/llms.txt -o docs/shadcn-svelte.md` then re-run the URL extraction loop
 
 ### Currently installed components
 

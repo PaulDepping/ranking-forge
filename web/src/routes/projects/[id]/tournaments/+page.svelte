@@ -276,7 +276,7 @@
 							bind:value={search}
 							class="flex-1 min-w-48"
 						/>
-						<Select.Root bind:value={venueFilter}>
+						<Select.Root type="single" bind:value={venueFilter}>
 							<Select.Trigger class="w-36">{venueLabel}</Select.Trigger>
 							<Select.Content>
 								<Select.Item value="all">Venue: All</Select.Item>
@@ -342,7 +342,7 @@
 					<div class="flex flex-wrap gap-4 items-center">
 						<div class="flex items-center gap-2">
 							<span class="text-xs text-muted-foreground whitespace-nowrap">Event type</span>
-							<Select.Root bind:value={eventType}>
+							<Select.Root type="single" bind:value={eventType}>
 								<Select.Trigger class="w-28">{eventTypeLabel}</Select.Trigger>
 								<Select.Content>
 									<Select.Item value="all">All types</Select.Item>
