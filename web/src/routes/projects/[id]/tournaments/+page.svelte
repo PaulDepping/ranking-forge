@@ -6,6 +6,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as Collapsible from '$lib/components/ui/collapsible';
 	import * as Popover from '$lib/components/ui/popover';
+	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Select from '$lib/components/ui/select';
 	import Calendar from '$lib/components/ui/calendar/calendar.svelte';
 	import { type CalendarDate, getLocalTimeZone } from '@internationalized/date';
@@ -434,6 +435,46 @@
 				</div>
 			</Collapsible.Content>
 		</Collapsible.Root>
+
+		<Dialog.Root bind:open={bracketDialogOpen}>
+			<Dialog.Content class="sm:max-w-sm">
+				<Dialog.Header>
+					<Dialog.Title>Bracket Types</Dialog.Title>
+				</Dialog.Header>
+
+				<!-- Column headers -->
+				<div class="grid grid-cols-[1fr_28px_28px_28px] gap-1 mb-1">
+					<span></span>
+					<span class="text-xs text-muted-foreground text-center">–</span>
+					<span class="text-xs text-muted-foreground text-center">✓</span>
+					<span class="text-xs text-muted-foreground text-center">✕</span>
+				</div>
+
+				<!-- Common types -->
+				{#each COMMON_BRACKET_TYPES as bt}
+					{@render bracketRow(bt)}
+				{/each}
+
+				<!-- Rare types -->
+				<p class="text-[10px] uppercase tracking-wide text-muted-foreground mt-3 mb-1">Rare formats</p>
+				{#each RARE_BRACKET_TYPES as bt}
+					{@render bracketRow(bt)}
+				{/each}
+
+				<!-- Legend -->
+				<div class="flex gap-3 flex-wrap border-t border-border pt-2 mt-2">
+					<span class="text-[10px] text-muted-foreground"><span class="text-indigo-400">–</span> don't care</span>
+					<span class="text-[10px] text-muted-foreground"><span class="text-green-400">✓</span> required</span>
+					<span class="text-[10px] text-muted-foreground"><span class="text-red-400">✕</span> excluded</span>
+				</div>
+
+				<Dialog.Footer>
+					<Button variant="outline" size="sm" onclick={() => { bracketDialogOpen = false; }}>
+						Done
+					</Button>
+				</Dialog.Footer>
+			</Dialog.Content>
+		</Dialog.Root>
 
 		<!-- Tournament list — iterate visibleTournaments -->
 		{#if visibleTournaments.length === 0}
