@@ -52,6 +52,23 @@ Props:
 
 After any successful mutation, the component calls `invalidateAll()` and closes the dialog (exception: `NameTab` stays open after each add for quick multi-add).
 
+## shadcn component mapping
+
+Always prefer shadcn-svelte components over raw HTML elements:
+
+| UI element | shadcn component |
+|---|---|
+| Dialog chrome | `Dialog`, `DialogContent`, `DialogHeader`, `DialogTitle` |
+| Tab bar | `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` |
+| Text inputs | `Input` |
+| Textarea (HandleTab) | `Textarea` (`$lib/components/ui/textarea`) |
+| Entrant checklist rows | `Checkbox` + `Label` |
+| Scrollable entrant list | `ScrollArea` |
+| Status badges (created / skipped / not found) | `Badge` |
+| Buttons | `Button` |
+| Inline rename input | `Input` |
+| Already-added label | `Badge` (secondary variant) |
+
 ## TournamentTab
 
 **State:** `tournamentInput` (string), `loading` (bool), `entrants` (`TournamentEntrant[]`), `search` (string), `selected` (Set of `startgg_user_id`), `submitting` (bool).
@@ -59,10 +76,10 @@ After any successful mutation, the component calls `invalidateAll()` and closes 
 **Flow:**
 1. User pastes a tournament URL or bare handle. Clicks **Fetch**.
 2. `GET /projects/:id/tournament-entrants?tournament=<handle>` (client-side fetch via `api.ts`).
-3. Response populates a scrollable, searchable checklist. Each row shows gamer tag + bare handle + a checkbox.
-4. Already-added entrants (matched by `startgg_user_id` against `players[*].accounts`) are shown greyed out and non-selectable, with an "already added" badge.
-5. Search input filters by gamer tag or handle in real time ($derived).
-6. Footer: `"N selected · M already added"` label + **"Add N players"** button (disabled when N = 0).
+3. Response populates a `ScrollArea` with a searchable checklist. Each row uses `Checkbox` + `Label` showing gamer tag + bare handle.
+4. Already-added entrants (matched by `startgg_user_id` against `players[*].accounts`) are shown greyed out and non-selectable, with a `Badge` (secondary) "already added" label.
+5. Search `Input` filters by gamer tag or handle in real time ($derived).
+6. Footer: `"N selected · M already added"` label + **"Add N players"** `Button` (disabled when N = 0).
 7. On submit: `POST /projects/:id/players/bulk` → `invalidateAll()` → close dialog.
 
 ## HandleTab
