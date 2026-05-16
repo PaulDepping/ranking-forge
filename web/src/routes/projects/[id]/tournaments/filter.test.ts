@@ -75,6 +75,14 @@ function eventVisible(
     return true;
 }
 
+const RARE_TYPES = [
+    'EXHIBITION', 'RACE', 'CIRCUIT', 'CUSTOM_SCHEDULE', 'ELIMINATION_ROUNDS',
+] as const;
+
+function rareActiveCount(bracketFilter: Record<string, BracketTypeState>): number {
+    return RARE_TYPES.filter(t => bracketFilter[t] === 'required' || bracketFilter[t] === 'excluded').length;
+}
+
 describe('tournament filter', () => {
     it('venue filter hides online tournaments', () => {
         const t = makeTournament([], { online: true });
@@ -201,5 +209,27 @@ describe('bracket type filter', () => {
             MATCHMAKING: 'excluded',
         };
         expect(eventVisible(e, t, '', null, null, 'all', filter)).toBe(true);
+    });
+});
+
+describe('rareActiveCount', () => {
+    it('returns 0 when all types are neutral', () => {
+        const filter: Record<string, BracketTypeState> = {};
+        expect(rareActiveCount(filter)).toBe(0);
+    });
+
+    it('counts required rare types', () => {
+        const filter: Record<string, BracketTypeState> = {
+            EXHIBITION: 'required',
+            RACE: 'excluded',
+        };
+        expect(rareActiveCount(filter)).toBe(2);
+    });
+
+    it('ignores common types', () => {
+        const filter: Record<string, BracketTypeState> = {
+            DOUBLE_ELIMINATION: 'required',
+        };
+        expect(rareActiveCount(filter)).toBe(0);
     });
 });

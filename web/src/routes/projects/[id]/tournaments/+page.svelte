@@ -72,6 +72,7 @@
 		Object.fromEntries(BRACKET_TYPES.map(t => [t, 'neutral' as BracketTypeState]))
 	);
 	let bracketPopoverOpen = $state(false);
+	let bracketDialogOpen = $state(false);
 
 	const bracketReqCount  = $derived(Object.values(bracketFilter).filter(s => s === 'required').length);
 	const bracketExclCount = $derived(Object.values(bracketFilter).filter(s => s === 'excluded').length);
@@ -82,6 +83,10 @@
 				bracketReqCount  > 0 ? `${bracketReqCount} req`  : '',
 				bracketExclCount > 0 ? `${bracketExclCount} excl` : '',
 			  ].filter(Boolean).join(' · ') + ' ▾'
+	);
+
+	const rareActiveCount = $derived(
+		RARE_BRACKET_TYPES.filter(t => bracketFilter[t] === 'required' || bracketFilter[t] === 'excluded').length
 	);
 
 	function setBracketState(type: string, clicked: BracketTypeState) {
