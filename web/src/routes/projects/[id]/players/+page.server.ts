@@ -33,14 +33,28 @@ export const actions: Actions = {
 		if (!res.ok) return fail(res.status, { deleteError: 'Failed to delete player' });
 	},
 
+	renamePlayer: async ({ fetch, request, params, cookies }) => {
+		const data = await request.formData();
+		const pid = data.get('pid') as string;
+		const name = (data.get('name') as string)?.trim();
+		if (!name) return fail(422, { renameError: 'Name is required', renamePid: pid });
+
+		const api = makeApi(fetch, INTERNAL_API_URL, cookies.get('session_id'));
+		const res = await api.patch(`/projects/${params.id}/players/${pid}`, { name });
+		if (!res.ok) {
+			const err = await res.json().catch(() => ({ message: 'Failed to rename player' }));
+			return fail(res.status, { renameError: err.message, renamePid: pid });
+		}
+	},
+
 	linkAccount: async ({ fetch, request, params, cookies }) => {
 		const data = await request.formData();
 		const pid = data.get('pid') as string;
-		const slug = (data.get('slug') as string)?.trim();
-		if (!slug) return fail(422, { linkError: 'Slug is required', linkPid: pid });
+		const handle = (data.get('handle') as string)?.trim();
+		if (!handle) return fail(422, { linkError: 'Handle is required', linkPid: pid });
 
 		const api = makeApi(fetch, INTERNAL_API_URL, cookies.get('session_id'));
-		const res = await api.post(`/projects/${params.id}/players/${pid}/accounts`, { slug });
+		const res = await api.post(`/projects/${params.id}/players/${pid}/accounts`, { handle });
 		if (!res.ok) {
 			const err = await res.json().catch(() => ({ message: 'Failed to link account' }));
 			return fail(res.status, { linkError: err.message, linkPid: pid });
