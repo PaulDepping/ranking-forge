@@ -2140,3 +2140,55 @@ async fn auth_login_cookie_is_secure(pool: PgPool) {
     let cookie = resp.headers().get("set-cookie").unwrap().to_str().unwrap();
     assert!(cookie.contains("Secure"), "login cookie must have Secure flag; got: {cookie}");
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn auth_register_long_username(pool: PgPool) {
+    let app = make_app(pool, "");
+    let req = Request::builder()
+        .method("POST")
+        .uri("/auth/register")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::to_vec(&json!({
+                "username": "a".repeat(51),
+                "password": "password123"
+            }))
+            .unwrap(),
+        ))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn auth_register_long_password(pool: PgPool) {
+    let app = make_app(pool, "");
+    let req = Request::builder()
+        .method("POST")
+        .uri("/auth/register")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::to_vec(&json!({
+                "username": "alice",
+                "password": "x".repeat(129)
+            }))
+            .unwrap(),
+        ))
+        .unwrap();
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn projects_create_long_name(pool: PgPool) {
+    let app = make_app(pool, "");
+    let cookie = register(&app, "alice", "password123").await;
+    let resp = post_json(
+        &app,
+        "/projects",
+        &cookie,
+        json!({"name": "x".repeat(101)}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}

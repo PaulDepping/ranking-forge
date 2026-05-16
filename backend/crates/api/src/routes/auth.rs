@@ -153,9 +153,19 @@ async fn register(
             "username must be at least 3 characters".into(),
         ));
     }
+    if body.username.len() > 50 {
+        return Err(AppError::UnprocessableEntity(
+            "username must be at most 50 characters".into(),
+        ));
+    }
     if body.password.len() < 8 {
         return Err(AppError::UnprocessableEntity(
             "password must be at least 8 characters".into(),
+        ));
+    }
+    if body.password.len() > 128 {
+        return Err(AppError::UnprocessableEntity(
+            "password must be at most 128 characters".into(),
         ));
     }
 
