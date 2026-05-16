@@ -72,22 +72,23 @@ components:
 
     StartggAccount:
       type: object
-      required: [id, startgg_user_id, slug]
+      required: [id, startgg_user_id, handle]
       properties:
         id:
           type: string
           format: uuid
         startgg_user_id:
           type: integer
-        slug:
+        handle:
           type: string
+          description: Bare start.gg handle, e.g. "mang0"
         display_name:
           type: string
           nullable: true
 
     Tournament:
       type: object
-      required: [id, name, slug, online, events]
+      required: [id, name, handle, online, events]
       properties:
         id:
           type: string
@@ -96,8 +97,9 @@ components:
           type: integer
         name:
           type: string
-        slug:
+        handle:
           type: string
+          description: Bare tournament handle, e.g. "genesis-9"
         city:
           type: string
           nullable: true
@@ -184,7 +186,7 @@ components:
 
     SetRecord:
       type: object
-      required: [opponent_id, opponent_name, upset_factor, winner_score, loser_score, tournament_name, tournament_slug, event_name, round_name, completed_at, is_dq, vod_url, startgg_set_id, winner_seed, loser_seed]
+      required: [opponent_id, opponent_name, upset_factor, winner_score, loser_score, tournament_name, tournament_handle, event_name, round_name, completed_at, is_dq, vod_url, startgg_set_id, winner_seed, loser_seed]
       properties:
         opponent_id:
           type: string
@@ -207,9 +209,9 @@ components:
           description: Games won by the loser of this set. Null if scores were not recorded.
         tournament_name:
           type: string
-        tournament_slug:
+        tournament_handle:
           type: string
-          description: start.gg slug including the "tournament/" prefix (e.g. "tournament/genesis-9")
+          description: Bare tournament handle, e.g. "genesis-9"
         event_name:
           type: string
         round_name:
@@ -269,6 +271,60 @@ components:
           type: integer
         losses:
           type: integer
+
+    TournamentEntrant:
+      type: object
+      required: [startgg_user_id, handle, name]
+      properties:
+        startgg_user_id:
+          type: integer
+          format: int64
+        handle:
+          type: string
+          description: Bare start.gg handle, e.g. "mang0"
+        name:
+          type: string
+          description: Player's gamer tag from start.gg
+
+    BulkAddEntry:
+      type: object
+      required: [name, startgg_user_id, handle]
+      properties:
+        name:
+          type: string
+          description: Display name to assign to the player
+        startgg_user_id:
+          type: integer
+          format: int64
+        handle:
+          type: string
+          description: start.gg handle (normalized to bare form)
+
+    BulkAddResult:
+      type: object
+      required: [name, handle, status]
+      properties:
+        name:
+          type: string
+        handle:
+          type: string
+        status:
+          type: string
+          enum: [created, skipped]
+
+    ByHandlesResult:
+      type: object
+      required: [handle, status]
+      properties:
+        handle:
+          type: string
+        name:
+          type: string
+          nullable: true
+          description: Gamer tag from start.gg; null if not_found
+        status:
+          type: string
+          enum: [created, skipped, not_found]
 
     Game:
       type: object
@@ -528,6 +584,34 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+    patch:
+      summary: Rename a player
+      tags: [Players]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Player'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
   /projects/{project_id}/players/{player_id}/accounts:
     parameters:
       - name: project_id
@@ -552,11 +636,14 @@ paths:
           application/json:
             schema:
               type: object
-              required: [slug]
+              required: [handle]
               properties:
-                slug:
+                handle:
                   type: string
-                  description: start.gg user slug, e.g. "user/abc123"
+                  description: >
+                    start.gg user handle or profile URL. Accepts bare handle (e.g. "mang0"),
+                    "user/mang0", or full URL (e.g. "https://start.gg/user/mang0"). The handle
+                    is normalized to the bare form before storage.
       responses:
         '201':
           description: Account linked
@@ -602,6 +689,132 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/players/bulk:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      summary: Bulk-add players from tournament entrants
+      description: >
+        Creates a player + linked start.gg account for each entry. Entries where
+        the startgg_user_id is already linked in this project are skipped (status: "skipped").
+      tags: [Players]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [players]
+              properties:
+                players:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/BulkAddEntry'
+      responses:
+        '200':
+          description: Results for each entry
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BulkAddResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/players/by-handles:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      summary: Add players by start.gg handles
+      description: >
+        Resolves each handle against the start.gg API and creates a player + account
+        for each one not already in the project. Each result reports "created", "skipped"
+        (already exists), or "not_found" (start.gg returned no user).
+      tags: [Players]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [handles]
+              properties:
+                handles:
+                  type: array
+                  items:
+                    type: string
+                  description: >
+                    start.gg handles or profile URLs. Normalized to bare handle form before lookup.
+      responses:
+        '200':
+          description: Results for each handle
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ByHandlesResult'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/tournament-entrants:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: List start.gg tournament entrants for the project's game
+      description: >
+        Queries the start.gg API for all entrants in the given tournament who
+        competed in an event matching the project's configured game. The project
+        must have a game configured. Results are deduplicated by startgg_user_id.
+      tags: [Players]
+      parameters:
+        - name: tournament
+          in: query
+          required: true
+          schema:
+            type: string
+          description: >
+            Tournament handle or URL. Accepts bare handle (e.g. "genesis-9"),
+            "tournament/genesis-9", or full URL. Normalized to bare form before lookup.
+      responses:
+        '200':
+          description: List of tournament entrants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TournamentEntrant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
 
   # ── Import ──────────────────────────────────────────────────────────────────
 
