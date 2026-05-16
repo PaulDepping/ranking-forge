@@ -2142,6 +2142,27 @@ async fn auth_login_cookie_is_secure(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
+async fn auth_logout_cookie_is_secure(pool: PgPool) {
+    let app = make_app(pool, "");
+    let cookie = register(&app, "alice", "password123").await;
+
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/auth/logout")
+                .header("cookie", &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+    let set_cookie = resp.headers().get("set-cookie").unwrap().to_str().unwrap();
+    assert!(set_cookie.contains("Secure"), "logout clear cookie must have Secure flag; got: {set_cookie}");
+}
+
+#[sqlx::test(migrations = "../../migrations")]
 async fn auth_register_long_username(pool: PgPool) {
     let app = make_app(pool, "");
     let req = Request::builder()

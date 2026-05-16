@@ -195,22 +195,22 @@ async fn register(
     jar: CookieJar,
     Json(body): Json<AuthRequest>,
 ) -> Result<impl IntoResponse> {
-    if body.username.len() < 3 {
+    if body.username.chars().count() < 3 {
         return Err(AppError::UnprocessableEntity(
             "username must be at least 3 characters".into(),
         ));
     }
-    if body.username.len() > 50 {
+    if body.username.chars().count() > 50 {
         return Err(AppError::UnprocessableEntity(
             "username must be at most 50 characters".into(),
         ));
     }
-    if body.password.len() < 8 {
+    if body.password.chars().count() < 8 {
         return Err(AppError::UnprocessableEntity(
             "password must be at least 8 characters".into(),
         ));
     }
-    if body.password.len() > 128 {
+    if body.password.chars().count() > 128 {
         return Err(AppError::UnprocessableEntity(
             "password must be at most 128 characters".into(),
         ));

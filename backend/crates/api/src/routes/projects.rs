@@ -94,7 +94,7 @@ async fn create_project(
             "name must not be empty".into(),
         ));
     }
-    if body.name.trim().len() > 100 {
+    if body.name.trim().chars().count() > 100 {
         return Err(AppError::UnprocessableEntity(
             "name must be at most 100 characters".into(),
         ));
