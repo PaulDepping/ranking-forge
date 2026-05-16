@@ -96,3 +96,34 @@ test('tournaments filter panel has Clear filters button that resets search', asy
 	// Search should be cleared
 	await expect(page.getByPlaceholder('Search tournament or event name…')).toHaveValue('');
 });
+
+test('players page shows Add players button and no inline name form', async ({ page }) => {
+	await page.goto('/projects/proj-1/players');
+	await expect(page.getByRole('button', { name: 'Add players' })).toBeVisible();
+	await expect(page.getByPlaceholder('Player name')).not.toBeVisible();
+});
+
+test('Add players dialog opens with three tabs', async ({ page }) => {
+	await page.goto('/projects/proj-1/players');
+	await page.getByRole('button', { name: 'Add players' }).click();
+	await expect(page.getByRole('tab', { name: 'From tournament' })).toBeVisible();
+	await expect(page.getByRole('tab', { name: 'By handle' })).toBeVisible();
+	await expect(page.getByRole('tab', { name: 'By name' })).toBeVisible();
+});
+
+test('By name tab adds a player and clears the input', async ({ page }) => {
+	await page.goto('/projects/proj-1/players');
+	await page.getByRole('button', { name: 'Add players' }).click();
+	await page.getByRole('tab', { name: 'By name' }).click();
+	await page.getByLabel('Player name').fill('TestPlayer');
+	await page.getByRole('button', { name: 'Add player' }).click();
+	await expect(page.getByLabel('Player name')).toHaveValue('');
+});
+
+test('player row has Edit button; clicking it shows inline input', async ({ page }) => {
+	await page.goto('/projects/proj-1/players');
+	await page.getByRole('button', { name: 'Edit' }).first().click();
+	await expect(page.getByRole('textbox').first()).toBeVisible();
+	await page.getByRole('button', { name: 'Cancel' }).click();
+	await expect(page.getByText('Alice').first()).toBeVisible();
+});
