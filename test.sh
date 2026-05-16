@@ -37,7 +37,10 @@ run_section() {
     fi
 }
 
-run_section "Backend tests" bash "$ROOT/backend/test.sh" "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}"
+BACKEND_FLAGS=()
+$VERBOSE && BACKEND_FLAGS+=("--verbose")
+
+run_section "Backend tests" bash "$ROOT/backend/test.sh" "${BACKEND_FLAGS[@]+"${BACKEND_FLAGS[@]}"}" "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}"
 
 cd "$ROOT/web"
 run_section "Frontend unit tests" npm run test:unit

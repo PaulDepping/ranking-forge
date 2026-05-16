@@ -3,6 +3,16 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
+VERBOSE=false
+PASSTHROUGH=()
+
+for arg in "$@"; do
+    case "$arg" in
+        -v|--verbose) VERBOSE=true ;;
+        *) PASSTHROUGH+=("$arg") ;;
+    esac
+done
+
 CONTAINER="ranking-forge-test"
 PORT=15432
 export DATABASE_URL="postgres://postgres:postgres@localhost:${PORT}/postgres"
@@ -16,7 +26,7 @@ docker run -d \
     --name "$CONTAINER" \
     -e POSTGRES_PASSWORD=postgres \
     -p "${PORT}:5432" \
-    postgres:18
+    postgres:18 >/dev/null
 
 echo "Waiting for Postgres..."
 until docker exec "$CONTAINER" pg_isready -U postgres -q 2>/dev/null; do
@@ -24,4 +34,15 @@ until docker exec "$CONTAINER" pg_isready -U postgres -q 2>/dev/null; do
 done
 sleep 0.5
 
-cargo test --workspace "$@"
+if $VERBOSE; then
+    cargo test --workspace "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}"
+else
+    tmpfile=$(mktemp)
+    if cargo test --workspace "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}" >"$tmpfile" 2>&1; then
+        rm -f "$tmpfile"
+    else
+        cat "$tmpfile"
+        rm -f "$tmpfile"
+        exit 1
+    fi
+fi

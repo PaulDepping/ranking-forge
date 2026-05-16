@@ -36,6 +36,7 @@ bash test.sh
 bash test.sh --verbose   # or -v
 
 # Backend only — spins up an ephemeral Postgres container via Docker, then runs cargo test --workspace
+# Also quiet by default; supports --verbose / -v
 bash backend/test.sh
 
 # Frontend unit tests only
