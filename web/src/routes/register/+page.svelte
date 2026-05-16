@@ -28,6 +28,10 @@
 				<Label for="password">Password</Label>
 				<Input id="password" name="password" type="password" required minlength={8} autocomplete="new-password" />
 			</div>
+			<div class="space-y-2">
+				<Label for="confirm_password">Confirm password</Label>
+				<Input id="confirm_password" name="confirm_password" type="password" required minlength={8} autocomplete="new-password" />
+			</div>
 			<Button type="submit" class="w-full">Create account</Button>
 		</form>
 

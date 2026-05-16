@@ -11,6 +11,11 @@ export const actions: Actions = {
 		const data = await request.formData();
 		const username = data.get('username') as string;
 		const password = data.get('password') as string;
+		const confirmPassword = data.get('confirm_password') as string;
+
+		if (password !== confirmPassword) {
+			return fail(400, { error: 'Passwords do not match' });
+		}
 
 		const res = await fetch(`${INTERNAL_API_URL}/auth/register`, {
 			method: 'POST',

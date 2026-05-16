@@ -41,6 +41,30 @@ test('unauthenticated visit to /projects redirects to /login', async ({ page }) 
 test('register page renders the registration form', async ({ page }) => {
 	await page.goto('/register');
 	await expect(page.getByLabel('Username')).toBeVisible();
-	await expect(page.getByLabel('Password')).toBeVisible();
+	await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Create account' })).toBeVisible();
+});
+
+test('register page shows Confirm password field', async ({ page }) => {
+	await page.goto('/register');
+	await expect(page.getByLabel('Confirm password')).toBeVisible();
+});
+
+test('shows error when passwords do not match', async ({ page }) => {
+	await page.goto('/register');
+	await page.getByLabel('Username').fill('newuser');
+	await page.getByLabel('Password', { exact: true }).fill('password123');
+	await page.getByLabel('Confirm password').fill('different123');
+	await page.getByRole('button', { name: 'Create account' }).click();
+	await expect(page.getByText('Passwords do not match')).toBeVisible();
+	await expect(page).toHaveURL('/register');
+});
+
+test('registration succeeds when passwords match', async ({ page }) => {
+	await page.goto('/register');
+	await page.getByLabel('Username').fill('newuser');
+	await page.getByLabel('Password', { exact: true }).fill('password123');
+	await page.getByLabel('Confirm password').fill('password123');
+	await page.getByRole('button', { name: 'Create account' }).click();
+	await expect(page.getByText('Passwords do not match')).not.toBeVisible();
 });
