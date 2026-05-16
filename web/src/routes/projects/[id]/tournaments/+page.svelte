@@ -392,11 +392,15 @@
 								{/each}
 
 								<div class="border-t border-border my-1.5"></div>
-
-								<!-- Rarer bracket types -->
-								{#each RARE_BRACKET_TYPES as bt}
-									{@render bracketRow(bt)}
-								{/each}
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									class="w-full text-xs {rareActiveCount > 0 ? 'text-green-400' : 'text-muted-foreground'}"
+									onclick={() => { bracketPopoverOpen = false; bracketDialogOpen = true; }}
+								>
+									All bracket types…{#if rareActiveCount > 0}<Badge class="ml-1.5 bg-green-900 text-green-400 border-0 text-[9px] px-1.5">{rareActiveCount} active</Badge>{/if}
+								</Button>
 
 								<!-- Legend -->
 								<div class="mt-2 pt-2 border-t border-border flex gap-3 flex-wrap">
