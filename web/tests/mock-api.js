@@ -18,6 +18,11 @@ const MOCK_PLAYERS = [
 	{ id: 'player-3', project_id: 'proj-1', name: 'Charlie', created_at: '2026-01-01T00:00:00Z', accounts: [] }
 ];
 
+const MOCK_ENTRANTS = [
+	{ startgg_user_id: 1001, handle: 'mang0', name: 'Mang0' },
+	{ startgg_user_id: 1002, handle: 'armada', name: 'Armada' }
+];
+
 const MOCK_TOURNAMENTS = [
 	{
 		id: 't1', startgg_id: 1, name: 'Genesis 10', slug: 'tournament/genesis-10',
@@ -206,6 +211,59 @@ function createMockServer() {
 		const playersMatch = path.match(/^\/projects\/([^/]+)\/players$/);
 		if (playersMatch && req.method === 'GET') {
 			respond(res, 200, MOCK_PLAYERS);
+			return;
+		}
+
+		if (playersMatch && req.method === 'POST') {
+			const body = await readBody(req);
+			respond(res, 201, {
+				id: 'player-new',
+				project_id: playersMatch[1],
+				name: body?.name ?? 'New Player',
+				created_at: '2026-01-01T00:00:00Z',
+				accounts: []
+			});
+			return;
+		}
+
+		const tournamentEntrantsMatch = path.match(/^\/projects\/([^/]+)\/tournament-entrants$/);
+		if (tournamentEntrantsMatch && req.method === 'GET') {
+			respond(res, 200, MOCK_ENTRANTS);
+			return;
+		}
+
+		const playersBulkMatch = path.match(/^\/projects\/([^/]+)\/players\/bulk$/);
+		if (playersBulkMatch && req.method === 'POST') {
+			const body = await readBody(req);
+			const results = (body?.players ?? []).map((/** @type {any} */ p) => ({
+				name: p.name,
+				handle: p.handle,
+				status: 'created'
+			}));
+			respond(res, 200, results);
+			return;
+		}
+
+		const playersByHandlesMatch = path.match(/^\/projects\/([^/]+)\/players\/by-handles$/);
+		if (playersByHandlesMatch && req.method === 'POST') {
+			const body = await readBody(req);
+			const results = (body?.handles ?? []).map((/** @type {string} */ h) => ({
+				handle: h,
+				name: 'Test Player',
+				status: 'created'
+			}));
+			respond(res, 200, results);
+			return;
+		}
+
+		const playerPatchMatch = path.match(/^\/projects\/([^/]+)\/players\/([^/]+)$/);
+		if (playerPatchMatch && req.method === 'PATCH') {
+			const body = await readBody(req);
+			respond(res, 200, {
+				...MOCK_PLAYERS[0],
+				id: playerPatchMatch[2],
+				name: body?.name ?? 'Renamed'
+			});
 			return;
 		}
 
