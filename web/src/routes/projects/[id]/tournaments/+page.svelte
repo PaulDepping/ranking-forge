@@ -223,7 +223,7 @@
 			<button
 				type="button"
 				onclick={() => setBracketState(bt, s)}
-				class="h-5 w-5 rounded border text-xs font-bold flex items-center justify-center
+				class="h-5 w-5 mx-auto rounded border text-xs font-bold flex items-center justify-center
 					{bracketFilter[bt] === s
 						? s === 'required'
 							? 'border-green-500 bg-green-950 text-green-400'
