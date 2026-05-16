@@ -2192,3 +2192,39 @@ async fn projects_create_long_name(pool: PgPool) {
     .await;
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn auth_rate_limit_after_burst(pool: PgPool) {
+    let app = make_app(pool, "");
+
+    // burst_size=5: first 5 requests must go through (returned as 422 — short username
+    // fails validation before any expensive work, making the test fast)
+    for i in 0..5 {
+        let req = Request::builder()
+            .method("POST")
+            .uri("/auth/register")
+            .header("content-type", "application/json")
+            .body(Body::from(
+                serde_json::to_vec(&json!({"username": "ab", "password": "x"})).unwrap(),
+            ))
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        assert_ne!(
+            resp.status(),
+            StatusCode::TOO_MANY_REQUESTS,
+            "request {i} should not be rate limited within burst"
+        );
+    }
+
+    // 6th request must be rate limited
+    let req = Request::builder()
+        .method("POST")
+        .uri("/auth/register")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::to_vec(&json!({"username": "ab", "password": "x"})).unwrap(),
+        ))
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+}

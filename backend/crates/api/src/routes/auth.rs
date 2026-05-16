@@ -13,7 +13,10 @@ use axum_extra::extract::CookieJar;
 use axum_extra::extract::cookie::{Cookie, SameSite};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use std::sync::LazyLock;
+use tower_governor::{GovernorLayer, GovernorError, governor::GovernorConfigBuilder};
+use tower_governor::key_extractor::KeyExtractor;
 use uuid::Uuid;
 
 use crate::{
@@ -21,6 +24,37 @@ use crate::{
     state::AppState,
 };
 use common::models::User;
+
+// Falls back to LOCALHOST when no IP header/extension is present (test environments).
+// Each test creates a fresh GovernorLayer instance, so test-isolation is preserved.
+#[derive(Clone)]
+struct ClientIpExtractor;
+
+impl KeyExtractor for ClientIpExtractor {
+    type Key = std::net::IpAddr;
+
+    fn extract<T>(&self, req: &axum::http::Request<T>) -> std::result::Result<Self::Key, GovernorError> {
+        let forwarded = req
+            .headers()
+            .get("x-forwarded-for")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.split(',').next())
+            .and_then(|s| s.trim().parse::<std::net::IpAddr>().ok());
+
+        if let Some(ip) = forwarded {
+            return Ok(ip);
+        }
+
+        if let Some(info) = req
+            .extensions()
+            .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+        {
+            return Ok(info.0.ip());
+        }
+
+        Ok(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+    }
+}
 
 // ── Request / response types ──────────────────────────────────────────────────
 
@@ -253,9 +287,19 @@ async fn me(auth: AuthUser) -> impl IntoResponse {
 // ── Router ────────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
+    let governor_conf = Arc::new(
+        GovernorConfigBuilder::default()
+            .key_extractor(ClientIpExtractor)
+            .per_second(1)
+            .burst_size(5)
+            .finish()
+            .unwrap(),
+    );
+
     Router::new()
         .route("/register", post(register))
         .route("/login", post(login))
         .route("/logout", post(logout))
         .route("/me", get(me))
+        .layer(GovernorLayer::new(governor_conf))
 }
