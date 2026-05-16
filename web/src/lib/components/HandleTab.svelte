@@ -13,16 +13,21 @@
 	let input = $state('');
 	let submitting = $state(false);
 	let results = $state<ByHandlesResult[]>([]);
+	let error = $state<string | null>(null);
 
 	async function submit() {
 		const handles = input.split('\n').map((h) => h.trim()).filter(Boolean);
 		if (!handles.length) return;
 		submitting = true;
+		error = null;
 		const api = makeApi(fetch, PUBLIC_API_URL);
 		const res = await api.post(`/projects/${projectId}/players/by-handles`, { handles });
 		submitting = false;
 		if (res.ok) {
 			results = await res.json();
+		} else {
+			const err = await res.json().catch(() => ({ message: 'Failed to add players' }));
+			error = err.message;
 		}
 	}
 
@@ -30,6 +35,7 @@
 		const anyCreated = results.some((r) => r.status === 'created');
 		results = [];
 		input = '';
+		error = null;
 		if (anyCreated) invalidateAll();
 		onClose();
 	}
@@ -48,6 +54,7 @@
 				class="font-mono text-sm"
 			/>
 		</div>
+		{#if error}<p class="text-sm text-destructive">{error}</p>{/if}
 		<Button onclick={submit} disabled={submitting || !input.trim()} class="w-full">
 			{submitting ? 'Adding…' : 'Add players'}
 		</Button>

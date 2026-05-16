@@ -40,6 +40,7 @@ Frontend-specific guidance for the SvelteKit app in this directory.
 | Separator | `$lib/components/ui/separator` |
 | Tabs | `$lib/components/ui/tabs` |
 | Table | `$lib/components/ui/table` |
+| Textarea | `$lib/components/ui/textarea` |
 | Calendar | `$lib/components/ui/calendar` |
 | Collapsible | `$lib/components/ui/collapsible` |
 | Empty | `$lib/components/ui/empty` |

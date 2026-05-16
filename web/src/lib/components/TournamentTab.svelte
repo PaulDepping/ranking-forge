@@ -23,6 +23,7 @@
 	let search = $state('');
 	let selected = $state(new Set<number>());
 	let submitting = $state(false);
+	let addError = $state<string | null>(null);
 
 	const alreadyAddedIds = $derived(
 		new Set(players.flatMap((p) => p.accounts.map((a) => a.startgg_user_id)))
@@ -72,12 +73,16 @@
 			.map((e) => ({ name: e.name, startgg_user_id: e.startgg_user_id, handle: e.handle }));
 		if (!entries.length) return;
 		submitting = true;
+		addError = null;
 		const api = makeApi(fetch, PUBLIC_API_URL);
 		const res = await api.post(`/projects/${projectId}/players/bulk`, { players: entries });
 		submitting = false;
 		if (res.ok) {
 			await invalidateAll();
 			onClose();
+		} else {
+			const err = await res.json().catch(() => ({ message: 'Failed to add players' }));
+			addError = err.message;
 		}
 	}
 </script>
@@ -115,14 +120,13 @@
 							disabled={isAdded}
 							onCheckedChange={() => !isAdded && toggleEntrant(entrant.startgg_user_id)}
 						/>
-						<label
+						<Label
 							for="entrant-{entrant.startgg_user_id}"
-							class="flex flex-1 cursor-pointer items-center gap-2"
-							class:cursor-default={isAdded}
+							class="flex flex-1 cursor-pointer items-center gap-2 {isAdded ? 'cursor-default' : 'cursor-pointer'}"
 						>
 							<span class="font-medium">{entrant.name}</span>
 							<span class="text-muted-foreground">{entrant.handle}</span>
-						</label>
+						</Label>
 						{#if isAdded}
 							<Badge variant="secondary" class="text-xs">already added</Badge>
 						{/if}
@@ -130,6 +134,7 @@
 				{/each}
 			</div>
 		</ScrollArea>
+		{#if addError}<p class="text-sm text-destructive">{addError}</p>{/if}
 		<div class="flex items-center justify-between">
 			<span class="text-sm text-muted-foreground">
 				{selectedCount} selected · {alreadyAddedCount} already added
