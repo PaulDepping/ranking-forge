@@ -15,7 +15,7 @@ export interface Project {
 export interface Account {
 	id: string;
 	startgg_user_id: number;
-	slug: string;
+	handle: string;
 	display_name: string | null;
 }
 
@@ -25,6 +25,24 @@ export interface Player {
 	name: string;
 	created_at: string;
 	accounts: Account[];
+}
+
+export interface TournamentEntrant {
+	startgg_user_id: number;
+	handle: string;
+	name: string;
+}
+
+export interface BulkAddResult {
+	name: string;
+	handle: string;
+	status: 'created' | 'skipped';
+}
+
+export interface ByHandlesResult {
+	handle: string;
+	name: string | null;
+	status: 'created' | 'skipped' | 'not_found';
 }
 
 export interface TournamentEvent {
