@@ -12,6 +12,7 @@
 		{ label: 'Tournaments', href: 'tournaments' },
 		{ label: 'Stats', href: 'stats' },
 		{ label: 'H2H', href: 'h2h' },
+		{ label: 'Ranking', href: 'ranking' },
 		{ label: 'Settings', href: 'settings' }
 	];
 

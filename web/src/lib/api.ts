@@ -15,6 +15,9 @@ export function makeApi(fetchFn: typeof fetch, baseUrl: string, sessionId?: stri
 		get: (path: string) => req('GET', path),
 		post: (path: string, body?: unknown) => req('POST', path, body),
 		patch: (path: string, body: unknown) => req('PATCH', path, body),
-		delete: (path: string) => req('DELETE', path)
+		put: (path: string, body: unknown) => req('PUT', path, body),
+		delete: (path: string) => req('DELETE', path),
+		putRanking: (projectId: string, playerIds: string[]) =>
+			req('PUT', `/projects/${projectId}/ranking`, { player_ids: playerIds })
 	};
 }
