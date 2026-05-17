@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, get, post, put},
+    routing::{delete, get, post},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -570,8 +570,8 @@ fn normalize_tournament_handle(input: &str) -> String {
 // ── Reorder players ───────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
-struct ReorderRequest {
-    player_ids: Vec<Uuid>,
+pub struct ReorderRequest {
+    pub player_ids: Vec<Uuid>,
 }
 
 pub async fn reorder_players(
@@ -595,6 +595,13 @@ pub async fn reorder_players(
     if body.player_ids.len() != existing_set.len() {
         return Err(AppError::UnprocessableEntity(
             "player_ids must contain exactly all players in this project".into(),
+        ));
+    }
+
+    let input_set: std::collections::HashSet<Uuid> = body.player_ids.iter().copied().collect();
+    if input_set.len() != body.player_ids.len() {
+        return Err(AppError::UnprocessableEntity(
+            "player_ids contains duplicate ids".into(),
         ));
     }
 

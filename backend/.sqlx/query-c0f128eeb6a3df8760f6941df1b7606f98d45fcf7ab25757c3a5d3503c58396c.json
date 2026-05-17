@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO players (project_id, name) VALUES ($1, $2)\n         RETURNING id, project_id, name, created_at",
+  "query": "UPDATE players SET name = $1 WHERE id = $2 AND project_id = $3\n         RETURNING id, project_id, name, rank_position, created_at",
   "describe": {
     "columns": [
       {
@@ -20,22 +20,29 @@
       },
       {
         "ordinal": 3,
+        "name": "rank_position",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
+        "Text",
         "Uuid",
-        "Text"
+        "Uuid"
       ]
     },
     "nullable": [
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "3127f8c896549b9ae5d83af942116c5d3be1adcb86a9cc1812af1c6ac106a6cf"
+  "hash": "c0f128eeb6a3df8760f6941df1b7606f98d45fcf7ab25757c3a5d3503c58396c"
 }

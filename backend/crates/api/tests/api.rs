@@ -2360,3 +2360,22 @@ async fn ranking_reorder_rejects_unknown_id(pool: PgPool) {
     .await;
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn ranking_reorder_rejects_duplicate_ids(pool: PgPool) {
+    let app = make_app(pool, "");
+    let cookie = register(&app, "alice", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+
+    let a = create_player(&app, &cookie, &pid, "Alpha").await;
+    create_player(&app, &cookie, &pid, "Beta").await;
+
+    let resp = put_json(
+        &app,
+        &format!("/projects/{pid}/ranking"),
+        &cookie,
+        json!({ "player_ids": [a, a] }),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}

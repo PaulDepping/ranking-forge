@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO players (project_id, name) VALUES ($1, $2) RETURNING id",
+  "query": "SELECT id FROM players WHERE project_id = $1",
   "describe": {
     "columns": [
       {
@@ -11,13 +11,12 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Text"
+        "Uuid"
       ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "4edacf867d0517f29acf6cfe3c51be0951f5fb374a8e0eaa5338df3900540951"
+  "hash": "87465ba8f69fe43c829369e946a7b51a138f3c932173e3e9d30bbcb0127e9835"
 }

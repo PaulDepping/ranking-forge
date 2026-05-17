@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, get, patch, post, put},
+    routing::{get, patch, post, put},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

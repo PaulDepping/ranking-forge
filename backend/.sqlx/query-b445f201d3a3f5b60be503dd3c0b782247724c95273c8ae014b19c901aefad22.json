@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, project_id, name, created_at\n         FROM players\n         WHERE project_id = $1\n         ORDER BY created_at ASC",
+  "query": "INSERT INTO players (project_id, name, rank_position)\n         VALUES (\n             $1, $2,\n             (SELECT COALESCE(MAX(rank_position), 0) + 1 FROM players WHERE project_id = $1)\n         )\n         RETURNING id, project_id, name, rank_position, created_at",
   "describe": {
     "columns": [
       {
@@ -20,21 +20,28 @@
       },
       {
         "ordinal": 3,
+        "name": "rank_position",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Text"
       ]
     },
     "nullable": [
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "efbd4b93dfac6cd1fdaadcd484b92b9a9345f23be2267defe4f66858ea0d144b"
+  "hash": "b445f201d3a3f5b60be503dd3c0b782247724c95273c8ae014b19c901aefad22"
 }
