@@ -26,7 +26,7 @@ pub struct CreateProjectRequest {
     pub game_name: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct RenameProjectRequest {
     pub name: String,
 }
@@ -111,7 +111,7 @@ async fn create_project(
          VALUES ($1, $2, $3, $4)
          RETURNING id, user_id, name, game_id, game_name, created_at",
         user.id,
-        body.name,
+        body.name.trim(),
         body.game_id,
         body.game_name,
     )

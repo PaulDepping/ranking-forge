@@ -546,4 +546,14 @@ async fn test_rename_project(pool: PgPool) {
         json!({"name": "a".repeat(101)}),
     ).await;
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    // Another user cannot rename alice's project
+    let bob_cookie = register(&app, "bob", "password456").await;
+    let resp = patch_json(
+        &app,
+        &format!("/projects/{project_id}"),
+        &bob_cookie,
+        json!({"name": "Stolen"}),
+    ).await;
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
