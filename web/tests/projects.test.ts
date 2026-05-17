@@ -158,3 +158,67 @@ test('ranking page save button enables after rank number edit', async ({ page })
 	// Save button should now be enabled
 	await expect(page.getByRole('button', { name: 'Save' })).toBeEnabled();
 });
+
+test('From tournament tab fetches data and shows All tab and event tabs', async ({ page }) => {
+	await page.goto('/projects/proj-1/players');
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'Add players' }).click();
+	await page.getByRole('tab', { name: 'From tournament' }).click();
+
+	// Type a tournament and fetch
+	await page.getByPlaceholder('genesis-9 or start.gg/tournament/genesis-9').fill('genesis-9');
+	await page.getByRole('button', { name: 'Fetch' }).click();
+
+	// "All" tab is visible and active
+	await expect(page.getByRole('tab', { name: 'All' })).toBeVisible();
+
+	// Event tabs from mock data are visible
+	await expect(page.getByRole('tab', { name: 'Melee Singles' })).toBeVisible();
+	await expect(page.getByRole('tab', { name: 'Doubles' })).toBeVisible();
+
+	// All tab shows all 3 participants (including spectator from mock)
+	await expect(page.getByText('Mang0').first()).toBeVisible();
+	await expect(page.getByText('Spectator').first()).toBeVisible();
+});
+
+test('From tournament tab: switching to event tab shows sort toggle', async ({ page }) => {
+	await page.goto('/projects/proj-1/players');
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'Add players' }).click();
+	await page.getByRole('tab', { name: 'From tournament' }).click();
+
+	await page.getByPlaceholder('genesis-9 or start.gg/tournament/genesis-9').fill('genesis-9');
+	await page.getByRole('button', { name: 'Fetch' }).click();
+
+	// Sort toggle is not visible on All tab
+	await expect(page.getByRole('button', { name: 'Placement' })).not.toBeVisible();
+
+	// Switch to Melee Singles event tab
+	await page.getByRole('tab', { name: 'Melee Singles' }).click();
+
+	// Sort toggle appears
+	await expect(page.getByRole('button', { name: 'Placement' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Seed' })).toBeVisible();
+});
+
+test('From tournament tab: selections persist across tab switches', async ({ page }) => {
+	await page.goto('/projects/proj-1/players');
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'Add players' }).click();
+	await page.getByRole('tab', { name: 'From tournament' }).click();
+
+	await page.getByPlaceholder('genesis-9 or start.gg/tournament/genesis-9').fill('genesis-9');
+	await page.getByRole('button', { name: 'Fetch' }).click();
+
+	// Select Mang0 on the All tab
+	await page.getByRole('tab', { name: 'All' }).click();
+	const mang0Row = page.locator('[id^="entrant-1001"]');
+	await mang0Row.click();
+
+	// Selected count shows 1
+	await expect(page.getByText('1 selected')).toBeVisible();
+
+	// Switch to Melee Singles tab — Mang0 should still be checked
+	await page.getByRole('tab', { name: 'Melee Singles' }).click();
+	await expect(page.getByText('1 selected')).toBeVisible();
+});
