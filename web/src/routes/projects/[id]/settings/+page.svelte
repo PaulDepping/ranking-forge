@@ -34,8 +34,8 @@
 			<Input id="project-name" name="name" bind:value={name} class="flex-1" />
 			<Button type="submit">Save</Button>
 		</form>
-		{#if form?.error}
-			<p class="text-sm text-destructive">{form.error}</p>
+		{#if form?.renameError}
+			<p class="text-sm text-destructive">{form.renameError}</p>
 		{/if}
 	</div>
 
@@ -60,8 +60,8 @@
 				>Delete project</Button>
 			</form>
 		</div>
-		{#if form?.error && !form?.project}
-			<p class="mt-2 text-sm text-destructive">{form.error}</p>
+		{#if form?.deleteError}
+			<p class="mt-2 text-sm text-destructive">{form.deleteError}</p>
 		{/if}
 	</div>
 </div>
