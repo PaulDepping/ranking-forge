@@ -459,11 +459,33 @@ pub async fn add_players_by_handles(
 
 // ── Tournament entrants ───────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
-pub struct TournamentEntrantResponse {
+#[derive(Serialize)]
+pub struct TournamentDataResponse {
+    pub all_participants: Vec<TournamentParticipantResp>,
+    pub events: Vec<TournamentEventResp>,
+}
+
+#[derive(Serialize)]
+pub struct TournamentParticipantResp {
     pub startgg_user_id: i64,
     pub handle: String,
     pub name: String,
+}
+
+#[derive(Serialize)]
+pub struct TournamentEventResp {
+    pub id: i64,
+    pub name: String,
+    pub entrants: Vec<TournamentEntrantOrderedResp>,
+}
+
+#[derive(Serialize)]
+pub struct TournamentEntrantOrderedResp {
+    pub startgg_user_id: i64,
+    pub handle: String,
+    pub name: String,
+    pub seed: Option<i32>,
+    pub placement: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -477,30 +499,51 @@ pub async fn list_tournament_entrants(
     Path(id): Path<Uuid>,
     Query(q): Query<TournamentEntrantsQuery>,
 ) -> Result<impl IntoResponse> {
-    let project = require_project(&state.db, id, user.id).await?;
-
-    let game_id = project.game_id.ok_or_else(|| {
-        AppError::UnprocessableEntity("project has no game configured".into())
-    })?;
+    require_project(&state.db, id, user.id).await?;
 
     let handle = normalize_tournament_handle(&q.tournament);
 
-    let entrants = state
+    let participants = state
         .startgg
-        .tournament_entrants(&handle, game_id)
+        .tournament_participants(&handle)
         .await
         .map_err(AppError::from)?;
 
-    let response: Vec<TournamentEntrantResponse> = entrants
+    let events = state
+        .startgg
+        .tournament_events_with_entrants(&handle)
+        .await
+        .map_err(AppError::from)?;
+
+    let all_participants: Vec<TournamentParticipantResp> = participants
         .into_iter()
-        .map(|e| TournamentEntrantResponse {
-            startgg_user_id: e.startgg_user_id,
-            handle: e.handle,
-            name: e.name,
+        .map(|p| TournamentParticipantResp {
+            startgg_user_id: p.startgg_user_id,
+            handle: p.handle,
+            name: p.name,
         })
         .collect();
 
-    Ok(Json(response))
+    let events: Vec<TournamentEventResp> = events
+        .into_iter()
+        .map(|e| TournamentEventResp {
+            id: e.id,
+            name: e.name,
+            entrants: e
+                .entrants
+                .into_iter()
+                .map(|en| TournamentEntrantOrderedResp {
+                    startgg_user_id: en.startgg_user_id,
+                    handle: en.handle,
+                    name: en.name,
+                    seed: en.seed,
+                    placement: en.placement,
+                })
+                .collect(),
+        })
+        .collect();
+
+    Ok(Json(TournamentDataResponse { all_participants, events }))
 }
 
 // ── Rename player ─────────────────────────────────────────────────────────────

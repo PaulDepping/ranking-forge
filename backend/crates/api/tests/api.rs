@@ -1420,12 +1420,18 @@ async fn test_list_tournament_entrants(pool: PgPool) {
 
     let mock = MockServer::start().await;
 
-    // Mock the tournament events query
+    // Mock 1: tournament_participants query
     Mock::given(wiremock::matchers::method("POST"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "data": {
                 "tournament": {
-                    "events": [{ "id": 999 }]
+                    "participants": {
+                        "pageInfo": { "totalPages": 1 },
+                        "nodes": [
+                            { "gamerTag": "Mang0", "user": { "id": 1001, "slug": "user/mang0" } },
+                            { "gamerTag": "Spectator", "user": { "id": 9999, "slug": "user/spec" } }
+                        ]
+                    }
                 }
             }
         })))
@@ -1433,21 +1439,34 @@ async fn test_list_tournament_entrants(pool: PgPool) {
         .mount(&mock)
         .await;
 
-    // Mock the entrant list query
+    // Mock 2: tournament_events_with_entrants — all events query
+    Mock::given(wiremock::matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": {
+                "tournament": {
+                    "events": [{ "id": 999, "name": "Melee Singles" }]
+                }
+            }
+        })))
+        .up_to_n_times(1)
+        .mount(&mock)
+        .await;
+
+    // Mock 3: entrant list for event 999
     Mock::given(wiremock::matchers::method("POST"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "data": {
                 "event": {
                     "entrants": {
                         "pageInfo": { "totalPages": 1 },
-                        "nodes": [
-                            {
-                                "participants": [{
-                                    "gamerTag": "Mang0",
-                                    "user": { "id": 1001, "slug": "user/mang0" }
-                                }]
-                            }
-                        ]
+                        "nodes": [{
+                            "initialSeedNum": 1,
+                            "standing": { "placement": 1 },
+                            "participants": [{
+                                "gamerTag": "Mang0",
+                                "user": { "id": 1001, "slug": "user/mang0" }
+                            }]
+                        }]
                     }
                 }
             }
@@ -1459,15 +1478,8 @@ async fn test_list_tournament_entrants(pool: PgPool) {
     let app = make_app(pool, &mock.uri());
     let cookie = register(&app, "alice", "password123").await;
 
-    // Create project with a game_id so tournament_entrants has a game to filter by
-    let resp = post_json(
-        &app,
-        "/projects",
-        &cookie,
-        json!({"name": "Melee PR", "game_id": 1, "game_name": "Melee"}),
-    )
-    .await;
-    let pid = read_json(resp).await["id"].as_str().unwrap().to_string();
+    // Project without game_id — endpoint must work without one
+    let pid = create_project(&app, &cookie).await;
 
     let resp = get_req(
         &app,
@@ -1478,11 +1490,21 @@ async fn test_list_tournament_entrants(pool: PgPool) {
 
     assert_eq!(resp.status(), StatusCode::OK);
     let body = read_json(resp).await;
-    let arr = body.as_array().unwrap();
-    assert_eq!(arr.len(), 1);
-    assert_eq!(arr[0]["handle"], "mang0");
-    assert_eq!(arr[0]["name"], "Mang0");
-    assert!(arr[0]["startgg_user_id"].is_number());
+
+    let participants = body["all_participants"].as_array().unwrap();
+    assert_eq!(participants.len(), 2);
+    assert!(participants.iter().any(|p| p["handle"] == "mang0"));
+    assert!(participants.iter().any(|p| p["handle"] == "spec"));
+
+    let events = body["events"].as_array().unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0]["name"], "Melee Singles");
+
+    let entrants = events[0]["entrants"].as_array().unwrap();
+    assert_eq!(entrants.len(), 1);
+    assert_eq!(entrants[0]["handle"], "mang0");
+    assert_eq!(entrants[0]["seed"], 1);
+    assert_eq!(entrants[0]["placement"], 1);
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -1491,24 +1513,19 @@ async fn test_list_tournament_entrants_normalizes_url(pool: PgPool) {
 
     let mock = MockServer::start().await;
 
+    // Participants query
     Mock::given(wiremock::matchers::method("POST"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "data": { "tournament": { "events": [{ "id": 999 }] } }
+            "data": { "tournament": { "participants": { "pageInfo": { "totalPages": 1 }, "nodes": [] } } }
         })))
         .up_to_n_times(1)
         .mount(&mock)
         .await;
 
+    // All events query
     Mock::given(wiremock::matchers::method("POST"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "data": {
-                "event": {
-                    "entrants": {
-                        "pageInfo": { "totalPages": 1 },
-                        "nodes": []
-                    }
-                }
-            }
+            "data": { "tournament": { "events": [] } }
         })))
         .up_to_n_times(1)
         .mount(&mock)
@@ -1516,18 +1533,8 @@ async fn test_list_tournament_entrants_normalizes_url(pool: PgPool) {
 
     let app = make_app(pool, &mock.uri());
     let cookie = register(&app, "alice", "password123").await;
+    let pid = create_project(&app, &cookie).await;
 
-    // Create project with a game_id
-    let resp = post_json(
-        &app,
-        "/projects",
-        &cookie,
-        json!({"name": "Melee PR", "game_id": 1, "game_name": "Melee"}),
-    )
-    .await;
-    let pid = read_json(resp).await["id"].as_str().unwrap().to_string();
-
-    // Passing a full URL — should be normalized to "some-weekly"
     let resp = get_req(
         &app,
         &format!(
@@ -1539,7 +1546,9 @@ async fn test_list_tournament_entrants_normalizes_url(pool: PgPool) {
 
     assert_eq!(resp.status(), StatusCode::OK);
     let body = read_json(resp).await;
-    assert_eq!(body.as_array().unwrap().len(), 0); // empty entrant list, but request succeeded
+    // Normalized to "some-weekly"; empty but correct shape
+    assert!(body["all_participants"].as_array().unwrap().is_empty());
+    assert!(body["events"].as_array().unwrap().is_empty());
 }
 
 // ── Rename player ─────────────────────────────────────────────────────────────
