@@ -13,9 +13,9 @@ const MOCK_PROJECTS = [
 ];
 
 const MOCK_PLAYERS = [
-	{ id: 'player-1', project_id: 'proj-1', name: 'Alice', created_at: '2026-01-01T00:00:00Z', accounts: [] },
-	{ id: 'player-2', project_id: 'proj-1', name: 'Bob', created_at: '2026-01-01T00:00:00Z', accounts: [] },
-	{ id: 'player-3', project_id: 'proj-1', name: 'Charlie', created_at: '2026-01-01T00:00:00Z', accounts: [] }
+	{ id: 'player-1', project_id: 'proj-1', name: 'Alice', rank_position: 1, created_at: '2026-01-01T00:00:00Z', accounts: [] },
+	{ id: 'player-2', project_id: 'proj-1', name: 'Bob', rank_position: 2, created_at: '2026-01-01T00:00:00Z', accounts: [] },
+	{ id: 'player-3', project_id: 'proj-1', name: 'Charlie', rank_position: 3, created_at: '2026-01-01T00:00:00Z', accounts: [] }
 ];
 
 const MOCK_ENTRANTS = [
@@ -264,6 +264,12 @@ function createMockServer() {
 				id: playerPatchMatch[2],
 				name: body?.name ?? 'Renamed'
 			});
+			return;
+		}
+
+		const rankingMatch = path.match(/^\/projects\/([^/]+)\/ranking$/);
+		if (rankingMatch && req.method === 'PUT') {
+			respond(res, 200, {});
 			return;
 		}
 

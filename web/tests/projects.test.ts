@@ -33,6 +33,7 @@ test('project layout shows tab navigation', async ({ page }) => {
 	await expect(page.getByRole('tab', { name: 'Tournaments' })).toBeVisible();
 	await expect(page.getByRole('tab', { name: 'Stats' })).toBeVisible();
 	await expect(page.getByRole('tab', { name: 'H2H' })).toBeVisible();
+	await expect(page.getByRole('tab', { name: 'Ranking' })).toBeVisible();
 });
 
 test('h2h page renders the player grid', async ({ page }) => {
@@ -129,4 +130,31 @@ test('player row has Edit button; clicking it shows inline input', async ({ page
 	await expect(page.getByRole('textbox').first()).toBeVisible();
 	await page.getByRole('button', { name: 'Cancel' }).click();
 	await expect(page.getByText('Alice').first()).toBeVisible();
+});
+
+test('ranking page shows all players with drag handles', async ({ page }) => {
+	await page.goto('/projects/proj-1/ranking');
+	await expect(page.getByText('Alice')).toBeVisible();
+	await expect(page.getByText('Bob')).toBeVisible();
+	await expect(page.getByText('Charlie')).toBeVisible();
+	// Save button is disabled initially (no changes)
+	await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
+});
+
+test('ranking page shows win/loss stats', async ({ page }) => {
+	await page.goto('/projects/proj-1/ranking');
+	// Alice: 1W 1L → 50%
+	await expect(page.getByText('1W · 1L').first()).toBeVisible();
+});
+
+test('ranking page save button enables after rank number edit', async ({ page }) => {
+	await page.goto('/projects/proj-1/ranking');
+	await page.waitForLoadState('networkidle');
+	// Click rank 1 button to edit Alice's position
+	await page.getByRole('button', { name: '1' }).click();
+	// Type a new rank to move Alice to position 3
+	await page.getByRole('spinbutton').fill('3');
+	await page.keyboard.press('Enter');
+	// Save button should now be enabled
+	await expect(page.getByRole('button', { name: 'Save' })).toBeEnabled();
 });
