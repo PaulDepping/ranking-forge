@@ -23,6 +23,7 @@ export interface Player {
 	id: string;
 	project_id: string;
 	name: string;
+	rank_position: number;
 	created_at: string;
 	accounts: Account[];
 }
