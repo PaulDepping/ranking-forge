@@ -4,24 +4,6 @@ A platform for creating and managing rankings of players.
 
 This platform serves a common use case in the smash scene: helping TOs and other figureheads create Power Rankings of their players.
 
-## Implementation Status
-
-_Last updated: 2026-05-13 (Phase 6 complete)_
-
-| Component | Status |
-|---|---|
-| DB schema + migrations | ✅ Done |
-| API: AppState, router, CORS | ✅ Done |
-| API: Auth endpoints (`/auth/*`) + `AuthUser` extractor | ✅ Done |
-| API: Projects/Players CRUD | ✅ Done |
-| start.gg GraphQL client | ✅ Done |
-| Import worker | ✅ Done |
-| API: Tournament deselection + stats | ✅ Done |
-| End-to-end regression tests (`crates/e2e`) | ✅ Done |
-| Frontend (SvelteKit) | ✅ Done |
-
-See `ROADMAP.md` for the detailed phase breakdown and implementation notes.
-
 ## Scope
 
 The initial POC covers data collection and display only. Publishing rankings and allowing guests to view the underlying stats is planned but out of scope for now.
@@ -141,17 +123,18 @@ users
 
 See `api/openapi.yaml` for the full contract.
 
-| Group             | Endpoints                                           |
-|-------------------|-----------------------------------------------------|
-| Auth              | POST /auth/register, /auth/login, /auth/logout; GET /auth/me |
-| Projects          | CRUD on /projects                                   |
-| Players           | CRUD on /projects/:id/players                       |
-| start.gg accounts | POST/DELETE /projects/:id/players/:pid/accounts     |
-| Import            | POST/GET /projects/:id/import                       |
-| Tournaments       | GET /projects/:id/tournaments                       |
-| Events            | PATCH /projects/:id/events/:eid (toggle included)   |
-| Stats             | GET /projects/:id/stats, /projects/:id/head-to-head |
-| Games             | GET /games?q= (proxies start.gg game search)        |
+| Group                | Endpoints                                                                                          |
+|----------------------|----------------------------------------------------------------------------------------------------|
+| Auth                 | POST /auth/register, /auth/login, /auth/logout; GET /auth/me                                       |
+| Projects             | GET/POST /projects; GET/PATCH/DELETE /projects/:id                                                 |
+| Players              | CRUD on /projects/:id/players                                                                      |
+| start.gg accounts    | POST/DELETE /projects/:id/players/:pid/accounts                                                    |
+| Import               | POST/GET /projects/:id/import                                                                      |
+| Tournament entrants  | GET /projects/:id/tournament-entrants                                                              |
+| Tournaments          | GET /projects/:id/tournaments                                                                      |
+| Events               | PATCH /projects/:id/events/:eid (toggle included)                                                  |
+| Stats                | GET /projects/:id/stats; GET /projects/:id/head-to-head; GET /projects/:id/head-to-head/:a/:b/sets |
+| Games                | GET /games?q= (proxies start.gg game search)                                                       |
 
 ## Upset Factor
 
