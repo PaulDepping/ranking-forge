@@ -41,6 +41,24 @@
 		entrants.filter((e) => alreadyAddedIds.has(e.startgg_user_id)).length
 	);
 
+	const selectableFiltered = $derived(
+		filteredEntrants.filter(e => !alreadyAddedIds.has(e.startgg_user_id))
+	);
+	const allSelected = $derived(
+		selectableFiltered.length > 0 &&
+		selectableFiltered.every(e => selected.has(e.startgg_user_id))
+	);
+
+	function toggleAll(checked: boolean) {
+		const next = new Set(selected);
+		if (checked) {
+			for (const e of selectableFiltered) next.add(e.startgg_user_id);
+		} else {
+			for (const e of selectableFiltered) next.delete(e.startgg_user_id);
+		}
+		selected = next;
+	}
+
 	async function fetchEntrants() {
 		if (!tournamentInput.trim()) return;
 		loading = true;
@@ -109,6 +127,10 @@
 
 	{#if entrants.length > 0}
 		<Input bind:value={search} placeholder="Search entrants…" />
+		<div class="flex items-center gap-2">
+			<Checkbox id="select-all" checked={allSelected} onCheckedChange={toggleAll} />
+			<Label for="select-all" class="cursor-pointer text-sm font-normal">Select all</Label>
+		</div>
 		<ScrollArea class="h-52 rounded-md border">
 			<div class="divide-y">
 				{#each filteredEntrants as entrant (entrant.startgg_user_id)}
