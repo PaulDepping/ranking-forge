@@ -345,7 +345,7 @@ pub async fn get_stats(
 
     let players = sqlx::query_as!(
         PlayerRow,
-        "SELECT id, name FROM players WHERE project_id = $1 ORDER BY created_at ASC",
+        "SELECT id, name FROM players WHERE project_id = $1 ORDER BY rank_position ASC, created_at ASC",
         project_id,
     )
     .fetch_all(&state.db)
@@ -434,6 +434,8 @@ pub async fn get_stats(
     .fetch_all(&state.db)
     .await?;
 
+    let player_order: Vec<Uuid> = players.iter().map(|p| p.id).collect();
+
     // Initialise per-player accumulators for every player (including those with no sets).
     let mut stats: HashMap<Uuid, (String, Vec<SetRecord>, Vec<SetRecord>)> = players
         .into_iter()
@@ -517,34 +519,17 @@ pub async fn get_stats(
         entry.2.sort_by(|a, b| b.upset_factor.cmp(&a.upset_factor));
     }
 
-    let mut resp: Vec<PlayerStatsResponse> = stats
-        .into_iter()
-        .map(|(id, (name, wins, losses))| PlayerStatsResponse {
-            player_id: id,
-            name,
-            wins,
-            losses,
+    let resp: Vec<PlayerStatsResponse> = player_order
+        .iter()
+        .filter_map(|&id| {
+            stats.remove(&id).map(|(name, wins, losses)| PlayerStatsResponse {
+                player_id: id,
+                name,
+                wins,
+                losses,
+            })
         })
         .collect();
-
-    resp.sort_by(|a, b| {
-        let a_total = a.wins.len() + a.losses.len();
-        let b_total = b.wins.len() + b.losses.len();
-        let a_rate = if a_total == 0 {
-            -1.0_f64
-        } else {
-            a.wins.len() as f64 / a_total as f64
-        };
-        let b_rate = if b_total == 0 {
-            -1.0_f64
-        } else {
-            b.wins.len() as f64 / b_total as f64
-        };
-        b_rate
-            .partial_cmp(&a_rate)
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then(b.wins.len().cmp(&a.wins.len()))
-    });
 
     Ok(Json(resp))
 }

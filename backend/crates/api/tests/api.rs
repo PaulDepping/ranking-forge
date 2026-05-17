@@ -1272,8 +1272,8 @@ async fn stats_upset_factor_computed(pool: PgPool) {
     assert_eq!(alice["losses"][0]["opponent_name"], "Bob");
     assert_eq!(alice["losses"][0]["upset_factor"], 3);
 
-    // Bob ranked first (higher UF)
-    assert_eq!(entries[0]["name"], "Bob");
+    // Alice inserted first → rank_position 1, comes first in stats
+    assert_eq!(entries[0]["name"], "Alice");
 }
 
 #[sqlx::test(migrations = "../../migrations")]
