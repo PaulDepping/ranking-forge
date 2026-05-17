@@ -11,7 +11,8 @@
 		{ label: 'Import', href: 'import' },
 		{ label: 'Tournaments', href: 'tournaments' },
 		{ label: 'Stats', href: 'stats' },
-		{ label: 'H2H', href: 'h2h' }
+		{ label: 'H2H', href: 'h2h' },
+		{ label: 'Settings', href: 'settings' }
 	];
 
 	function tabHref(slug: string) {

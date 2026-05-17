@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui/button';
 	import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from '$lib/components/ui/card';
 	import * as Empty from '$lib/components/ui/empty';
@@ -33,20 +32,10 @@
 							<CardDescription>{project.game_name}</CardDescription>
 						{/if}
 					</CardHeader>
-					<CardFooter class="flex items-center justify-between">
+					<CardFooter>
 						<span class="text-xs text-muted-foreground">
 							{formatDate(project.created_at)}
 						</span>
-						<form method="POST" action="?/delete" use:enhance>
-							<input type="hidden" name="id" value={project.id} />
-							<Button
-								type="submit"
-								variant="ghost"
-								size="sm"
-								class="text-destructive hover:text-destructive"
-								onclick={(e: MouseEvent) => { if (!confirm('Delete this project?')) e.preventDefault(); }}
-							>Delete</Button>
-						</form>
 					</CardFooter>
 				</Card>
 			{/each}
