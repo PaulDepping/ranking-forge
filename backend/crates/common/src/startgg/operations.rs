@@ -5,8 +5,11 @@ use tracing::instrument;
 use super::queries::{
     EntrantPage, EventEntrantsData, EventEntrantsVars, EventPhasesData, EventPhasesVars,
     EventSetsData, EventSetsVars, GameNode, GameSearchData, GameSearchVars, PhaseNode, SetPage,
+    TournamentAllEventsData, TournamentAllEventsVars, TournamentAllEventNode,
     TournamentEntrant, TournamentEntrantListData, TournamentEntrantListVars, TournamentEventsData,
-    TournamentEventsVars, TournamentPage, TournamentsByUserData, TournamentsByUserVars,
+    TournamentEventsVars, TournamentPage, TournamentParticipant, TournamentParticipantsData,
+    TournamentParticipantsVars, TournamentsByUserData, TournamentsByUserVars,
+    TournamentEntrantOrdered, TournamentEventWithEntrants,
     UserBySlugData, UserBySlugVars, UserNode,
 };
 use super::{StartggClient, StartggError};
@@ -112,11 +115,35 @@ const TOURNAMENT_ENTRANT_LIST_QUERY: &str = r#"
             entrants(query: { page: $page, perPage: $perPage }) {
                 pageInfo { totalPages }
                 nodes {
+                    initialSeedNum
+                    standing { placement }
                     participants {
                         gamerTag
                         user { id slug }
                     }
                 }
+            }
+        }
+    }"#;
+
+const TOURNAMENT_PARTICIPANTS_QUERY: &str = r#"
+    query($slug: String!, $page: Int!, $perPage: Int!) {
+        tournament(slug: $slug) {
+            participants(query: { page: $page, perPage: $perPage }) {
+                pageInfo { totalPages }
+                nodes {
+                    gamerTag
+                    user { id slug }
+                }
+            }
+        }
+    }"#;
+
+const TOURNAMENT_ALL_EVENTS_QUERY: &str = r#"
+    query($slug: String!) {
+        tournament(slug: $slug) {
+            events {
+                id name
             }
         }
     }"#;
