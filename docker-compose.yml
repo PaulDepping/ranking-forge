@@ -25,7 +25,6 @@ services:
       DATABASE_URL: postgres://rankingforge:rankingforge@db:5432/rankingforge
       PORT: 3000
       BIND_ADDR: "0.0.0.0"
-      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-prod}
       STARTGG_API_KEY: ${STARTGG_API_KEY}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
     ports:

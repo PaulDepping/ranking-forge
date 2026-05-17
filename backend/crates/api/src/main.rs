@@ -61,7 +61,6 @@ async fn main() {
     let state = AppState {
         db: pool,
         startgg: StartggClient::new(config.startgg_api_key),
-        session_secret: config.session_secret,
         cors_origin: config.cors_origin,
     };
 

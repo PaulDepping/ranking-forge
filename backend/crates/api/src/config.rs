@@ -14,11 +14,6 @@ pub struct Config {
     #[arg(long, env = "BIND_ADDR", default_value_t = Ipv4Addr::new(0, 0, 0, 0).into())]
     pub bind_addr: IpAddr,
 
-    /// Secret key used to sign session cookies. Must be at least 32 bytes.
-    /// Override in production — the default is not secure.
-    #[arg(long, env = "SESSION_SECRET")]
-    pub session_secret: String,
-
     /// start.gg API bearer token — used for the /games proxy endpoint.
     #[arg(long, env = "STARTGG_API_KEY")]
     pub startgg_api_key: String,

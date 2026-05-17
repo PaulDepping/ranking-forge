@@ -5,6 +5,5 @@ use sqlx::PgPool;
 pub struct AppState {
     pub db: PgPool,
     pub startgg: StartggClient,
-    pub session_secret: String,
     pub cors_origin: String,
 }
