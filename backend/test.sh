@@ -40,6 +40,7 @@ else
     tmpfile=$(mktemp)
     if cargo test --workspace "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}" >"$tmpfile" 2>&1; then
         rm -f "$tmpfile"
+        echo "PASS"
     else
         cat "$tmpfile"
         rm -f "$tmpfile"
