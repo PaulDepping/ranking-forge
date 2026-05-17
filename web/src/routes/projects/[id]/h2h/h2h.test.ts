@@ -2,15 +2,13 @@ import { render, screen, fireEvent } from '@testing-library/svelte';
 import { describe, it, expect } from 'vitest';
 import Page from './H2HTestWrapper.svelte';
 
-vi.mock('$env/static/public', () => ({ PUBLIC_API_URL: 'http://localhost:8080' }));
-
 const user = { id: 'u1', username: 'testuser', created_at: '2026-01-01T00:00:00Z' };
 const project = { id: 'proj-1', name: 'Test Project', game_id: null, game_name: null, created_at: '2026-01-01T00:00:00Z' };
 
 const players = [
-	{ id: 'p1', name: 'Alice', project_id: 'proj-1', created_at: '2026-01-01T00:00:00Z', accounts: [] },
-	{ id: 'p2', name: 'Bob', project_id: 'proj-1', created_at: '2026-01-01T00:00:00Z', accounts: [] },
-	{ id: 'p3', name: 'Charlie', project_id: 'proj-1', created_at: '2026-01-01T00:00:00Z', accounts: [] }
+	{ id: 'p1', name: 'Alice', project_id: 'proj-1', rank_position: 1, created_at: '2026-01-01T00:00:00Z', accounts: [] },
+	{ id: 'p2', name: 'Bob', project_id: 'proj-1', rank_position: 2, created_at: '2026-01-01T00:00:00Z', accounts: [] },
+	{ id: 'p3', name: 'Charlie', project_id: 'proj-1', rank_position: 3, created_at: '2026-01-01T00:00:00Z', accounts: [] }
 ];
 
 const h2h = [

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
@@ -8,7 +9,7 @@
 
 	let { data, form } = $props();
 
-	let name = $state(data.project.name);
+	let name = $state(untrack(() => data.project.name));
 	$effect(() => { name = data.project.name; });
 </script>
 

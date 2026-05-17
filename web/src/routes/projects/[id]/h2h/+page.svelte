@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { PUBLIC_API_URL } from '$env/static/public';
+	import { makeApi } from '$lib/api';
 	import type { HeadToHeadEntry, H2HSet } from '$lib/types';
 	import SetDetailModal from '$lib/components/SetDetailModal.svelte';
 	import * as Table from '$lib/components/ui/table';
@@ -38,9 +39,9 @@
 		loading = true;
 		selectedPair = null;
 		try {
-			const res = await fetch(
-				`${PUBLIC_API_URL}/projects/${data.project.id}/head-to-head/${rowPlayer.id}/${colPlayer.id}/sets`,
-				{ credentials: 'include' }
+			const api = makeApi(fetch, PUBLIC_API_URL);
+			const res = await api.get(
+				`/projects/${data.project.id}/head-to-head/${rowPlayer.id}/${colPlayer.id}/sets`
 			);
 			const sets: H2HSet[] = res.ok ? await res.json() : [];
 			selectedPair = {

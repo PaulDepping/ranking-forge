@@ -10,6 +10,7 @@
 	import Calendar from '$lib/components/ui/calendar/calendar.svelte';
 	import { type CalendarDate, getLocalTimeZone } from '@internationalized/date';
 	import { PUBLIC_API_URL } from '$env/static/public';
+	import { makeApi } from '$lib/api';
 	import type { Job } from '$lib/types';
 	import { formatDate, formatDateTime } from '$lib/utils';
 
@@ -26,7 +27,8 @@
 	// Local state so we can update after polling; synced when server data changes
 	let job = $state<Job | null>(untrack(() => data.job ?? null));
 	$effect(() => { job = data.job ?? null; });
-	let polling = $state(false);
+
+	const isActiveJob = $derived(job?.status === 'pending' || job?.status === 'running');
 
 	const statusColors: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
 		pending: 'secondary',
@@ -35,26 +37,16 @@
 		failed: 'destructive'
 	};
 
-	function startPolling() {
-		if (polling) return;
-		polling = true;
+	$effect(() => {
+		if (!isActiveJob) return;
 		const interval = setInterval(async () => {
-			const res = await fetch(`${PUBLIC_API_URL}/projects/${data.project.id}/import`, { credentials: 'include' });
+			const api = makeApi(fetch, PUBLIC_API_URL);
+			const res = await api.get(`/projects/${data.project.id}/import`);
 			if (res.ok) {
-				const updated: Job = await res.json();
-				job = updated;
-				if (updated.status === 'done' || updated.status === 'failed') {
-					clearInterval(interval);
-					polling = false;
-				}
+				job = await res.json() as Job;
 			}
 		}, 3000);
-	}
-
-	$effect(() => {
-		if (job?.status === 'pending' || job?.status === 'running') {
-			startPolling();
-		}
+		return () => clearInterval(interval);
 	});
 </script>
 
@@ -74,7 +66,7 @@
 				<div class="flex items-center gap-2">
 					<span class="text-sm font-medium">Status:</span>
 					<Badge variant={statusColors[job.status]}>{job.status}</Badge>
-					{#if polling}
+					{#if isActiveJob}
 						<span class="text-xs text-muted-foreground animate-pulse">updating…</span>
 					{/if}
 				</div>
@@ -91,7 +83,6 @@
 							return ({ result }) => {
 								if (result.type === 'success' && result.data?.job) {
 									job = result.data.job as Job;
-									startPolling();
 								}
 							};
 						}}
@@ -115,7 +106,6 @@
 			return ({ result }) => {
 				if (result.type === 'success' && result.data?.job) {
 					job = result.data.job as Job;
-					startPolling();
 				}
 			};
 		}}

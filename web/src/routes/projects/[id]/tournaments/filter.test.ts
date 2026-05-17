@@ -50,8 +50,10 @@ function eventVisible(
         const q = search.trim().toLowerCase();
         if (!e.name.toLowerCase().includes(q) && !t.name.toLowerCase().includes(q)) return false;
     }
-    if (+minEntrants > 0 && (e.num_entrants ?? Infinity) < +minEntrants) return false;
-    if (+maxEntrants > 0 && (e.num_entrants ?? 0) > +maxEntrants) return false;
+    const min = minEntrants ?? 0;
+    const max = maxEntrants ?? 0;
+    if (min > 0 && (e.num_entrants ?? Infinity) < min) return false;
+    if (max > 0 && (e.num_entrants ?? 0) > max) return false;
     if (eventType === 'singles' && e.event_type !== null && e.event_type !== 1) return false;
     if (eventType === 'teams' && e.event_type !== null && e.event_type !== 2) return false;
 

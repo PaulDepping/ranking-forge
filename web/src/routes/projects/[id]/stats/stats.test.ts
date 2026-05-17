@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import Page from './+page.svelte';
 import type { SetRecord } from '$lib/types';
@@ -22,6 +23,13 @@ function makeSet(opponentName: string, uf: number): SetRecord {
 		startgg_set_id: 1,
 		winner_seed: null,
 		loser_seed: null,
+		phase_name: null,
+		pool_identifier: null,
+		winner_placement: null,
+		loser_placement: null,
+		location: null,
+		num_entrants: null,
+		event_slug: null,
 	};
 }
 

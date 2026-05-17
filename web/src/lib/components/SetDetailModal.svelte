@@ -1,7 +1,7 @@
 <script lang="ts">
 	import * as Dialog from '$lib/components/ui/dialog';
 	import type { SetRecord } from '$lib/types';
-	import { formatDate } from '$lib/utils';
+	import { formatDate, toOrdinal } from '$lib/utils';
 
 	interface Props {
 		set: SetRecord | null;
@@ -13,12 +13,6 @@
 	let { set, isWin, currentPlayerName, onClose }: Props = $props();
 
 	let open = $derived(set !== null);
-
-	function toOrdinal(n: number): string {
-		const s = ['th', 'st', 'nd', 'rd'];
-		const v = n % 100;
-		return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
-	}
 
 	function phaseLabel(set: SetRecord): string | null {
 		if (!set.phase_name) return null;
@@ -36,6 +30,7 @@
 >
 	<Dialog.Content class="max-w-sm">
 		{#if set}
+			{@const phase = phaseLabel(set)}
 			<Dialog.Header>
 				<Dialog.Title>{currentPlayerName} vs {set.opponent_name}</Dialog.Title>
 				<Dialog.Description
@@ -115,10 +110,10 @@
 							<p class="text-xs uppercase tracking-wide text-muted-foreground">Name</p>
 							<p>{set.tournament_name} · {set.event_name}</p>
 						</div>
-						{#if phaseLabel(set)}
+						{#if phase}
 							<div>
 								<p class="text-xs uppercase tracking-wide text-muted-foreground">Phase</p>
-								<p>{phaseLabel(set)}</p>
+								<p>{phase}</p>
 							</div>
 						{/if}
 						{#if set.round_name}

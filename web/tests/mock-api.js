@@ -142,6 +142,7 @@ function respond(res, status, body) {
  * @param {import('http').IncomingMessage} req
  * @returns {Promise<Record<string, unknown> | null>}
  */
+/** @param {any} req @returns {Promise<any>} */
 function readBody(req) {
 	return new Promise((resolve) => {
 		let data = '';

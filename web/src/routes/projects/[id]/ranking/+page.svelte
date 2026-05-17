@@ -1,7 +1,9 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { dragHandleZone, dragHandle } from 'svelte-dnd-action';
 	import type { DndEvent } from 'svelte-dnd-action';
 	import { PUBLIC_API_URL } from '$env/static/public';
+	import { makeApi } from '$lib/api';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import * as Empty from '$lib/components/ui/empty';
@@ -11,8 +13,8 @@
 
 	type RankItem = { id: string; name: string };
 
-	let items = $state<RankItem[]>(data.players.map((p: RankItem) => ({ id: p.id, name: p.name })));
-	let savedIds = $state<string[]>(data.players.map((p: RankItem) => p.id));
+	let items = $state<RankItem[]>(untrack(() => data.players.map((p: RankItem) => ({ id: p.id, name: p.name }))));
+	let savedIds = $state<string[]>(untrack(() => data.players.map((p: RankItem) => p.id)));
 
 	const statsMap = $derived<Record<string, PlayerStats>>(
 		Object.fromEntries((data.stats as PlayerStats[]).map((s) => [s.player_id, s]))
@@ -71,18 +73,12 @@
 
 	async function save() {
 		saveStatus = 'saving';
-		const res = await fetch(`${PUBLIC_API_URL}/projects/${data.project.id}/ranking`, {
-			method: 'PUT',
-			credentials: 'include',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ player_ids: items.map((i) => i.id) })
-		});
+		const api = makeApi(fetch, PUBLIC_API_URL);
+		const res = await api.putRanking(data.project.id, items.map((i) => i.id));
 		if (res.ok) {
 			savedIds = items.map((i) => i.id);
 			saveStatus = 'saved';
-			setTimeout(() => {
-				saveStatus = 'idle';
-			}, 2000);
+			setTimeout(() => { saveStatus = 'idle'; }, 2000);
 		} else {
 			saveStatus = 'idle';
 		}

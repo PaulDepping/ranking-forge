@@ -10,6 +10,7 @@
     import { makeApi } from '$lib/api';
     import { invalidateAll } from '$app/navigation';
     import type { Player, TournamentData, TournamentParticipant, TournamentEntrantOrdered } from '$lib/types';
+    import { toOrdinal } from '$lib/utils';
 
     let {
         projectId,
@@ -106,14 +107,7 @@
         const n = sortMode === 'placement' ? e.placement : e.seed;
         if (n == null) return '—';
         if (sortMode === 'seed') return `#${n}`;
-        // ordinal for placement
-        const mod100 = n % 100;
-        const mod10 = n % 10;
-        if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
-        if (mod10 === 1) return `${n}st`;
-        if (mod10 === 2) return `${n}nd`;
-        if (mod10 === 3) return `${n}rd`;
-        return `${n}th`;
+        return toOrdinal(n);
     }
 
     async function fetchTournamentData() {

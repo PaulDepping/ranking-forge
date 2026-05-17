@@ -11,6 +11,7 @@
 	import Calendar from '$lib/components/ui/calendar/calendar.svelte';
 	import { type CalendarDate, getLocalTimeZone } from '@internationalized/date';
 	import { PUBLIC_API_URL } from '$env/static/public';
+	import { makeApi } from '$lib/api';
 	import type { Tournament, TournamentEvent } from '$lib/types';
 	import * as Empty from '$lib/components/ui/empty';
 	import { formatDate } from '$lib/utils';
@@ -112,18 +113,12 @@
 		dateFrom    = undefined;
 		dateTo      = undefined;
 		eventType   = 'all';
-		bracketFilter = Object.fromEntries(
-			BRACKET_TYPES.map(t => [t, 'neutral' as BracketTypeState])
-		);
+		resetBracketFilter();
 	}
 
 	async function toggleEvent(projectId: string, eventId: string, included: boolean) {
-		const res = await fetch(`${PUBLIC_API_URL}/projects/${projectId}/events/${eventId}`, {
-			method: 'PATCH',
-			credentials: 'include',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ included })
-		});
+		const api = makeApi(fetch, PUBLIC_API_URL);
+		const res = await api.patch(`/projects/${projectId}/events/${eventId}`, { included });
 		if (!res.ok) return;
 
 		const updated = await res.json();
@@ -148,8 +143,10 @@
 			const tournamentMatch = t.name.toLowerCase().includes(q);
 			if (!nameMatch && !tournamentMatch) return false;
 		}
-		if (+minEntrants > 0 && (e.num_entrants ?? Infinity) < +minEntrants) return false;
-		if (+maxEntrants > 0 && (e.num_entrants ?? 0) > +maxEntrants) return false;
+		const min = minEntrants ?? 0;
+		const max = maxEntrants ?? 0;
+		if (min > 0 && (e.num_entrants ?? Infinity) < min) return false;
+		if (max > 0 && (e.num_entrants ?? 0) > max) return false;
 		if (eventType === 'singles' && e.event_type !== null && e.event_type !== 1) return false;
 		if (eventType === 'teams' && e.event_type !== null && e.event_type !== 2) return false;
 
