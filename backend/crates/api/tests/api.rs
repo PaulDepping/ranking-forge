@@ -123,6 +123,26 @@ async fn patch_json(
         .unwrap()
 }
 
+async fn put_json(
+    app: &Router,
+    uri: &str,
+    cookie: &str,
+    body: Value,
+) -> axum::response::Response {
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(uri)
+                .header("content-type", "application/json")
+                .header("cookie", cookie)
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
 // ── DB seeding helpers ────────────────────────────────────────────────────────
 
 async fn seed_tournament_event(
@@ -2248,4 +2268,95 @@ async fn auth_rate_limit_after_burst(pool: PgPool) {
         .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+}
+
+// ── Ranking ───────────────────────────────────────────────────────────────────
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn players_auto_rank_position(pool: PgPool) {
+    let app = make_app(pool, "");
+    let cookie = register(&app, "alice", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+
+    create_player(&app, &cookie, &pid, "Alpha").await;
+    create_player(&app, &cookie, &pid, "Beta").await;
+    create_player(&app, &cookie, &pid, "Gamma").await;
+
+    let resp = get_req(&app, &format!("/projects/{pid}/players"), &cookie).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let players = read_json(resp).await;
+    let names: Vec<&str> = players
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, vec!["Alpha", "Beta", "Gamma"]);
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn ranking_reorder_persists(pool: PgPool) {
+    let app = make_app(pool, "");
+    let cookie = register(&app, "alice", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+
+    let a = create_player(&app, &cookie, &pid, "Alpha").await;
+    let b = create_player(&app, &cookie, &pid, "Beta").await;
+    let c = create_player(&app, &cookie, &pid, "Gamma").await;
+
+    let resp = put_json(
+        &app,
+        &format!("/projects/{pid}/ranking"),
+        &cookie,
+        json!({ "player_ids": [c, b, a] }),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let resp = get_req(&app, &format!("/projects/{pid}/players"), &cookie).await;
+    let players = read_json(resp).await;
+    let names: Vec<&str> = players
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, vec!["Gamma", "Beta", "Alpha"]);
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn ranking_reorder_rejects_incomplete_list(pool: PgPool) {
+    let app = make_app(pool, "");
+    let cookie = register(&app, "alice", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+
+    let a = create_player(&app, &cookie, &pid, "Alpha").await;
+    create_player(&app, &cookie, &pid, "Beta").await;
+
+    let resp = put_json(
+        &app,
+        &format!("/projects/{pid}/ranking"),
+        &cookie,
+        json!({ "player_ids": [a] }),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn ranking_reorder_rejects_unknown_id(pool: PgPool) {
+    let app = make_app(pool, "");
+    let cookie = register(&app, "alice", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+
+    create_player(&app, &cookie, &pid, "Alpha").await;
+
+    let resp = put_json(
+        &app,
+        &format!("/projects/{pid}/ranking"),
+        &cookie,
+        json!({ "player_ids": [Uuid::new_v4().to_string()] }),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }

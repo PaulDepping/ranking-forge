@@ -46,6 +46,7 @@ pub struct Player {
     pub id: Uuid,
     pub project_id: Uuid,
     pub name: String,
+    pub rank_position: i32,
     pub created_at: DateTime<Utc>,
 }
 

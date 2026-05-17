@@ -33,13 +33,15 @@ CREATE INDEX ranking_projects_user_id_idx ON ranking_projects(user_id);
 
 -- Players (project-scoped)
 CREATE TABLE players (
-    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id UUID        NOT NULL REFERENCES ranking_projects(id) ON DELETE CASCADE,
-    name       TEXT        NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id    UUID        NOT NULL REFERENCES ranking_projects(id) ON DELETE CASCADE,
+    name          TEXT        NOT NULL,
+    rank_position INTEGER     NOT NULL DEFAULT 0,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX players_project_id_idx ON players(project_id);
+CREATE INDEX players_project_id_rank_idx ON players(project_id, rank_position);
 
 -- start.gg accounts linked to players
 CREATE TABLE startgg_accounts (

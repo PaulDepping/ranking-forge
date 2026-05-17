@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, patch, post},
+    routing::{delete, get, patch, post, put},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -200,4 +200,5 @@ pub fn router() -> Router<AppState> {
             "/{id}/head-to-head/{pid_a}/{pid_b}/sets",
             get(t::get_h2h_sets),
         )
+        .route("/{id}/ranking", put(crate::routes::players::reorder_players))
 }

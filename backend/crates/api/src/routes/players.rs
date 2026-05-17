@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -84,10 +84,10 @@ async fn list_players(
 
     let players = sqlx::query_as!(
         Player,
-        "SELECT id, project_id, name, created_at
+        "SELECT id, project_id, name, rank_position, created_at
          FROM players
          WHERE project_id = $1
-         ORDER BY created_at ASC",
+         ORDER BY rank_position ASC, created_at ASC",
         project_id,
     )
     .fetch_all(&state.db)
@@ -150,8 +150,12 @@ async fn add_player(
 
     let player = sqlx::query_as!(
         Player,
-        "INSERT INTO players (project_id, name) VALUES ($1, $2)
-         RETURNING id, project_id, name, created_at",
+        "INSERT INTO players (project_id, name, rank_position)
+         VALUES (
+             $1, $2,
+             (SELECT COALESCE(MAX(rank_position), 0) + 1 FROM players WHERE project_id = $1)
+         )
+         RETURNING id, project_id, name, rank_position, created_at",
         project_id,
         body.name,
     )
@@ -321,7 +325,12 @@ pub async fn bulk_add_players(
 
         // Insert player
         let player = sqlx::query!(
-            "INSERT INTO players (project_id, name) VALUES ($1, $2) RETURNING id",
+            "INSERT INTO players (project_id, name, rank_position)
+             VALUES (
+                 $1, $2,
+                 (SELECT COALESCE(MAX(rank_position), 0) + 1 FROM players WHERE project_id = $1)
+             )
+             RETURNING id",
             id,
             name,
         )
@@ -414,7 +423,12 @@ pub async fn add_players_by_handles(
 
         // Insert player
         let player = sqlx::query!(
-            "INSERT INTO players (project_id, name) VALUES ($1, $2) RETURNING id",
+            "INSERT INTO players (project_id, name, rank_position)
+             VALUES (
+                 $1, $2,
+                 (SELECT COALESCE(MAX(rank_position), 0) + 1 FROM players WHERE project_id = $1)
+             )
+             RETURNING id",
             id,
             &gamer_tag,
         )
@@ -511,7 +525,7 @@ async fn rename_player(
     let player = sqlx::query_as!(
         Player,
         "UPDATE players SET name = $1 WHERE id = $2 AND project_id = $3
-         RETURNING id, project_id, name, created_at",
+         RETURNING id, project_id, name, rank_position, created_at",
         body.name.trim(),
         path.pid,
         path.id,
@@ -551,6 +565,61 @@ fn normalize_tournament_handle(input: &str) -> String {
         .trim_start_matches("start.gg/")
         .trim_start_matches("tournament/");
     s.split('/').next().unwrap_or(s).to_string()
+}
+
+// ── Reorder players ───────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct ReorderRequest {
+    player_ids: Vec<Uuid>,
+}
+
+pub async fn reorder_players(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path(project_id): Path<Uuid>,
+    Json(body): Json<ReorderRequest>,
+) -> Result<impl IntoResponse> {
+    require_project(&state.db, project_id, user.id).await?;
+
+    let existing_ids: Vec<Uuid> = sqlx::query_scalar!(
+        "SELECT id FROM players WHERE project_id = $1",
+        project_id,
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let existing_set: std::collections::HashSet<Uuid> =
+        existing_ids.into_iter().collect();
+
+    if body.player_ids.len() != existing_set.len() {
+        return Err(AppError::UnprocessableEntity(
+            "player_ids must contain exactly all players in this project".into(),
+        ));
+    }
+
+    for &pid in &body.player_ids {
+        if !existing_set.contains(&pid) {
+            return Err(AppError::UnprocessableEntity(
+                "player_ids contains an id not in this project".into(),
+            ));
+        }
+    }
+
+    let mut tx = state.db.begin().await?;
+    for (i, &player_id) in body.player_ids.iter().enumerate() {
+        sqlx::query!(
+            "UPDATE players SET rank_position = $1 WHERE id = $2 AND project_id = $3",
+            (i + 1) as i32,
+            player_id,
+            project_id,
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+
+    Ok(StatusCode::OK)
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
