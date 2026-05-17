@@ -67,7 +67,7 @@ async fn main() {
     let cors = CorsLayer::new()
         .allow_origin(cors_origin)
         .allow_credentials(true)
-        .allow_methods([Method::GET, Method::POST, Method::PATCH, Method::DELETE])
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE])
         .allow_headers([header::CONTENT_TYPE]);
 
     let app = api::routes::router()
