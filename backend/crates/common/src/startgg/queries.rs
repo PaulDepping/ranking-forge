@@ -464,8 +464,16 @@ pub(crate) struct TournamentEntrantPage {
 }
 
 #[derive(Deserialize)]
+pub(crate) struct TournamentEntrantNodeStanding {
+    pub placement: Option<i32>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct TournamentEntrantNode {
     pub participants: Option<Vec<TournamentEntrantParticipant>>,
+    pub initial_seed_num: Option<i32>,
+    pub standing: Option<TournamentEntrantNodeStanding>,
 }
 
 #[derive(Deserialize)]
@@ -489,4 +497,92 @@ pub struct TournamentEntrant {
     pub handle: String,
     /// Gamer tag as displayed on start.gg, e.g. "Mang0".
     pub name: String,
+}
+
+// ── Tournament participants (all registrants) ─────────────────────────────────
+
+#[derive(Serialize)]
+pub(crate) struct TournamentParticipantsVars {
+    pub slug: String,
+    pub page: i32,
+    #[serde(rename = "perPage")]
+    pub per_page: i32,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TournamentParticipantsData {
+    pub tournament: Option<TournamentWithParticipants>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TournamentWithParticipants {
+    pub participants: Option<TournamentParticipantPage>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TournamentParticipantPage {
+    pub page_info: PageInfo,
+    pub nodes: Vec<TournamentParticipantNode>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TournamentParticipantNode {
+    pub gamer_tag: String,
+    pub user: Option<TournamentParticipantUser>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TournamentParticipantUser {
+    pub id: i64,
+    pub slug: String,
+}
+
+/// Public output type for `tournament_participants`.
+#[derive(Debug, Clone)]
+pub struct TournamentParticipant {
+    pub startgg_user_id: i64,
+    pub handle: String,
+    pub name: String,
+}
+
+// ── Tournament all-events (no game filter) ────────────────────────────────────
+
+#[derive(Serialize)]
+pub(crate) struct TournamentAllEventsVars {
+    pub slug: String,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TournamentAllEventsData {
+    pub tournament: Option<TournamentWithAllEvents>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TournamentWithAllEvents {
+    pub events: Option<Vec<TournamentAllEventNode>>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TournamentAllEventNode {
+    pub id: i64,
+    pub name: String,
+}
+
+/// Public output type for `tournament_events_with_entrants`.
+#[derive(Debug, Clone)]
+pub struct TournamentEntrantOrdered {
+    pub startgg_user_id: i64,
+    pub handle: String,
+    pub name: String,
+    pub seed: Option<i32>,
+    pub placement: Option<i32>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TournamentEventWithEntrants {
+    pub id: i64,
+    pub name: String,
+    pub entrants: Vec<TournamentEntrantOrdered>,
 }

@@ -5,7 +5,8 @@ pub use queries::{
     EntrantNode, EntrantPage, EntrantStanding, EventNode, GameNode, PageInfo, Participant,
     ParticipantUser, PhaseGroupNode, PhaseGroupPage, PhaseNode, ScoreValue, SetNode, SetPage,
     SetPhaseGroup, SetSlot, SlotEntrant, SlotStanding, SlotStats, TeamRosterSize, TournamentEntrant,
-    TournamentNode, TournamentPage, UserNode,
+    TournamentEntrantOrdered, TournamentEventWithEntrants, TournamentNode, TournamentPage,
+    TournamentParticipant, UserNode,
 };
 
 use reqwest::Client;
