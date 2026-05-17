@@ -26,6 +26,11 @@ pub struct CreateProjectRequest {
     pub game_name: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct RenameProjectRequest {
+    pub name: String,
+}
+
 #[derive(Serialize)]
 pub struct ProjectResponse {
     pub id: Uuid,
@@ -125,6 +130,38 @@ async fn get_project(
     Ok(Json(ProjectResponse::from(project)))
 }
 
+async fn rename_project(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path(project_id): Path<Uuid>,
+    Json(body): Json<RenameProjectRequest>,
+) -> Result<impl IntoResponse> {
+    if body.name.trim().is_empty() {
+        return Err(AppError::UnprocessableEntity(
+            "name must not be empty".into(),
+        ));
+    }
+    if body.name.trim().chars().count() > 100 {
+        return Err(AppError::UnprocessableEntity(
+            "name must be at most 100 characters".into(),
+        ));
+    }
+
+    let project = sqlx::query_as!(
+        Project,
+        "UPDATE ranking_projects SET name = $1 WHERE id = $2 AND user_id = $3
+         RETURNING id, user_id, name, game_id, game_name, created_at",
+        body.name.trim(),
+        project_id,
+        user.id,
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    Ok(Json(ProjectResponse::from(project)))
+}
+
 async fn delete_project(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -145,7 +182,7 @@ pub fn router() -> Router<AppState> {
     use crate::routes::tournaments as t;
     Router::new()
         .route("/", get(list_projects).post(create_project))
-        .route("/{id}", get(get_project).delete(delete_project))
+        .route("/{id}", get(get_project).delete(delete_project).patch(rename_project))
         .nest("/{id}/players", crate::routes::players::router())
         .route(
             "/{id}/import",

@@ -19,7 +19,6 @@ fn make_app(pool: PgPool, startgg_base_url: &str) -> Router {
     let state = AppState {
         db: pool,
         startgg,
-        session_secret: "test-secret-key-at-least-32-bytes!!".to_string(),
         cors_origin: "http://localhost".to_string(),
     };
     routes::router().with_state(state)
@@ -500,4 +499,51 @@ async fn full_import_flow(pool: PgPool) {
         .unwrap();
     assert_eq!(armada_stats["wins"].as_array().unwrap().len(), 1);
     assert_eq!(armada_stats["wins"][0]["upset_factor"], json!(3));
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn test_rename_project(pool: PgPool) {
+    let app = make_app(pool, "http://unused");
+    let cookie = register(&app, "alice", "password123").await;
+
+    // Create a project
+    let resp = post_json(&app, "/projects", &cookie, json!({"name": "Original"})).await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let body = read_json(resp).await;
+    let project_id = body["id"].as_str().unwrap().to_string();
+
+    // Rename it
+    let resp = patch_json(
+        &app,
+        &format!("/projects/{project_id}"),
+        &cookie,
+        json!({"name": "Renamed"}),
+    ).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = read_json(resp).await;
+    assert_eq!(body["name"], "Renamed");
+
+    // Confirm GET reflects new name
+    let resp = get_req(&app, &format!("/projects/{project_id}"), &cookie).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = read_json(resp).await;
+    assert_eq!(body["name"], "Renamed");
+
+    // Empty name is rejected
+    let resp = patch_json(
+        &app,
+        &format!("/projects/{project_id}"),
+        &cookie,
+        json!({"name": "   "}),
+    ).await;
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+    // Name over 100 chars is rejected
+    let resp = patch_json(
+        &app,
+        &format!("/projects/{project_id}"),
+        &cookie,
+        json!({"name": "a".repeat(101)}),
+    ).await;
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
