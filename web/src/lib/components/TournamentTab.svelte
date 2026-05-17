@@ -8,7 +8,7 @@
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import { makeApi } from '$lib/api';
 	import { invalidateAll } from '$app/navigation';
-	import type { Player, TournamentEntrant } from '$lib/types';
+	import type { Player, TournamentParticipant } from '$lib/types';
 
 	let {
 		projectId,
@@ -19,7 +19,7 @@
 	let tournamentInput = $state('');
 	let loading = $state(false);
 	let fetchError = $state<string | null>(null);
-	let entrants = $state<TournamentEntrant[]>([]);
+	let entrants = $state<TournamentParticipant[]>([]);
 	let search = $state('');
 	let selected = $state(new Set<number>());
 	let submitting = $state(false);

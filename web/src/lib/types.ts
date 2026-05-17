@@ -28,10 +28,29 @@ export interface Player {
 	accounts: Account[];
 }
 
-export interface TournamentEntrant {
+export interface TournamentParticipant {
 	startgg_user_id: number;
 	handle: string;
 	name: string;
+}
+
+export interface TournamentEntrantOrdered {
+	startgg_user_id: number;
+	handle: string;
+	name: string;
+	seed: number | null;
+	placement: number | null;
+}
+
+export interface TournamentEventData {
+	id: number;
+	name: string;
+	entrants: TournamentEntrantOrdered[];
+}
+
+export interface TournamentData {
+	all_participants: TournamentParticipant[];
+	events: TournamentEventData[];
 }
 
 export interface BulkAddResult {

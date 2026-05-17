@@ -18,10 +18,30 @@ const MOCK_PLAYERS = [
 	{ id: 'player-3', project_id: 'proj-1', name: 'Charlie', rank_position: 3, created_at: '2026-01-01T00:00:00Z', accounts: [] }
 ];
 
-const MOCK_ENTRANTS = [
-	{ startgg_user_id: 1001, handle: 'mang0', name: 'Mang0' },
-	{ startgg_user_id: 1002, handle: 'armada', name: 'Armada' }
-];
+const MOCK_ENTRANTS = {
+	all_participants: [
+		{ startgg_user_id: 1001, handle: 'mang0', name: 'Mang0' },
+		{ startgg_user_id: 1002, handle: 'armada', name: 'Armada' },
+		{ startgg_user_id: 9999, handle: 'spectator', name: 'Spectator' }
+	],
+	events: [
+		{
+			id: 101,
+			name: 'Melee Singles',
+			entrants: [
+				{ startgg_user_id: 1001, handle: 'mang0', name: 'Mang0', seed: 1, placement: 2 },
+				{ startgg_user_id: 1002, handle: 'armada', name: 'Armada', seed: 2, placement: 1 }
+			]
+		},
+		{
+			id: 102,
+			name: 'Doubles',
+			entrants: [
+				{ startgg_user_id: 1001, handle: 'mang0', name: 'Mang0', seed: 1, placement: 1 }
+			]
+		}
+	]
+};
 
 const MOCK_TOURNAMENTS = [
 	{
