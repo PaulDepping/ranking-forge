@@ -804,6 +804,50 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /projects/{project_id}/ranking:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    put:
+      summary: Reorder all players in a project
+      description: >
+        Replaces the full ranking order for the project. The request must include
+        every player in the project exactly once. Positions are assigned as
+        array index + 1.
+      tags: [Players]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [player_ids]
+              properties:
+                player_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  description: Ordered list of all player IDs in the project.
+      responses:
+        '200':
+          description: Ranking updated
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
   /projects/{project_id}/tournament-entrants:
     parameters:
       - name: project_id
