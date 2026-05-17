@@ -784,6 +784,91 @@ mod tests {
         assert_eq!(entrants[0].handle, "mang0");
     }
 
+    // ── tournament_participants ───────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn tournament_participants_returns_all_with_user() {
+        let mock = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": {
+                    "tournament": {
+                        "participants": {
+                            "pageInfo": { "totalPages": 1 },
+                            "nodes": [
+                                { "gamerTag": "Mang0", "user": { "id": 1001, "slug": "user/mang0" } },
+                                { "gamerTag": "Spectator", "user": { "id": 9999, "slug": "user/spec" } },
+                                { "gamerTag": "Guest", "user": null }
+                            ]
+                        }
+                    }
+                }
+            })))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+
+        let result = client(&mock.uri())
+            .tournament_participants("some-weekly")
+            .await
+            .unwrap();
+
+        // Guest (no user) is skipped; Mang0 and Spectator are both included
+        assert_eq!(result.len(), 2);
+        let handles: Vec<&str> = result.iter().map(|p| p.handle.as_str()).collect();
+        assert!(handles.contains(&"mang0"));
+        assert!(handles.contains(&"spec"));
+    }
+
+    #[tokio::test]
+    async fn tournament_participants_paginates() {
+        let mock = MockServer::start().await;
+
+        // Page 1
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": {
+                    "tournament": {
+                        "participants": {
+                            "pageInfo": { "totalPages": 2 },
+                            "nodes": [
+                                { "gamerTag": "Mang0", "user": { "id": 1001, "slug": "user/mang0" } }
+                            ]
+                        }
+                    }
+                }
+            })))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+
+        // Page 2
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": {
+                    "tournament": {
+                        "participants": {
+                            "pageInfo": { "totalPages": 2 },
+                            "nodes": [
+                                { "gamerTag": "Armada", "user": { "id": 1002, "slug": "user/armada" } }
+                            ]
+                        }
+                    }
+                }
+            })))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+
+        let result = client(&mock.uri())
+            .tournament_participants("some-weekly")
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 2);
+    }
+
     // ── event_phases ──────────────────────────────────────────────────────────
 
     #[tokio::test]

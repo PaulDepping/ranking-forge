@@ -364,6 +364,54 @@ impl StartggClient {
     }
 
     #[instrument(skip(self))]
+    pub async fn tournament_participants(
+        &self,
+        tournament_handle: &str,
+    ) -> Result<Vec<TournamentParticipant>, StartggError> {
+        let t = Instant::now();
+        let mut result = Vec::new();
+        let mut page = 1i32;
+        let per_page = 64i32;
+
+        loop {
+            let data: TournamentParticipantsData = self
+                .gql(
+                    TOURNAMENT_PARTICIPANTS_QUERY,
+                    TournamentParticipantsVars {
+                        slug: tournament_handle.to_string(),
+                        page,
+                        per_page,
+                    },
+                )
+                .await?;
+
+            let participant_page = match data.tournament.and_then(|t| t.participants) {
+                Some(p) => p,
+                None => break,
+            };
+
+            for node in participant_page.nodes {
+                let Some(user) = node.user else { continue };
+                let handle = user.slug.trim_start_matches("user/").to_string();
+                result.push(TournamentParticipant {
+                    startgg_user_id: user.id,
+                    handle,
+                    name: node.gamer_tag,
+                });
+            }
+
+            let total_pages = participant_page.page_info.total_pages.unwrap_or(1);
+            if page >= total_pages {
+                break;
+            }
+            page += 1;
+        }
+
+        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
+        Ok(result)
+    }
+
+    #[instrument(skip(self))]
     pub async fn event_phases(&self, event_id: i64) -> Result<Vec<PhaseNode>, StartggError> {
         let t = Instant::now();
         let mut per_page = 25i32;
