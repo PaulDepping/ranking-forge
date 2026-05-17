@@ -412,6 +412,92 @@ impl StartggClient {
     }
 
     #[instrument(skip(self))]
+    pub async fn tournament_events_with_entrants(
+        &self,
+        tournament_handle: &str,
+    ) -> Result<Vec<TournamentEventWithEntrants>, StartggError> {
+        let t = Instant::now();
+
+        let events_data: TournamentAllEventsData = self
+            .gql(
+                TOURNAMENT_ALL_EVENTS_QUERY,
+                TournamentAllEventsVars { slug: tournament_handle.to_string() },
+            )
+            .await?;
+
+        let event_nodes: Vec<TournamentAllEventNode> = events_data
+            .tournament
+            .and_then(|t| t.events)
+            .unwrap_or_default();
+
+        let mut result = Vec::new();
+
+        for event_node in event_nodes {
+            let mut entrants = Vec::new();
+            let mut seen = std::collections::HashSet::new();
+            let mut page = 1i32;
+            let mut per_page = 64i32;
+
+            'pages: loop {
+                let data: TournamentEntrantListData = match self
+                    .gql(
+                        TOURNAMENT_ENTRANT_LIST_QUERY,
+                        TournamentEntrantListVars { event_id: event_node.id, page, per_page },
+                    )
+                    .await
+                {
+                    Err(StartggError::ComplexityTooHigh { actual, limit }) if per_page > 1 => {
+                        tracing::warn!(per_page, actual, limit, "complexity too high, halving perPage");
+                        per_page /= 2;
+                        continue 'pages;
+                    }
+                    other => other?,
+                };
+
+                let entrant_data = match data.event.and_then(|e| e.entrants) {
+                    Some(d) => d,
+                    None => break,
+                };
+
+                let total_pages = entrant_data.page_info.total_pages.unwrap_or(1);
+
+                for node in entrant_data.nodes {
+                    let seed = node.initial_seed_num;
+                    let placement = node.standing.as_ref().and_then(|s| s.placement);
+                    let Some(participants) = node.participants else { continue };
+                    for participant in participants {
+                        let Some(user) = participant.user else { continue };
+                        if seen.insert(user.id) {
+                            let handle = user.slug.trim_start_matches("user/").to_string();
+                            entrants.push(TournamentEntrantOrdered {
+                                startgg_user_id: user.id,
+                                handle,
+                                name: participant.gamer_tag,
+                                seed,
+                                placement,
+                            });
+                        }
+                    }
+                }
+
+                if page >= total_pages {
+                    break;
+                }
+                page += 1;
+            }
+
+            result.push(TournamentEventWithEntrants {
+                id: event_node.id,
+                name: event_node.name,
+                entrants,
+            });
+        }
+
+        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
+        Ok(result)
+    }
+
+    #[instrument(skip(self))]
     pub async fn event_phases(&self, event_id: i64) -> Result<Vec<PhaseNode>, StartggError> {
         let t = Instant::now();
         let mut per_page = 25i32;
