@@ -544,11 +544,11 @@ async fn rename_player(
     Path(path): Path<ProjectPlayerPath>,
     Json(body): Json<RenamePlayerRequest>,
 ) -> Result<impl IntoResponse> {
+    require_project_access(&state.db, path.id, user.id, ProjectMemberRole::Editor).await?;
+
     if body.name.trim().is_empty() {
         return Err(AppError::UnprocessableEntity("name cannot be empty".into()));
     }
-
-    require_project_access(&state.db, path.id, user.id, ProjectMemberRole::Editor).await?;
 
     let player = sqlx::query_as!(
         Player,

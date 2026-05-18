@@ -262,13 +262,7 @@ async fn patch_project(
     Json(body): Json<PatchProjectRequest>,
 ) -> Result<impl IntoResponse> {
     let (project, role) =
-        require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Viewer).await?;
-
-    if body.name.is_some() || body.published.is_some() {
-        if !role.satisfies(&ProjectMemberRole::Owner) {
-            return Err(AppError::Forbidden);
-        }
-    }
+        require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Owner).await?;
 
     let new_name = if let Some(ref n) = body.name {
         let trimmed = n.trim();
