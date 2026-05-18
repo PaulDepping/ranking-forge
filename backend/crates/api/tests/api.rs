@@ -2393,3 +2393,48 @@ async fn ranking_reorder_rejects_duplicate_ids(pool: PgPool) {
     .await;
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+// ── Player stats ──────────────────────────────────────────────────────────────
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn player_stats_returns_single_player_data(pool: PgPool) {
+    let app = make_app(pool.clone(), "");
+    let cookie = register(&app, "alice_ps", "password123").await;
+    let pid_str = create_project(&app, &cookie).await;
+    let pid = Uuid::parse_str(&pid_str).unwrap();
+
+    let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
+    let bob_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
+    let charlie_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Charlie").await).unwrap();
+
+    let (_, event_id) = seed_tournament_event(&pool, pid, 7001, 8001).await;
+    let alice_e = seed_entrant(&pool, event_id, Some(alice_id), 301, Some(1)).await;
+    let bob_e = seed_entrant(&pool, event_id, Some(bob_id), 302, Some(2)).await;
+    let charlie_e = seed_entrant(&pool, event_id, Some(charlie_id), 303, Some(3)).await;
+
+    // Alice beats Bob and Charlie
+    seed_set(&pool, event_id, alice_e, bob_e, 401).await;
+    seed_set(&pool, event_id, alice_e, charlie_e, 402).await;
+    // Bob beats Charlie (should not appear in Alice's stats)
+    seed_set(&pool, event_id, bob_e, charlie_e, 403).await;
+
+    let resp = get_req(&app, &format!("/projects/{pid}/stats/{alice_id}"), &cookie).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = read_json(resp).await;
+    assert_eq!(body["player_id"], alice_id.to_string());
+    assert_eq!(body["name"], "Alice");
+    assert_eq!(body["wins"].as_array().unwrap().len(), 2);
+    assert_eq!(body["losses"].as_array().unwrap().len(), 0);
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn player_stats_returns_404_for_unknown_player(pool: PgPool) {
+    let app = make_app(pool.clone(), "");
+    let cookie = register(&app, "alice_ps2", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+    let fake_id = Uuid::new_v4();
+
+    let resp = get_req(&app, &format!("/projects/{pid}/stats/{fake_id}"), &cookie).await;
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}

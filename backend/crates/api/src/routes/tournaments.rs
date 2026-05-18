@@ -535,6 +535,189 @@ pub async fn get_stats(
     Ok(Json(resp))
 }
 
+pub async fn get_player_stats(
+    State(state): State<AppState>,
+    OptionalAuthUser(user): OptionalAuthUser,
+    Path((project_id, player_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse> {
+    require_project_read_access(&state.db, project_id, user.map(|u| u.id)).await?;
+
+    let name: Option<String> = sqlx::query_scalar!(
+        "SELECT name FROM players WHERE id = $1 AND project_id = $2",
+        player_id,
+        project_id,
+    )
+    .fetch_optional(&state.db)
+    .await?;
+    let name = name.ok_or(AppError::NotFound)?;
+
+    struct SetRow {
+        winner_player_id: Option<Uuid>,
+        winner_name: String,
+        winner_seed: Option<i32>,
+        winner_entrant_id: Uuid,
+        loser_player_id: Option<Uuid>,
+        loser_name: String,
+        loser_seed: Option<i32>,
+        loser_entrant_id: Uuid,
+        winner_score: Option<i16>,
+        loser_score: Option<i16>,
+        event_name: String,
+        tournament_name: String,
+        tournament_handle: String,
+        round_name: Option<String>,
+        completed_at: Option<DateTime<Utc>>,
+        is_dq: bool,
+        vod_url: Option<String>,
+        startgg_set_id: i64,
+        phase_name: Option<String>,
+        pool_identifier: Option<String>,
+        winner_placement: Option<i32>,
+        loser_placement: Option<i32>,
+        num_entrants: Option<i32>,
+        online: bool,
+        city: Option<String>,
+        addr_state: Option<String>,
+        country_code: Option<String>,
+        event_handle: Option<String>,
+    }
+
+    let sets = sqlx::query_as!(
+        SetRow,
+        r#"
+        SELECT
+            we.player_id                       AS "winner_player_id?: Uuid",
+            COALESCE(wp.name, we.display_name) AS "winner_name!",
+            we.seed                            AS winner_seed,
+            we.id                              AS winner_entrant_id,
+            le.player_id                       AS "loser_player_id?: Uuid",
+            COALESCE(lp.name, le.display_name) AS "loser_name!",
+            le.seed                            AS loser_seed,
+            le.id                              AS loser_entrant_id,
+            s.winner_score,
+            s.loser_score,
+            e.name                             AS event_name,
+            t.name                             AS tournament_name,
+            t.handle                           AS tournament_handle,
+            s.round_name,
+            s.completed_at,
+            s.is_dq,
+            s.vod_url,
+            s.startgg_set_id,
+            ph.name                            AS "phase_name?: String",
+            pg.display_identifier              AS "pool_identifier?: String",
+            we.final_placement                 AS winner_placement,
+            le.final_placement                 AS loser_placement,
+            e.num_entrants,
+            t.online,
+            t.city,
+            t.addr_state,
+            t.country_code,
+            e.handle                           AS "event_handle?: String"
+        FROM sets s
+        JOIN entrants we ON we.id = s.winner_entrant_id
+        JOIN entrants le ON le.id = s.loser_entrant_id
+        LEFT JOIN players wp ON wp.id = we.player_id AND wp.project_id = $1
+        LEFT JOIN players lp ON lp.id = le.player_id AND lp.project_id = $1
+        JOIN project_events pe ON pe.event_id = s.event_id AND pe.project_id = $1
+        JOIN events e ON e.id = s.event_id
+        JOIN tournaments t ON t.id = e.tournament_id
+        LEFT JOIN phase_groups pg ON pg.id = s.phase_group_id
+        LEFT JOIN phases ph ON ph.id = pg.phase_id
+        WHERE pe.included = true
+          AND s.is_dq    = false
+          AND s.has_placeholder = false
+          AND (wp.id IS NOT NULL OR lp.id IS NOT NULL)
+          AND (we.player_id = $2 OR le.player_id = $2)
+        "#,
+        project_id,
+        player_id,
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let mut wins: Vec<SetRecord> = Vec::new();
+    let mut losses: Vec<SetRecord> = Vec::new();
+
+    for row in sets {
+        let uf = match (row.winner_seed, row.loser_seed) {
+            (Some(ws), Some(ls)) => set_upset_factor(ws, ls) as i64,
+            _ => 0,
+        };
+        let location = compute_location(
+            row.online,
+            row.city.as_deref(),
+            row.addr_state.as_deref(),
+            row.country_code.as_deref(),
+        );
+        let loser_opp_id = row.loser_player_id.unwrap_or(row.loser_entrant_id);
+        let winner_opp_id = row.winner_player_id.unwrap_or(row.winner_entrant_id);
+
+        if row.winner_player_id == Some(player_id) {
+            wins.push(SetRecord {
+                opponent_id: loser_opp_id,
+                opponent_name: row.loser_name,
+                upset_factor: uf,
+                winner_score: row.winner_score,
+                loser_score: row.loser_score,
+                tournament_name: row.tournament_name.clone(),
+                tournament_handle: row.tournament_handle.clone(),
+                event_name: row.event_name.clone(),
+                round_name: row.round_name.clone(),
+                completed_at: row.completed_at,
+                is_dq: row.is_dq,
+                vod_url: row.vod_url.clone(),
+                startgg_set_id: row.startgg_set_id,
+                winner_seed: row.winner_seed,
+                loser_seed: row.loser_seed,
+                phase_name: row.phase_name.clone(),
+                pool_identifier: row.pool_identifier.clone(),
+                winner_placement: row.winner_placement,
+                loser_placement: row.loser_placement,
+                location: location.clone(),
+                num_entrants: row.num_entrants,
+                event_handle: row.event_handle.clone(),
+            });
+        }
+        if row.loser_player_id == Some(player_id) {
+            losses.push(SetRecord {
+                opponent_id: winner_opp_id,
+                opponent_name: row.winner_name,
+                upset_factor: uf,
+                winner_score: row.winner_score,
+                loser_score: row.loser_score,
+                tournament_name: row.tournament_name,
+                tournament_handle: row.tournament_handle,
+                event_name: row.event_name,
+                round_name: row.round_name,
+                completed_at: row.completed_at,
+                is_dq: row.is_dq,
+                vod_url: row.vod_url,
+                startgg_set_id: row.startgg_set_id,
+                winner_seed: row.winner_seed,
+                loser_seed: row.loser_seed,
+                phase_name: row.phase_name,
+                pool_identifier: row.pool_identifier,
+                winner_placement: row.winner_placement,
+                loser_placement: row.loser_placement,
+                location,
+                num_entrants: row.num_entrants,
+                event_handle: row.event_handle,
+            });
+        }
+    }
+
+    wins.sort_by(|a, b| b.upset_factor.cmp(&a.upset_factor));
+    losses.sort_by(|a, b| b.upset_factor.cmp(&a.upset_factor));
+
+    Ok(Json(PlayerStatsResponse {
+        player_id,
+        name,
+        wins,
+        losses,
+    }))
+}
+
 pub async fn get_head_to_head(
     State(state): State<AppState>,
     OptionalAuthUser(user): OptionalAuthUser,

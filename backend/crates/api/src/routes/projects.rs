@@ -331,6 +331,7 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/tournaments", get(t::list_tournaments))
         .route("/{id}/events/{eid}", patch(t::patch_event))
         .route("/{id}/stats", get(t::get_stats))
+        .route("/{id}/stats/{player_id}", get(t::get_player_stats))
         .route("/{id}/head-to-head", get(t::get_head_to_head))
         .route(
             "/{id}/head-to-head/{pid_a}/{pid_b}/sets",
