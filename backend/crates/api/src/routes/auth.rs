@@ -117,6 +117,40 @@ impl FromRequestParts<AppState> for AuthUser {
     }
 }
 
+pub struct OptionalAuthUser(pub Option<User>);
+
+impl FromRequestParts<AppState> for OptionalAuthUser {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> std::result::Result<Self, AppError> {
+        let jar = CookieJar::from_request_parts(parts, state).await.unwrap();
+
+        let session_id = jar
+            .get("session_id")
+            .and_then(|c| c.value().parse::<Uuid>().ok());
+
+        let user = if let Some(sid) = session_id {
+            sqlx::query_as!(
+                User,
+                "SELECT u.id, u.username, u.password_hash, u.created_at
+                 FROM sessions s
+                 JOIN users u ON u.id = s.user_id
+                 WHERE s.id = $1 AND s.expires_at > NOW()",
+                sid,
+            )
+            .fetch_optional(&state.db)
+            .await?
+        } else {
+            None
+        };
+
+        Ok(OptionalAuthUser(user))
+    }
+}
+
 // Equalize login response time when a username isn't found: verify_password against
 // this hash so the code path matches a real wrong-password attempt (~100ms Argon2).
 static DUMMY_HASH: LazyLock<String> = LazyLock::new(|| {

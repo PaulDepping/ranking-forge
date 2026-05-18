@@ -9,6 +9,7 @@ use common::startgg::StartggError;
 pub enum AppError {
     NotFound,
     Unauthorized,
+    Forbidden,
     UnprocessableEntity(String),
     Db(sqlx::Error),
     PasswordHash,
@@ -56,6 +57,7 @@ impl IntoResponse for AppError {
                 tracing::warn!("unauthorized request");
                 (StatusCode::UNAUTHORIZED, "unauthorized".into())
             }
+            AppError::Forbidden => (StatusCode::FORBIDDEN, "forbidden".into()),
             AppError::UnprocessableEntity(m) => (StatusCode::UNPROCESSABLE_ENTITY, m.clone()),
             AppError::Db(sqlx::Error::RowNotFound) => (StatusCode::NOT_FOUND, "not found".into()),
             AppError::Db(e) => {
