@@ -8,6 +8,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import * as Empty from '$lib/components/ui/empty';
 	import type { PlayerStats } from '$lib/types';
+	import { winRate } from '$lib/utils';
 
 	let { data } = $props();
 
@@ -89,13 +90,6 @@
 		return `${s.wins.length}W · ${s.losses.length}L`;
 	}
 
-	function winRate(s: PlayerStats | undefined): string {
-		if (!s) return '';
-		const total = s.wins.length + s.losses.length;
-		if (total === 0) return '';
-		return `${Math.round((s.wins.length / total) * 100)}%`;
-	}
-
 	function isMoved(id: string, currentIndex: number): boolean {
 		return hasChanges && savedIds[currentIndex] !== id;
 	}
@@ -171,7 +165,7 @@
 
 					{#if s}
 						<span class="text-xs text-muted-foreground">{wlRecord(s)}</span>
-						<span class="min-w-[36px] text-right text-xs font-semibold">{winRate(s)}</span>
+						<span class="min-w-[36px] text-right text-xs font-semibold">{winRate(s.wins.length, s.losses.length)}</span>
 					{/if}
 				</div>
 			{/each}
