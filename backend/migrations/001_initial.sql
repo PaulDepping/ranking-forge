@@ -19,17 +19,42 @@ CREATE TABLE sessions (
 
 CREATE INDEX sessions_user_id_idx ON sessions(user_id);
 
+-- Project membership roles
+CREATE TYPE project_member_role AS ENUM ('owner', 'editor', 'viewer');
+
 -- Ranking projects
 CREATE TABLE ranking_projects (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id     UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name        TEXT        NOT NULL,
     game_id     BIGINT,                -- start.gg videogame ID
     game_name   TEXT,                  -- cached display name
+    published   BOOLEAN     NOT NULL DEFAULT FALSE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX ranking_projects_user_id_idx ON ranking_projects(user_id);
+-- Project membership (replaces ranking_projects.user_id)
+CREATE TABLE project_members (
+    project_id  UUID                NOT NULL REFERENCES ranking_projects(id) ON DELETE CASCADE,
+    user_id     UUID                NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role        project_member_role NOT NULL,
+    joined_at   TIMESTAMPTZ         NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (project_id, user_id)
+);
+
+CREATE INDEX project_members_user_id_idx ON project_members(user_id);
+
+-- Invite links (role-baked, revokable, optionally expiring)
+CREATE TABLE project_invite_links (
+    id          UUID                PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id  UUID                NOT NULL REFERENCES ranking_projects(id) ON DELETE CASCADE,
+    role        project_member_role NOT NULL CHECK (role IN ('editor', 'viewer')),
+    created_by  UUID                NOT NULL REFERENCES users(id),
+    expires_at  TIMESTAMPTZ,
+    revoked_at  TIMESTAMPTZ,
+    created_at  TIMESTAMPTZ         NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX project_invite_links_project_id_idx ON project_invite_links(project_id);
 
 -- Players (project-scoped)
 CREATE TABLE players (
