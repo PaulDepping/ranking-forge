@@ -7,17 +7,22 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Separator } from '$lib/components/ui/separator';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+	import * as Table from '$lib/components/ui/table';
+	import * as Select from '$lib/components/ui/select';
 
 	let { data, form } = $props();
 
 	let name = $state(untrack(() => data.project.name));
-	$effect(() => { name = data.project.name; });
+	$effect(() => {
+		name = data.project.name;
+	});
 
 	let deleteDialogOpen = $state(false);
 	let deleteFormEl = $state<HTMLFormElement | null>(null);
 </script>
 
 <div class="max-w-lg space-y-8">
+	<!-- Project name -->
 	<div class="space-y-3">
 		<h2 class="text-lg font-semibold">Project name</h2>
 		<form
@@ -46,6 +51,133 @@
 
 	<Separator />
 
+	<!-- Publish -->
+	<div class="space-y-3">
+		<h2 class="text-lg font-semibold">Publish</h2>
+		<p class="text-sm text-muted-foreground">
+			{#if data.project.published}
+				This project is publicly visible. Anyone with the link can view stats, H2H, and rankings.
+			{:else}
+				This project is private. Only members can view it.
+			{/if}
+		</p>
+		<form method="POST" action="?/publish" use:enhance>
+			<input type="hidden" name="published" value={data.project.published ? 'false' : 'true'} />
+			<Button type="submit" variant={data.project.published ? 'outline' : 'default'}>
+				{data.project.published ? 'Unpublish' : 'Publish project'}
+			</Button>
+		</form>
+		{#if form?.publishError}
+			<p class="text-sm text-destructive">{form.publishError}</p>
+		{/if}
+	</div>
+
+	<Separator />
+
+	<!-- Members -->
+	<div class="space-y-4">
+		<h2 class="text-lg font-semibold">Members</h2>
+
+		<Table.Root>
+			<Table.Header>
+				<Table.Row>
+					<Table.Head>Username</Table.Head>
+					<Table.Head>Role</Table.Head>
+					<Table.Head></Table.Head>
+				</Table.Row>
+			</Table.Header>
+			<Table.Body>
+				{#each data.members as member}
+					<Table.Row>
+						<Table.Cell>{member.username}</Table.Cell>
+						<Table.Cell class="capitalize">{member.role}</Table.Cell>
+						<Table.Cell class="text-right">
+							{#if member.role !== 'owner'}
+								<form method="POST" action="?/removeMember" use:enhance class="inline">
+									<input type="hidden" name="user_id" value={member.user_id} />
+									<Button type="submit" variant="ghost" size="sm">Remove</Button>
+								</form>
+							{/if}
+						</Table.Cell>
+					</Table.Row>
+				{/each}
+			</Table.Body>
+		</Table.Root>
+
+		<form method="POST" action="?/addMember" use:enhance class="flex gap-2 items-end">
+			<div class="flex-1 space-y-1">
+				<Label for="member-username">Add by username</Label>
+				<Input id="member-username" name="username" placeholder="username" />
+			</div>
+			<Select.Root name="role">
+				<Select.Trigger class="w-32">
+					<Select.Value placeholder="Role" />
+				</Select.Trigger>
+				<Select.Content>
+					<Select.Item value="editor">Editor</Select.Item>
+					<Select.Item value="viewer">Viewer</Select.Item>
+				</Select.Content>
+			</Select.Root>
+			<Button type="submit">Add</Button>
+		</form>
+		{#if form?.memberError}
+			<p class="text-sm text-destructive">{form.memberError}</p>
+		{/if}
+	</div>
+
+	<Separator />
+
+	<!-- Invite links -->
+	<div class="space-y-4">
+		<h2 class="text-lg font-semibold">Invite links</h2>
+
+		{#each data.inviteLinks as link}
+			<div class="flex items-center justify-between rounded-md border p-3 gap-2">
+				<div class="text-sm space-y-0.5">
+					<span class="font-medium capitalize">{link.role}</span>
+					{#if link.expires_at}
+						<span class="text-muted-foreground">
+							· expires {new Date(link.expires_at).toLocaleDateString()}</span
+						>
+					{/if}
+				</div>
+				<div class="flex gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onclick={() => navigator.clipboard.writeText(`${location.origin}/invite/${link.id}`)}
+					>
+						Copy link
+					</Button>
+					<form method="POST" action="?/revokeInviteLink" use:enhance class="inline">
+						<input type="hidden" name="link_id" value={link.id} />
+						<Button type="submit" variant="ghost" size="sm">Revoke</Button>
+					</form>
+				</div>
+			</div>
+		{/each}
+
+		<form method="POST" action="?/createInviteLink" use:enhance class="flex gap-2 items-end">
+			<Select.Root name="role">
+				<Select.Trigger class="w-32">
+					<Select.Value placeholder="Role" />
+				</Select.Trigger>
+				<Select.Content>
+					<Select.Item value="editor">Editor</Select.Item>
+					<Select.Item value="viewer">Viewer</Select.Item>
+				</Select.Content>
+			</Select.Root>
+			<Button type="submit">Create invite link</Button>
+		</form>
+		{#if form?.linkError}
+			<p class="text-sm text-destructive">{form.linkError}</p>
+		{/if}
+	</div>
+
+	<Separator />
+
+	<!-- Danger zone -->
 	<div class="space-y-3">
 		<h2 class="text-lg font-semibold text-destructive">Danger zone</h2>
 		<div class="flex items-center justify-between rounded-md border border-destructive/40 p-4">
@@ -56,11 +188,9 @@
 				</p>
 			</div>
 			<form method="POST" action="?/delete" use:enhance bind:this={deleteFormEl}>
-				<Button
-					type="button"
-					variant="destructive"
-					onclick={() => { deleteDialogOpen = true; }}
-				>Delete project</Button>
+				<Button type="button" variant="destructive" onclick={() => { deleteDialogOpen = true; }}>
+					Delete project
+				</Button>
 			</form>
 		</div>
 		{#if form?.deleteError}
