@@ -58,6 +58,18 @@ pub struct PlayerResponse {
     pub accounts: Vec<AccountResponse>,
 }
 
+impl PlayerResponse {
+    fn from_player(p: Player, accounts: Vec<AccountResponse>) -> Self {
+        PlayerResponse {
+            id: p.id,
+            project_id: p.project_id,
+            name: p.name,
+            created_at: p.created_at,
+            accounts,
+        }
+    }
+}
+
 // ── Path param structs ────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -121,13 +133,7 @@ async fn list_players(
         .into_iter()
         .map(|p| {
             let accounts = accounts_map.remove(&p.id).unwrap_or_default();
-            PlayerResponse {
-                id: p.id,
-                project_id: p.project_id,
-                name: p.name,
-                created_at: p.created_at,
-                accounts,
-            }
+            PlayerResponse::from_player(p, accounts)
         })
         .collect();
 
@@ -162,16 +168,7 @@ async fn add_player(
     .fetch_one(&state.db)
     .await?;
 
-    Ok((
-        StatusCode::CREATED,
-        Json(PlayerResponse {
-            id: player.id,
-            project_id: player.project_id,
-            name: player.name,
-            created_at: player.created_at,
-            accounts: vec![],
-        }),
-    ))
+    Ok((StatusCode::CREATED, Json(PlayerResponse::from_player(player, vec![]))))
 }
 
 async fn delete_player(
@@ -577,37 +574,28 @@ async fn rename_player(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    Ok(Json(PlayerResponse {
-        id: player.id,
-        project_id: player.project_id,
-        name: player.name,
-        created_at: player.created_at,
-        accounts: vec![],
-    }))
+    Ok(Json(PlayerResponse::from_player(player, vec![])))
 }
 
 // ── Handle normalization ──────────────────────────────────────────────────────
 
+fn strip_startgg_url_prefix(s: &str) -> &str {
+    s.trim_start_matches("https://")
+     .trim_start_matches("http://")
+     .trim_start_matches("www.start.gg/")
+     .trim_start_matches("start.gg/")
+}
+
 fn normalize_handle(input: &str) -> String {
-    let s = input.trim();
-    let s = s
-        .trim_start_matches("https://")
-        .trim_start_matches("http://")
-        .trim_start_matches("www.start.gg/")
-        .trim_start_matches("start.gg/")
-        .trim_start_matches("user/");
-    s.to_string()
+    strip_startgg_url_prefix(input.trim())
+        .trim_start_matches("user/")
+        .to_string()
 }
 
 fn normalize_tournament_handle(input: &str) -> String {
-    let s = input.trim();
-    let s = s
-        .trim_start_matches("https://")
-        .trim_start_matches("http://")
-        .trim_start_matches("www.start.gg/")
-        .trim_start_matches("start.gg/")
+    let stripped = strip_startgg_url_prefix(input.trim())
         .trim_start_matches("tournament/");
-    s.split('/').next().unwrap_or(s).to_string()
+    stripped.split('/').next().unwrap_or(stripped).to_string()
 }
 
 // ── Reorder players ───────────────────────────────────────────────────────────
