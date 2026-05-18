@@ -17,7 +17,7 @@
 	} = $props();
 
 	let open = $state(false);
-	let pending = $state<DateRange | undefined>(value);
+	let pending = $state<DateRange | undefined>(undefined);
 	$effect(() => {
 		if (!open) pending = value;
 	});
