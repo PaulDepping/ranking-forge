@@ -18,9 +18,11 @@
 
 	let open = $state(false);
 	let pending = $state<DateRange | undefined>(value);
-	$effect(() => { pending = value; });
+	$effect(() => {
+		if (!open) pending = value;
+	});
 
-	function handleValueChange(range: DateRange | undefined) {
+	function handleValueChange(range: DateRange) {
 		pending = range;
 		if (range?.start && range?.end) {
 			onSelect(range);
