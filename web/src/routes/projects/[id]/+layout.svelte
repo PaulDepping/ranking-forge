@@ -6,22 +6,33 @@
 
 	let { children, data } = $props();
 
-	const tabs = [
-		{ label: 'Players', href: 'players' },
-		{ label: 'Import', href: 'import' },
-		{ label: 'Tournaments', href: 'tournaments' },
-		{ label: 'Stats', href: 'stats' },
-		{ label: 'H2H', href: 'h2h' },
-		{ label: 'Ranking', href: 'ranking' },
-		{ label: 'Settings', href: 'settings' }
+	const allTabs = [
+		{ label: 'Players', href: 'players', minRole: 'editor' as const },
+		{ label: 'Import', href: 'import', minRole: 'editor' as const },
+		{ label: 'Tournaments', href: 'tournaments', minRole: null },
+		{ label: 'Stats', href: 'stats', minRole: null },
+		{ label: 'H2H', href: 'h2h', minRole: null },
+		{ label: 'Ranking', href: 'ranking', minRole: null },
+		{ label: 'Settings', href: 'settings', minRole: 'owner' as const }
 	];
+
+	const role = data.project.user_role;
+
+	const tabs = $derived(
+		allTabs.filter((t) => {
+			if (t.minRole === null) return true;
+			if (t.minRole === 'editor') return role === 'editor' || role === 'owner';
+			if (t.minRole === 'owner') return role === 'owner';
+			return false;
+		})
+	);
 
 	function tabHref(slug: string) {
 		return `/projects/${data.project.id}/${slug}`;
 	}
 
 	const currentTab = $derived(
-		tabs.find(t => page.url.pathname.startsWith(tabHref(t.href)))?.href ?? tabs[0].href
+		tabs.find((t) => page.url.pathname.startsWith(tabHref(t.href)))?.href ?? tabs[0].href
 	);
 </script>
 
