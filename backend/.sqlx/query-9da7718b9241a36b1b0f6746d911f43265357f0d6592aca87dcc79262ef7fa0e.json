@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'viewer')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9da7718b9241a36b1b0f6746d911f43265357f0d6592aca87dcc79262ef7fa0e"
+}

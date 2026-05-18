@@ -549,4 +549,28 @@ mod tests {
         ).await.unwrap();
         assert_eq!(resp.status(), 204);
     }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn test_viewer_cannot_add_player(pool: PgPool) {
+        let app = make_app(pool.clone());
+        let owner_cookie = register(&app, "owner_pl").await;
+        let viewer_cookie = register(&app, "viewer_pl").await;
+        let proj_id = create_project(&app, &owner_cookie, "Player Project").await;
+
+        let viewer_id = sqlx::query_scalar!("SELECT id FROM users WHERE username = 'viewer_pl'")
+            .fetch_one(&pool).await.unwrap();
+        let proj_uuid: uuid::Uuid = proj_id.parse().unwrap();
+        sqlx::query!(
+            "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'viewer')",
+            proj_uuid, viewer_id
+        ).execute(&pool).await.unwrap();
+
+        let resp = app.clone().oneshot(
+            Request::builder().method("POST").uri(&format!("/projects/{proj_id}/players"))
+                .header("content-type", "application/json")
+                .header("cookie", &viewer_cookie)
+                .body(Body::from(serde_json::to_vec(&json!({"name": "Alice"})).unwrap())).unwrap()
+        ).await.unwrap();
+        assert_eq!(resp.status(), 403);
+    }
 }
