@@ -19,6 +19,10 @@
 
 	let { data } = $props();
 
+	const canEdit = $derived(
+		data.project.user_role === 'editor' || data.project.user_role === 'owner'
+	);
+
 	// Local copy for optimistic toggle updates; synced when server data changes
 	let tournaments = $state(untrack(() => [...data.tournaments]));
 	$effect(() => { tournaments = [...data.tournaments]; });
@@ -254,7 +258,7 @@
 				<Collapsible.Trigger>
 					{#snippet child({ props })}
 						<Button {...props} variant="outline" size="sm">
-							⚙ Filters &amp; Actions {filterOpen ? '▲' : '▼'}
+							⚙ {canEdit ? 'Filters & Actions' : 'Filters'} {filterOpen ? '▲' : '▼'}
 						</Button>
 					{/snippet}
 				</Collapsible.Trigger>
@@ -371,6 +375,7 @@
 						</Popover.Root>
 					</div>
 
+					{#if canEdit}
 					<!-- Divider + bulk actions -->
 					<div class="flex items-center justify-between border-t border-border pt-3">
 						<span class="text-xs text-muted-foreground">
@@ -390,6 +395,7 @@
 							</Button>
 						</div>
 					</div>
+					{/if}
 				</div>
 			</Collapsible.Content>
 		</Collapsible.Root>
@@ -465,17 +471,22 @@
 					</div>
 					<div class="divide-y divide-border border-t border-border">
 						{#each tournament.events as event (event.id)}
-							<Label class="flex cursor-pointer items-center justify-between px-4 py-2 hover:bg-accent/50">
+							<Label
+								class="flex items-center justify-between px-4 py-2
+									{canEdit ? 'cursor-pointer hover:bg-accent/50' : ''}"
+							>
 								<div>
 									<span class="text-sm">{event.name}</span>
 									{#if event.num_entrants}
 										<span class="ml-2 text-xs text-muted-foreground">{event.num_entrants} entrants</span>
 									{/if}
 								</div>
-								<Checkbox
-									checked={event.included}
-									onCheckedChange={() => handleToggle(data.project.id, event)}
-								/>
+								{#if canEdit}
+									<Checkbox
+										checked={event.included}
+										onCheckedChange={() => handleToggle(data.project.id, event)}
+									/>
+								{/if}
 							</Label>
 						{/each}
 					</div>

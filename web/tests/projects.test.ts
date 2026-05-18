@@ -240,3 +240,26 @@ test('ranking page shows edit controls for owner role', async ({ page }) => {
 	await expect(page.locator('text=⠿').first()).toBeVisible();
 	await expect(page.getByRole('button', { name: '1' })).toBeVisible();
 });
+
+test('tournaments page hides checkboxes and bulk actions for viewer role', async ({ page }) => {
+	await page.goto('/projects/proj-viewer-tournaments/tournaments');
+	await page.waitForLoadState('networkidle');
+	await expect(page.getByText('Genesis 10')).toBeVisible();
+	// No checkboxes in event rows
+	await expect(page.getByRole('checkbox')).not.toBeVisible();
+	// Open the filter panel — button says "Filters", not "Filters & Actions"
+	await expect(page.getByRole('button', { name: /Filters & Actions/ })).not.toBeVisible();
+	await page.getByRole('button', { name: /Filters/ }).click();
+	// No bulk action buttons
+	await expect(page.getByRole('button', { name: /Include all visible/ })).not.toBeVisible();
+	await expect(page.getByRole('button', { name: /Exclude all visible/ })).not.toBeVisible();
+});
+
+test('tournaments page shows checkboxes and bulk actions for owner role', async ({ page }) => {
+	await page.goto('/projects/proj-tournaments/tournaments');
+	await page.waitForLoadState('networkidle');
+	await expect(page.getByRole('checkbox').first()).toBeVisible();
+	await page.getByRole('button', { name: /Filters & Actions/ }).click();
+	await expect(page.getByRole('button', { name: /Include all visible/ })).toBeVisible();
+	await expect(page.getByRole('button', { name: /Exclude all visible/ })).toBeVisible();
+});
