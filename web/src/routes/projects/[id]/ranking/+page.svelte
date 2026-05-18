@@ -25,6 +25,10 @@
 		items.length !== savedIds.length || items.some((item, i) => item.id !== savedIds[i])
 	);
 
+	const canEdit = $derived(
+		data.project.user_role === 'editor' || data.project.user_role === 'owner'
+	);
+
 	let saveStatus = $state<'idle' | 'saving' | 'saved'>('idle');
 
 	function handleConsider(e: CustomEvent<DndEvent<RankItem>>) {
@@ -106,73 +110,93 @@
 	<div class="space-y-4">
 		<div class="flex items-center justify-between">
 			<h2 class="text-lg font-semibold">Ranking</h2>
-			<div class="flex items-center gap-3">
-				{#if hasChanges && saveStatus !== 'saved'}
-					<span class="text-sm text-muted-foreground">Unsaved changes</span>
-				{/if}
-				<Button
-					onclick={save}
-					disabled={!hasChanges || saveStatus === 'saving'}
-					size="sm"
-					variant={saveStatus === 'saved' ? 'outline' : 'default'}
-				>
-					{saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved ✓' : 'Save'}
-				</Button>
-			</div>
-		</div>
-
-		<div
-			class="flex max-w-xl flex-col gap-1"
-			use:dragHandleZone={{ items, flipDurationMs: 0 }}
-			onconsider={handleConsider}
-			onfinalize={handleFinalize}
-		>
-			{#each items as item, i (item.id)}
-				{@const s = statsMap[item.id]}
-				{@const moved = isMoved(item.id, i)}
-				<div
-					class="flex items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors
-					{moved ? 'border-primary/40 bg-primary/5' : 'bg-card'}"
-				>
-					<span
-						use:dragHandle
-						class="cursor-grab select-none text-base text-muted-foreground active:cursor-grabbing"
+			{#if canEdit}
+				<div class="flex items-center gap-3">
+					{#if hasChanges && saveStatus !== 'saved'}
+						<span class="text-sm text-muted-foreground">Unsaved changes</span>
+					{/if}
+					<Button
+						onclick={save}
+						disabled={!hasChanges || saveStatus === 'saving'}
+						size="sm"
+						variant={saveStatus === 'saved' ? 'outline' : 'default'}
 					>
-						⠿
-					</span>
-
-					{#if editingId === item.id}
-						<Input
-							bind:ref={editInput}
-							type="number"
-							class="h-7 w-12 px-1 text-center text-xs [appearance:textfield]"
-							bind:value={editingValue}
-							onblur={commitEdit}
-							onkeydown={onRankKeydown}
-						/>
-					{:else}
-						<Button
-							variant="ghost"
-							size="sm"
-							class="h-7 w-8 rounded p-0 text-xs font-normal text-muted-foreground"
-							onclick={() => startEdit(item.id, i + 1)}
-						>
-							{i + 1}
-						</Button>
-					{/if}
-
-					<span class="flex-1 font-semibold">{item.name}</span>
-
-					{#if s}
-						<span class="text-xs text-muted-foreground">{wlRecord(s)}</span>
-						<span class="min-w-[36px] text-right text-xs font-semibold">{winRate(s.wins.length, s.losses.length)}</span>
-					{/if}
+						{saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved ✓' : 'Save'}
+					</Button>
 				</div>
-			{/each}
+			{/if}
 		</div>
 
-		<p class="text-xs text-muted-foreground">
-			Click the rank number to edit · Drag ⠿ to reorder · Click Save to persist
-		</p>
+		{#if canEdit}
+			<div
+				class="flex max-w-xl flex-col gap-1"
+				use:dragHandleZone={{ items, flipDurationMs: 0 }}
+				onconsider={handleConsider}
+				onfinalize={handleFinalize}
+			>
+				{#each items as item, i (item.id)}
+					{@const s = statsMap[item.id]}
+					{@const moved = isMoved(item.id, i)}
+					<div
+						class="flex items-center gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors
+						{moved ? 'border-primary/40 bg-primary/5' : 'bg-card'}"
+					>
+						<span
+							use:dragHandle
+							class="cursor-grab select-none text-base text-muted-foreground active:cursor-grabbing"
+						>
+							⠿
+						</span>
+
+						{#if editingId === item.id}
+							<Input
+								bind:ref={editInput}
+								type="number"
+								class="h-7 w-12 px-1 text-center text-xs [appearance:textfield]"
+								bind:value={editingValue}
+								onblur={commitEdit}
+								onkeydown={onRankKeydown}
+							/>
+						{:else}
+							<Button
+								variant="ghost"
+								size="sm"
+								class="h-7 w-8 rounded p-0 text-xs font-normal text-muted-foreground"
+								onclick={() => startEdit(item.id, i + 1)}
+							>
+								{i + 1}
+							</Button>
+						{/if}
+
+						<span class="flex-1 font-semibold">{item.name}</span>
+
+						{#if s}
+							<span class="text-xs text-muted-foreground">{wlRecord(s)}</span>
+							<span class="min-w-[36px] text-right text-xs font-semibold">{winRate(s.wins.length, s.losses.length)}</span>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<div class="flex max-w-xl flex-col gap-1">
+				{#each items as item, i (item.id)}
+					{@const s = statsMap[item.id]}
+					<div class="flex items-center gap-3 rounded-md border bg-card px-3 py-2.5 text-sm">
+						<span class="w-8 text-center text-xs text-muted-foreground">{i + 1}</span>
+						<span class="flex-1 font-semibold">{item.name}</span>
+						{#if s}
+							<span class="text-xs text-muted-foreground">{wlRecord(s)}</span>
+							<span class="min-w-[36px] text-right text-xs font-semibold">{winRate(s.wins.length, s.losses.length)}</span>
+						{/if}
+					</div>
+				{/each}
+			</div>
+		{/if}
+
+		{#if canEdit}
+			<p class="text-xs text-muted-foreground">
+				Click the rank number to edit · Drag ⠿ to reorder · Click Save to persist
+			</p>
+		{/if}
 	</div>
 {/if}

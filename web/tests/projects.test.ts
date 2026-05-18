@@ -222,3 +222,21 @@ test('From tournament tab: selections persist across tab switches', async ({ pag
 	await page.getByRole('tab', { name: 'Melee Singles' }).click();
 	await expect(page.getByText('1 selected')).toBeVisible();
 });
+
+test('ranking page hides edit controls for viewer role', async ({ page }) => {
+	await page.goto('/projects/proj-viewer/ranking');
+	await expect(page.getByText('Alice')).toBeVisible();
+	// No Save button
+	await expect(page.getByRole('button', { name: 'Save' })).not.toBeVisible();
+	// No drag handle character
+	await expect(page.locator('text=⠿')).not.toBeVisible();
+	// Rank 1 is not a button
+	await expect(page.getByRole('button', { name: '1' })).not.toBeVisible();
+});
+
+test('ranking page shows edit controls for owner role', async ({ page }) => {
+	await page.goto('/projects/proj-1/ranking');
+	await expect(page.getByRole('button', { name: 'Save' })).toBeVisible();
+	await expect(page.locator('text=⠿').first()).toBeVisible();
+	await expect(page.getByRole('button', { name: '1' })).toBeVisible();
+});
