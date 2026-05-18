@@ -174,3 +174,13 @@ export interface InviteLink {
 export interface AcceptInviteResponse {
 	project_id: string;
 }
+
+export interface TournamentAttendance {
+	tournament_name: string;
+	tournament_slug: string;
+	event_name: string;
+	placement: number | null;
+	num_entrants: number | null;
+	start_at: string | null;
+	location: string | null;
+}
