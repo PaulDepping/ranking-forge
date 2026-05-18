@@ -11,8 +11,12 @@
 	import { makeApi } from '$lib/api';
 	import type { Job } from '$lib/types';
 	import { formatDateTime } from '$lib/utils';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 
 	let { data, form } = $props();
+
+	let importDialogOpen = $state(false);
+	let importFormEl = $state<HTMLFormElement | null>(null);
 
 	let dateRange = $state<DateRange | undefined>(undefined);
 	const afterDateStr  = $derived(dateRange?.start?.toString() ?? '');
@@ -93,10 +97,8 @@
 	<form
 		method="POST"
 		class="space-y-4"
-		use:enhance={({ cancel }) => {
-			if (job?.status === 'pending' || job?.status === 'running') {
-				if (!confirm('An import is already running. Start a new one?')) cancel();
-			}
+		bind:this={importFormEl}
+		use:enhance={() => {
 			return ({ result }) => {
 				if (result.type === 'success' && result.data?.job) {
 					job = result.data.job as Job;
@@ -112,8 +114,34 @@
 			placeholder="All time"
 		/>
 		<p class="text-xs text-muted-foreground">Leave blank to import all tournaments.</p>
-		<Button type="submit">
+		<Button
+			type="button"
+			onclick={() => {
+				if (isActiveJob) {
+					importDialogOpen = true;
+				} else {
+					importFormEl?.requestSubmit();
+				}
+			}}
+		>
 			{job ? 'Re-import' : 'Start import'}
 		</Button>
 	</form>
 </div>
+
+<AlertDialog.Root bind:open={importDialogOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Import already running</AlertDialog.Title>
+			<AlertDialog.Description>
+				An import is currently in progress. Start a new one anyway?
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action onclick={() => importFormEl?.requestSubmit()}>
+				Start import
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
