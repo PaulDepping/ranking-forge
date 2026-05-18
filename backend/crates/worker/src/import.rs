@@ -83,6 +83,15 @@ pub async fn run(
         "collection complete, starting import"
     );
 
+    // Check before import so we can apply initial ranking sort afterwards
+    let is_first_import = sqlx::query_scalar!(
+        "SELECT NOT EXISTS (SELECT 1 FROM project_events WHERE project_id = $1)",
+        project_id,
+    )
+    .fetch_one(pool)
+    .await?
+    .unwrap_or(true);
+
     // Phase 2: import each unique tournament exactly once
     for (_, tournament) in &seen {
         import_tournament(
@@ -95,6 +104,11 @@ pub async fn run(
             &account_map,
         )
         .await?;
+    }
+
+    if is_first_import {
+        seed_ranking_by_winrate(pool, project_id).await?;
+        tracing::info!(%project_id, "initial ranking seeded by winrate");
     }
 
     Ok(())
@@ -611,4 +625,41 @@ async fn import_sets(
     }
 
     Ok(total_sets)
+}
+
+async fn seed_ranking_by_winrate(pool: &PgPool, project_id: Uuid) -> anyhow::Result<()> {
+    sqlx::query!(
+        r#"
+        WITH stats AS (
+            SELECT
+                p.id          AS player_id,
+                p.created_at,
+                COUNT(s.id) FILTER (WHERE s.winner_entrant_id = e.id) AS wins,
+                COUNT(s.id)   AS total
+            FROM players p
+            LEFT JOIN entrants e ON e.player_id = p.id
+            LEFT JOIN sets s ON s.winner_entrant_id = e.id OR s.loser_entrant_id = e.id
+            WHERE p.project_id = $1
+            GROUP BY p.id, p.created_at
+        ),
+        ranked AS (
+            SELECT
+                player_id,
+                ROW_NUMBER() OVER (
+                    ORDER BY
+                        CASE WHEN total > 0 THEN wins::float8 / total ELSE 0 END DESC,
+                        created_at ASC
+                ) AS new_rank
+            FROM stats
+        )
+        UPDATE players
+        SET rank_position = ranked.new_rank::int4
+        FROM ranked
+        WHERE players.id = ranked.player_id
+        "#,
+        project_id,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
 }

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH stats AS (\n            SELECT\n                p.id          AS player_id,\n                p.created_at,\n                COUNT(s.id) FILTER (WHERE s.winner_entrant_id = e.id) AS wins,\n                COUNT(s.id)   AS total\n            FROM players p\n            LEFT JOIN entrants e ON e.player_id = p.id\n            LEFT JOIN sets s ON s.winner_entrant_id = e.id OR s.loser_entrant_id = e.id\n            WHERE p.project_id = $1\n            GROUP BY p.id, p.created_at\n        ),\n        ranked AS (\n            SELECT\n                player_id,\n                ROW_NUMBER() OVER (\n                    ORDER BY\n                        CASE WHEN total > 0 THEN wins::float8 / total ELSE 0 END DESC,\n                        created_at ASC\n                ) AS new_rank\n            FROM stats\n        )\n        UPDATE players\n        SET rank_position = ranked.new_rank::int4\n        FROM ranked\n        WHERE players.id = ranked.player_id\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "75243ba1061cb0aae9cb84f423b102d70f095fd0263b70c087ddd761114bdce0"
+}
