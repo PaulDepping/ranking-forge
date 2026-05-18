@@ -21,10 +21,11 @@ export const load: PageServerLoad = async ({ fetch, params, cookies }) => {
 
 	const stats: PlayerStats = await statsRes.json();
 
-	let tournaments: TournamentAttendance[] = [];
-	if (tournamentsRes.ok) {
-		tournaments = await tournamentsRes.json();
+	if (!tournamentsRes.ok) {
+		error(tournamentsRes.status, 'Failed to load tournament history');
 	}
+
+	const tournaments: TournamentAttendance[] = await tournamentsRes.json();
 
 	return { stats, tournaments };
 };
