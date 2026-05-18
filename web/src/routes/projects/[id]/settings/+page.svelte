@@ -6,11 +6,15 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Separator } from '$lib/components/ui/separator';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 
 	let { data, form } = $props();
 
 	let name = $state(untrack(() => data.project.name));
 	$effect(() => { name = data.project.name; });
+
+	let deleteDialogOpen = $state(false);
+	let deleteFormEl = $state<HTMLFormElement | null>(null);
 </script>
 
 <div class="max-w-lg space-y-8">
@@ -51,13 +55,11 @@
 					Permanently removes all players, tournaments, and stats.
 				</p>
 			</div>
-			<form method="POST" action="?/delete" use:enhance>
+			<form method="POST" action="?/delete" use:enhance bind:this={deleteFormEl}>
 				<Button
-					type="submit"
+					type="button"
 					variant="destructive"
-					onclick={(e: MouseEvent) => {
-						if (!confirm('Delete this project? This cannot be undone.')) e.preventDefault();
-					}}
+					onclick={() => { deleteDialogOpen = true; }}
 				>Delete project</Button>
 			</form>
 		</div>
@@ -66,3 +68,21 @@
 		{/if}
 	</div>
 </div>
+
+<AlertDialog.Root bind:open={deleteDialogOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Delete this project?</AlertDialog.Title>
+			<AlertDialog.Description>
+				Permanently removes all players, tournaments, and stats. This cannot be undone.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action
+				class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+				onclick={() => deleteFormEl?.requestSubmit()}
+			>Delete project</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
