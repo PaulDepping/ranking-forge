@@ -268,6 +268,43 @@ async fn unlink_account(
     Ok(StatusCode::NO_CONTENT)
 }
 
+// ── Shared helpers ────────────────────────────────────────────────────────────
+
+async fn create_player_with_account(
+    pool: &sqlx::PgPool,
+    project_id: Uuid,
+    name: &str,
+    user_id: i64,
+    handle: &str,
+    display_name: Option<&str>,
+) -> crate::error::Result<Uuid> {
+    let player = sqlx::query!(
+        "INSERT INTO players (project_id, name, rank_position)
+         VALUES (
+             $1, $2,
+             (SELECT COALESCE(MAX(rank_position), 0) + 1 FROM players WHERE project_id = $1)
+         )
+         RETURNING id",
+        project_id,
+        name,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    sqlx::query!(
+        "INSERT INTO startgg_accounts (player_id, startgg_user_id, handle, display_name)
+         VALUES ($1, $2, $3, $4)",
+        player.id,
+        user_id,
+        handle,
+        display_name,
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(player.id)
+}
+
 // ── Bulk add players ──────────────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -320,31 +357,7 @@ pub async fn bulk_add_players(
             continue;
         }
 
-        // Insert player
-        let player = sqlx::query!(
-            "INSERT INTO players (project_id, name, rank_position)
-             VALUES (
-                 $1, $2,
-                 (SELECT COALESCE(MAX(rank_position), 0) + 1 FROM players WHERE project_id = $1)
-             )
-             RETURNING id",
-            id,
-            name,
-        )
-        .fetch_one(&state.db)
-        .await?;
-
-        // Insert startgg account
-        sqlx::query!(
-            "INSERT INTO startgg_accounts (player_id, startgg_user_id, handle)
-             VALUES ($1, $2, $3)",
-            player.id,
-            user_id,
-            handle,
-        )
-        .execute(&state.db)
-        .await?;
-
+        create_player_with_account(&state.db, id, &name, user_id, &handle, None).await?;
         results.push(BulkAddResult { name, handle, status: "created" });
     }
 
@@ -418,32 +431,7 @@ pub async fn add_players_by_handles(
             continue;
         }
 
-        // Insert player
-        let player = sqlx::query!(
-            "INSERT INTO players (project_id, name, rank_position)
-             VALUES (
-                 $1, $2,
-                 (SELECT COALESCE(MAX(rank_position), 0) + 1 FROM players WHERE project_id = $1)
-             )
-             RETURNING id",
-            id,
-            &gamer_tag,
-        )
-        .fetch_one(&state.db)
-        .await?;
-
-        // Insert startgg account
-        sqlx::query!(
-            "INSERT INTO startgg_accounts (player_id, startgg_user_id, handle, display_name)
-             VALUES ($1, $2, $3, $4)",
-            player.id,
-            user_id,
-            handle,
-            &gamer_tag,
-        )
-        .execute(&state.db)
-        .await?;
-
+        create_player_with_account(&state.db, id, &gamer_tag, user_id, &handle, Some(&gamer_tag)).await?;
         results.push(ByHandlesResult {
             handle,
             name: Some(gamer_tag),
