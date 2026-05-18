@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, sqlx::FromRow, Serialize)]
@@ -34,10 +34,50 @@ pub struct Session {
 #[derive(Debug, Clone, sqlx::FromRow, Serialize)]
 pub struct Project {
     pub id: Uuid,
-    pub user_id: Uuid,
     pub name: String,
     pub game_id: Option<i64>,
     pub game_name: Option<String>,
+    pub published: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, sqlx::Type, Serialize, Deserialize)]
+#[sqlx(type_name = "project_member_role", rename_all = "snake_case")]
+#[serde(rename_all = "lowercase")]
+pub enum ProjectMemberRole {
+    Owner,
+    Editor,
+    Viewer,
+}
+
+impl ProjectMemberRole {
+    pub fn satisfies(&self, min: &ProjectMemberRole) -> bool {
+        match (self, min) {
+            (_, ProjectMemberRole::Viewer) => true,
+            (ProjectMemberRole::Owner | ProjectMemberRole::Editor, ProjectMemberRole::Editor) => true,
+            (ProjectMemberRole::Owner, ProjectMemberRole::Owner) => true,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct ProjectMember {
+    pub project_id: Uuid,
+    pub user_id: Uuid,
+    pub username: String,
+    pub role: ProjectMemberRole,
+    pub joined_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct ProjectInviteLink {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub role: ProjectMemberRole,
+    pub created_by: Uuid,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub revoked_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }
 
