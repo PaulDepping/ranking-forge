@@ -88,7 +88,7 @@
 									<Tooltip.Root>
 										<Tooltip.Trigger>
 											{#snippet child({ props })}
-												<span {...props} class="block max-w-[5rem] truncate">{col.name}</span>
+												<a {...props} href="/projects/{data.project.id}/players/{col.id}" class="block max-w-[5rem] truncate hover:underline">{col.name}</a>
 											{/snippet}
 										</Tooltip.Trigger>
 										<Tooltip.Content>
@@ -106,7 +106,7 @@
 									<Tooltip.Root>
 										<Tooltip.Trigger>
 											{#snippet child({ props })}
-												<span {...props} class="block max-w-[8rem] truncate">{row.name}</span>
+												<a {...props} href="/projects/{data.project.id}/players/{row.id}" class="block max-w-[8rem] truncate hover:underline">{row.name}</a>
 											{/snippet}
 										</Tooltip.Trigger>
 										<Tooltip.Content>
@@ -213,4 +213,6 @@
 	isWin={selectedIsWin}
 	currentPlayerName={selectedPair?.rowPlayer.name ?? ''}
 	onClose={() => (selectedSet = null)}
+	projectId={data.project.id}
+	opponentPlayerId={selectedPair?.colPlayer.id}
 />

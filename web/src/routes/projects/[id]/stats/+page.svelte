@@ -13,6 +13,8 @@
 	let selectedIsWin = $state(false);
 	let selectedPlayerName = $state('');
 
+	const trackedPlayerIds = $derived(new Set(data.stats.map((p) => p.player_id)));
+
 	function openModal(set: SetRecord, isWin: boolean, playerName: string) {
 		selectedSet = set;
 		selectedIsWin = isWin;
@@ -36,7 +38,7 @@
 				<Card.Root class="py-0">
 					<Card.Content class="p-3">
 					<div class="mb-2 flex items-baseline justify-between">
-						<span class="font-semibold">{player.name}</span>
+						<a href="/projects/{data.project.id}/players/{player.player_id}" class="font-semibold hover:underline">{player.name}</a>
 						<span class="text-xs text-muted-foreground">
 							W {player.wins.length} · L {player.losses.length} · {winRate(player.wins.length, player.losses.length, '0%')}
 						</span>
@@ -87,4 +89,8 @@
 	isWin={selectedIsWin}
 	currentPlayerName={selectedPlayerName}
 	onClose={() => (selectedSet = null)}
+	projectId={data.project.id}
+	opponentPlayerId={selectedSet && trackedPlayerIds.has(selectedSet.opponent_id)
+		? selectedSet.opponent_id
+		: undefined}
 />

@@ -7,8 +7,9 @@
 	import AccountBadge from '$lib/components/AccountBadge.svelte';
 	import type { Player } from '$lib/types';
 
-	let { player, isEditing, form, onEdit, onCancelEdit, onOpenLinkDialog }: {
+	let { player, projectId, isEditing, form, onEdit, onCancelEdit, onOpenLinkDialog }: {
 		player: Player;
+		projectId: string;
 		isEditing: boolean;
 		form: { renameError?: string; renamePid?: string } | null;
 		onEdit: () => void;
@@ -54,7 +55,7 @@
 	{:else}
 		<div class="flex items-start justify-between">
 			<div class="space-y-1">
-				<p class="font-medium">{player.name}</p>
+				<a href="/projects/{projectId}/players/{player.id}" class="font-medium hover:underline">{player.name}</a>
 				<div class="flex flex-wrap gap-1">
 					{#each player.accounts as account (account.id)}
 						<AccountBadge

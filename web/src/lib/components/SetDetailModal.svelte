@@ -8,9 +8,11 @@
 		isWin: boolean;
 		currentPlayerName: string;
 		onClose: () => void;
+		projectId?: string;
+		opponentPlayerId?: string;
 	}
 
-	let { set, isWin, currentPlayerName, onClose }: Props = $props();
+	let { set, isWin, currentPlayerName, onClose, projectId, opponentPlayerId }: Props = $props();
 
 	let open = $derived(set !== null);
 
@@ -32,7 +34,7 @@
 		{#if set}
 			{@const phase = phaseLabel(set)}
 			<Dialog.Header>
-				<Dialog.Title>{currentPlayerName} vs {set.opponent_name}</Dialog.Title>
+				<Dialog.Title>{currentPlayerName} vs {#if projectId && opponentPlayerId}<a href="/projects/{projectId}/players/{opponentPlayerId}" class="hover:underline" onclick={() => onClose()}>{set.opponent_name}</a>{:else}{set.opponent_name}{/if}</Dialog.Title>
 				<Dialog.Description
 					class={isWin
 						? 'text-green-600 dark:text-green-400'

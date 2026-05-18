@@ -49,6 +49,7 @@
 			{#each data.players as player (player.id)}
 				<PlayerCard
 					{player}
+					projectId={data.project.id}
 					isEditing={editingPid === player.id}
 					{form}
 					onEdit={() => startEdit(player.id)}
