@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE project_invite_links SET revoked_at = NOW()\n         WHERE id = $1 AND project_id = $2 AND revoked_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7ed60059af2acf7220180fcccab938ce8e1d8a98d3b16c25af156b32fc3a7820"
+}
