@@ -4,6 +4,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import * as Collapsible from '$lib/components/ui/collapsible';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Dialog from '$lib/components/ui/dialog';
@@ -212,20 +213,22 @@
 	<div class="grid grid-cols-[1fr_28px_28px_28px] gap-1 items-center py-0.5">
 		<span class="text-xs">{BRACKET_TYPE_LABELS[bt]}</span>
 		{#each (['neutral', 'required', 'excluded'] as const) as s}
-			<button
+			<Button
 				type="button"
-				onclick={() => setBracketState(bt, s)}
+				size="icon"
+				variant="ghost"
 				class="h-5 w-5 mx-auto rounded border text-xs font-bold flex items-center justify-center
 					{bracketFilter[bt] === s
 						? s === 'required'
-							? 'border-green-500 bg-green-950 text-green-400'
+							? 'border-green-500 bg-green-950 text-green-400 hover:bg-green-950'
 							: s === 'excluded'
-								? 'border-red-500 bg-red-950 text-red-400'
-								: 'border-indigo-500 bg-indigo-950 text-indigo-400'
+								? 'border-red-500 bg-red-950 text-red-400 hover:bg-red-950'
+								: 'border-indigo-500 bg-indigo-950 text-indigo-400 hover:bg-indigo-950'
 						: 'border-border bg-muted/30 text-transparent hover:text-muted-foreground'}"
+				onclick={() => setBracketState(bt, s)}
 			>
 				{s === 'neutral' ? '–' : s === 'required' ? '✓' : '✕'}
-			</button>
+			</Button>
 		{/each}
 	</div>
 {/snippet}
@@ -462,7 +465,7 @@
 					</div>
 					<div class="divide-y divide-border border-t border-border">
 						{#each tournament.events as event (event.id)}
-							<label class="flex cursor-pointer items-center justify-between px-4 py-2 hover:bg-accent/50">
+							<Label class="flex cursor-pointer items-center justify-between px-4 py-2 hover:bg-accent/50">
 								<div>
 									<span class="text-sm">{event.name}</span>
 									{#if event.num_entrants}
@@ -473,7 +476,7 @@
 									checked={event.included}
 									onCheckedChange={() => handleToggle(data.project.id, event)}
 								/>
-							</label>
+							</Label>
 						{/each}
 					</div>
 				</div>
