@@ -4,6 +4,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import * as Empty from '$lib/components/ui/empty';
+	import { winRate } from '$lib/utils';
 
 	let { data } = $props();
 
@@ -15,12 +16,6 @@
 		selectedSet = set;
 		selectedIsWin = isWin;
 		selectedPlayerName = playerName;
-	}
-
-	function winRate(wins: number, losses: number): string {
-		const total = wins + losses;
-		if (total === 0) return '0%';
-		return `${Math.round((wins / total) * 100)}%`;
 	}
 </script>
 
@@ -42,7 +37,7 @@
 					<div class="mb-2 flex items-baseline justify-between">
 						<span class="font-semibold">{player.name}</span>
 						<span class="text-xs text-muted-foreground">
-							W {player.wins.length} · L {player.losses.length} · {winRate(player.wins.length, player.losses.length)}
+							W {player.wins.length} · L {player.losses.length} · {winRate(player.wins.length, player.losses.length, '0%')}
 						</span>
 					</div>
 					<div class="flex gap-2">

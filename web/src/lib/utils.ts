@@ -24,6 +24,12 @@ export function toOrdinal(n: number): string {
 	return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
 }
 
+export function winRate(wins: number, losses: number, zeroValue = ''): string {
+	const total = wins + losses;
+	if (total === 0) return zeroValue;
+	return `${Math.round((wins / total) * 100)}%`;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type WithoutChild<T> = T extends { child?: any } ? Omit<T, "child"> : T;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
