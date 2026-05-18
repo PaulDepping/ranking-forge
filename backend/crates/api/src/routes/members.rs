@@ -309,6 +309,40 @@ mod tests {
     }
 
     #[sqlx::test(migrations = "../../migrations")]
+    async fn test_remove_member(pool: PgPool) {
+        let app = make_app(pool.clone());
+        let owner_cookie = register(&app, "rem_owner").await;
+        let _ = register(&app, "rem_user").await;
+        let proj_id = create_project(&app, &owner_cookie, "Remove Test").await;
+
+        // Add member via SQL
+        let user_id = sqlx::query_scalar!("SELECT id FROM users WHERE username = 'rem_user'")
+            .fetch_one(&pool).await.unwrap();
+        let proj_uuid: uuid::Uuid = proj_id.parse().unwrap();
+        sqlx::query!(
+            "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'editor')",
+            proj_uuid, user_id
+        ).execute(&pool).await.unwrap();
+
+        // Remove the member
+        let resp = app.clone().oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(&format!("/projects/{proj_id}/members/{user_id}"))
+                .header("cookie", &owner_cookie)
+                .body(Body::empty()).unwrap()
+        ).await.unwrap();
+        assert_eq!(resp.status(), 204);
+
+        // Verify removed from DB
+        let count = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM project_members WHERE project_id = $1 AND user_id = $2",
+            proj_uuid, user_id
+        ).fetch_one(&pool).await.unwrap();
+        assert_eq!(count, Some(0));
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
     async fn test_transfer_ownership(pool: PgPool) {
         let app = make_app(pool.clone());
         let old_owner_cookie = register(&app, "old_owner").await;
