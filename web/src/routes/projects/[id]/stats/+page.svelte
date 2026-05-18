@@ -50,7 +50,7 @@
 								{#each player.wins as set, i (i)}
 									<Button
 										variant="ghost"
-										class="h-auto w-full border-b border-border px-2 py-1 text-xs last:border-0 justify-start"
+										class="h-auto w-full border-b border-border px-2 py-1 text-xs last:border-0 justify-start whitespace-normal"
 										onclick={() => openModal(set, true, player.name)}
 									>
 										{set.opponent_name} · UF {set.upset_factor}
@@ -66,7 +66,7 @@
 								{#each player.losses as set, i (i)}
 									<Button
 										variant="ghost"
-										class="h-auto w-full border-b border-border px-2 py-1 text-xs last:border-0 justify-start"
+										class="h-auto w-full border-b border-border px-2 py-1 text-xs last:border-0 justify-start whitespace-normal"
 										onclick={() => openModal(set, false, player.name)}
 									>
 										{set.opponent_name} · UF {set.upset_factor}
