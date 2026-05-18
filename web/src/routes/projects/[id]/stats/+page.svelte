@@ -4,6 +4,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import { ScrollArea } from '$lib/components/ui/scroll-area';
 	import * as Empty from '$lib/components/ui/empty';
+	import { Button } from '$lib/components/ui/button';
 	import { winRate } from '$lib/utils';
 
 	let { data } = $props();
@@ -47,12 +48,13 @@
 							</p>
 							<ScrollArea class="h-24 rounded border border-border bg-muted/20">
 								{#each player.wins as set, i (i)}
-									<button
-										class="w-full border-b border-border px-2 py-1 text-left text-xs last:border-0 hover:bg-muted/50"
+									<Button
+										variant="ghost"
+										class="h-auto w-full border-b border-border px-2 py-1 text-xs last:border-0 justify-start"
 										onclick={() => openModal(set, true, player.name)}
 									>
-										<span>{set.opponent_name} · UF {set.upset_factor}</span>
-									</button>
+										{set.opponent_name} · UF {set.upset_factor}
+									</Button>
 								{/each}
 							</ScrollArea>
 						</div>
@@ -62,12 +64,13 @@
 							</p>
 							<ScrollArea class="h-24 rounded border border-border bg-muted/20">
 								{#each player.losses as set, i (i)}
-									<button
-										class="w-full border-b border-border px-2 py-1 text-left text-xs last:border-0 hover:bg-muted/50"
+									<Button
+										variant="ghost"
+										class="h-auto w-full border-b border-border px-2 py-1 text-xs last:border-0 justify-start"
 										onclick={() => openModal(set, false, player.name)}
 									>
-										<span>{set.opponent_name} · UF {set.upset_factor}</span>
-									</button>
+										{set.opponent_name} · UF {set.upset_factor}
+									</Button>
 								{/each}
 							</ScrollArea>
 						</div>
