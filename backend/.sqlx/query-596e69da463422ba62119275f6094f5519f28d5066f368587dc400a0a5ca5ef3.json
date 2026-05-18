@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name)\n         VALUES ($1, $2, 5002, 'Alice')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "596e69da463422ba62119275f6094f5519f28d5066f368587dc400a0a5ca5ef3"
+}

@@ -2465,3 +2465,88 @@ async fn player_stats_returns_losses_correctly(pool: PgPool) {
     assert_eq!(body["losses"].as_array().unwrap().len(), 1);
     assert_eq!(body["losses"][0]["opponent_name"], "Alice");
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn player_tournaments_returns_attendance_history(pool: PgPool) {
+    let app = make_app(pool.clone(), "");
+    let cookie = register(&app, "alice_pt", "password123").await;
+    let pid_str = create_project(&app, &cookie).await;
+    let pid = Uuid::parse_str(&pid_str).unwrap();
+
+    let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
+
+    // Tournament 1: included event, Alice placed 2nd
+    let t1_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO tournaments (startgg_id, name, handle, online, city, addr_state)
+         VALUES (9101, 'Genesis 9', 'tournament/genesis-9', false, 'San Jose', 'CA')
+         RETURNING id"
+    ).fetch_one(&pool).await.unwrap();
+
+    let e1_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO events (tournament_id, startgg_id, name, num_entrants, handle)
+         VALUES ($1, 8101, 'Melee Singles', 486, 'melee-singles')
+         RETURNING id", t1_id
+    ).fetch_one(&pool).await.unwrap();
+
+    sqlx::query!(
+        "INSERT INTO project_events (project_id, event_id, included) VALUES ($1, $2, true)",
+        pid, e1_id
+    ).execute(&pool).await.unwrap();
+
+    sqlx::query!(
+        "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name, final_placement)
+         VALUES ($1, $2, 5001, 'Alice', 2)",
+        e1_id, alice_id
+    ).execute(&pool).await.unwrap();
+
+    // Tournament 2: NOT linked to project, Alice attended — should still appear
+    let t2_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO tournaments (startgg_id, name, handle, online)
+         VALUES (9102, 'CEO 2024', 'tournament/ceo-2024', false)
+         RETURNING id"
+    ).fetch_one(&pool).await.unwrap();
+
+    let e2_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO events (tournament_id, startgg_id, name, handle)
+         VALUES ($1, 8102, 'Melee Singles', 'melee-singles-2')
+         RETURNING id", t2_id
+    ).fetch_one(&pool).await.unwrap();
+
+    sqlx::query!(
+        "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name)
+         VALUES ($1, $2, 5002, 'Alice')",
+        e2_id, alice_id
+    ).execute(&pool).await.unwrap();
+
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid}/players/{alice_id}/tournaments"),
+        &cookie,
+    ).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = read_json(resp).await;
+    let entries = body.as_array().unwrap();
+    assert_eq!(entries.len(), 2, "should include both in-project and out-of-project events");
+
+    let genesis = entries.iter().find(|e| e["tournament_name"] == "Genesis 9").unwrap();
+    assert_eq!(genesis["placement"], 2);
+    assert_eq!(genesis["num_entrants"], 486);
+    assert_eq!(genesis["location"], "San Jose, CA");
+    assert_eq!(genesis["event_name"], "Melee Singles");
+}
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn player_tournaments_returns_404_for_unknown_player(pool: PgPool) {
+    let app = make_app(pool.clone(), "");
+    let cookie = register(&app, "alice_pt2", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+    let fake_id = Uuid::new_v4();
+
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid}/players/{fake_id}/tournaments"),
+        &cookie,
+    ).await;
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}

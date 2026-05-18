@@ -689,6 +689,96 @@ pub async fn get_player_stats(
     }))
 }
 
+#[derive(Serialize)]
+pub struct TournamentAttendance {
+    pub tournament_name: String,
+    pub tournament_slug: String,
+    pub event_name: String,
+    pub placement: Option<i32>,
+    pub num_entrants: Option<i32>,
+    pub start_at: Option<DateTime<Utc>>,
+    pub location: Option<String>,
+}
+
+pub async fn get_player_tournaments(
+    State(state): State<AppState>,
+    OptionalAuthUser(user): OptionalAuthUser,
+    Path((project_id, player_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse> {
+    require_project_read_access(&state.db, project_id, user.map(|u| u.id)).await?;
+
+    let exists: Option<Uuid> = sqlx::query_scalar!(
+        "SELECT id FROM players WHERE id = $1 AND project_id = $2",
+        player_id,
+        project_id,
+    )
+    .fetch_optional(&state.db)
+    .await?;
+    if exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    struct Row {
+        tournament_name: String,
+        tournament_slug: String,
+        event_name: String,
+        placement: Option<i32>,
+        num_entrants: Option<i32>,
+        start_at: Option<DateTime<Utc>>,
+        online: bool,
+        city: Option<String>,
+        addr_state: Option<String>,
+        country_code: Option<String>,
+    }
+
+    let rows = sqlx::query_as!(
+        Row,
+        r#"
+        SELECT
+            t.name              AS tournament_name,
+            t.handle            AS tournament_slug,
+            e.name              AS event_name,
+            ent.final_placement AS "placement?: i32",
+            e.num_entrants      AS "num_entrants?: i32",
+            t.start_at,
+            t.online,
+            t.city,
+            t.addr_state,
+            t.country_code
+        FROM entrants ent
+        JOIN players pl ON pl.id = ent.player_id AND pl.project_id = $1
+        JOIN events e ON e.id = ent.event_id
+        JOIN tournaments t ON t.id = e.tournament_id
+        WHERE ent.player_id = $2
+        ORDER BY t.start_at DESC NULLS LAST
+        "#,
+        project_id,
+        player_id,
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let resp: Vec<TournamentAttendance> = rows
+        .into_iter()
+        .map(|r| TournamentAttendance {
+            tournament_name: r.tournament_name,
+            tournament_slug: r.tournament_slug,
+            event_name: r.event_name,
+            placement: r.placement,
+            num_entrants: r.num_entrants,
+            start_at: r.start_at,
+            location: compute_location(
+                r.online,
+                r.city.as_deref(),
+                r.addr_state.as_deref(),
+                r.country_code.as_deref(),
+            ),
+        })
+        .collect();
+
+    Ok(Json(resp))
+}
+
 pub async fn get_head_to_head(
     State(state): State<AppState>,
     OptionalAuthUser(user): OptionalAuthUser,

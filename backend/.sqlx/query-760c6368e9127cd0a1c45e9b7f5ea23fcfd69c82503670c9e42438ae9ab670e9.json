@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO tournaments (startgg_id, name, handle, online)\n         VALUES (9102, 'CEO 2024', 'tournament/ceo-2024', false)\n         RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "760c6368e9127cd0a1c45e9b7f5ea23fcfd69c82503670c9e42438ae9ab670e9"
+}

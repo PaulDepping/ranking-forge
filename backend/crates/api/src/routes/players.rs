@@ -14,6 +14,7 @@ use crate::{
     error::{AppError, Result},
     routes::auth::{AuthUser, OptionalAuthUser},
     routes::projects::{require_project_access, require_project_read_access},
+    routes::tournaments::get_player_tournaments,
     state::AppState,
 };
 use common::models::{Player, ProjectMemberRole, StartggAccount};
@@ -658,6 +659,7 @@ pub fn router() -> Router<AppState> {
         .route("/{pid}", delete(delete_player).patch(rename_player))
         .route("/{pid}/accounts", post(link_account))
         .route("/{pid}/accounts/{aid}", delete(unlink_account))
+        .route("/{pid}/tournaments", get(get_player_tournaments))
 }
 
 #[cfg(test)]
