@@ -19,6 +19,11 @@
 
 	let deleteDialogOpen = $state(false);
 	let deleteFormEl = $state<HTMLFormElement | null>(null);
+
+	let addMemberRole = $state<'editor' | 'viewer'>('editor');
+	let createLinkRole = $state<'editor' | 'viewer'>('editor');
+
+	const roleLabel = (r: 'editor' | 'viewer') => (r === 'editor' ? 'Editor' : 'Viewer');
 </script>
 
 <div class="max-w-lg space-y-8">
@@ -109,10 +114,8 @@
 				<Label for="member-username">Add by username</Label>
 				<Input id="member-username" name="username" placeholder="username" />
 			</div>
-			<Select.Root name="role">
-				<Select.Trigger class="w-32">
-					<Select.Value placeholder="Role" />
-				</Select.Trigger>
+			<Select.Root name="role" bind:value={addMemberRole}>
+				<Select.Trigger class="w-32">{roleLabel(addMemberRole)}</Select.Trigger>
 				<Select.Content>
 					<Select.Item value="editor">Editor</Select.Item>
 					<Select.Item value="viewer">Viewer</Select.Item>
@@ -159,10 +162,8 @@
 		{/each}
 
 		<form method="POST" action="?/createInviteLink" use:enhance class="flex gap-2 items-end">
-			<Select.Root name="role">
-				<Select.Trigger class="w-32">
-					<Select.Value placeholder="Role" />
-				</Select.Trigger>
+			<Select.Root name="role" bind:value={createLinkRole}>
+				<Select.Trigger class="w-32">{roleLabel(createLinkRole)}</Select.Trigger>
 				<Select.Content>
 					<Select.Item value="editor">Editor</Select.Item>
 					<Select.Item value="viewer">Viewer</Select.Item>

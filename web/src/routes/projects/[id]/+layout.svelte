@@ -16,10 +16,9 @@
 		{ label: 'Settings', href: 'settings', minRole: 'owner' as const }
 	];
 
-	const role = data.project.user_role;
-
 	const tabs = $derived(
 		allTabs.filter((t) => {
+			const role = data.project.user_role;
 			if (t.minRole === null) return true;
 			if (t.minRole === 'editor') return role === 'editor' || role === 'owner';
 			if (t.minRole === 'owner') return role === 'owner';
