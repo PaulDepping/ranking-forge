@@ -1,0 +1,57 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT pm.project_id, pm.user_id, u.username,\n                  pm.role as \"role: ProjectMemberRole\", pm.joined_at\n           FROM project_members pm\n           JOIN users u ON u.id = pm.user_id\n           WHERE pm.project_id = $1\n           ORDER BY pm.joined_at ASC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "project_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "username",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "role: ProjectMemberRole",
+        "type_info": {
+          "Custom": {
+            "name": "project_member_role",
+            "kind": {
+              "Enum": [
+                "owner",
+                "editor",
+                "viewer"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "joined_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "aff002002fa92a213d1b2025e3e09af4ad39f22e6a01ae673dd13b51a4cc536f"
+}
