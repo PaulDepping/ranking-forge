@@ -972,6 +972,7 @@ async fn import_requires_auth(pool: PgPool) {
     let cookie = register(&app, "alice", "password123").await;
     let pid = create_project(&app, &cookie).await;
 
+    // POST /import still requires auth (Editor role)
     let resp = app
         .clone()
         .oneshot(
@@ -985,6 +986,7 @@ async fn import_requires_auth(pool: PgPool) {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 
+    // GET /import: unauthenticated on a private project returns 404 (not 401)
     let resp = app
         .oneshot(
             Request::builder()
@@ -995,7 +997,7 @@ async fn import_requires_auth(pool: PgPool) {
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -1128,6 +1130,7 @@ async fn tournaments_list_requires_auth(pool: PgPool) {
     let cookie = register(&app, "alice", "password123").await;
     let pid = create_project(&app, &cookie).await;
 
+    // Unauthenticated request to a private project returns 404 (not 401)
     let resp = app
         .oneshot(
             Request::builder()
@@ -1138,7 +1141,7 @@ async fn tournaments_list_requires_auth(pool: PgPool) {
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -1315,6 +1318,7 @@ async fn stats_requires_auth(pool: PgPool) {
     let cookie = register(&app, "alice", "password123").await;
     let pid = create_project(&app, &cookie).await;
 
+    // Unauthenticated request to a private project returns 404 (not 401)
     let resp = app
         .oneshot(
             Request::builder()
@@ -1325,7 +1329,7 @@ async fn stats_requires_auth(pool: PgPool) {
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -1876,6 +1880,7 @@ async fn h2h_requires_auth(pool: PgPool) {
     let cookie = register(&app, "alice", "password123").await;
     let pid = create_project(&app, &cookie).await;
 
+    // Unauthenticated request to a private project returns 404 (not 401)
     let resp = app
         .oneshot(
             Request::builder()
@@ -1886,7 +1891,7 @@ async fn h2h_requires_auth(pool: PgPool) {
         )
         .await
         .unwrap();
-    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 #[sqlx::test(migrations = "../../migrations")]

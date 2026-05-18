@@ -492,6 +492,35 @@ mod tests {
     }
 
     #[sqlx::test(migrations = "../../migrations")]
+    async fn test_unauthenticated_can_read_stats_of_published_project(pool: PgPool) {
+        let app = make_app(pool.clone());
+        let cookie = register(&app, "owner_stats").await;
+        let proj_id = create_project(&app, &cookie, "Stats Project").await;
+
+        // Unpublished: unauthenticated stats returns 404
+        let resp = app.clone().oneshot(
+            Request::builder().method("GET").uri(&format!("/projects/{proj_id}/stats"))
+                .body(Body::empty()).unwrap()
+        ).await.unwrap();
+        assert_eq!(resp.status(), 404);
+
+        // Publish
+        app.clone().oneshot(
+            Request::builder().method("PATCH").uri(&format!("/projects/{proj_id}"))
+                .header("content-type", "application/json")
+                .header("cookie", &cookie)
+                .body(Body::from(serde_json::to_vec(&json!({"published": true})).unwrap())).unwrap()
+        ).await.unwrap();
+
+        // Published: unauthenticated stats returns 200 (empty, but 200)
+        let resp = app.clone().oneshot(
+            Request::builder().method("GET").uri(&format!("/projects/{proj_id}/stats"))
+                .body(Body::empty()).unwrap()
+        ).await.unwrap();
+        assert_eq!(resp.status(), 200);
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
     async fn test_only_owner_can_delete(pool: PgPool) {
         let app = make_app(pool.clone());
         let owner_cookie = register(&app, "owner6").await;

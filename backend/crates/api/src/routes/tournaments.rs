@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use crate::{
     error::{AppError, Result},
-    routes::auth::AuthUser,
-    routes::projects::require_project_access,
+    routes::auth::{AuthUser, OptionalAuthUser},
+    routes::projects::{require_project_access, require_project_read_access},
     state::AppState,
 };
 use common::models::ProjectMemberRole;
@@ -133,10 +133,10 @@ pub struct H2HSet {
 
 pub async fn list_tournaments(
     State(state): State<AppState>,
-    AuthUser(user): AuthUser,
+    OptionalAuthUser(user): OptionalAuthUser,
     Path(project_id): Path<Uuid>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Viewer).await?;
+    require_project_read_access(&state.db, project_id, user.map(|u| u.id)).await?;
 
     #[derive(Debug)]
     struct Row {
@@ -258,7 +258,7 @@ pub async fn patch_event(
     Path(path): Path<ProjectEventPath>,
     Json(body): Json<PatchEventBody>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, path.id, user.id, ProjectMemberRole::Viewer).await?;
+    require_project_access(&state.db, path.id, user.id, ProjectMemberRole::Editor).await?;
 
     // Verify the event belongs to this project.
     sqlx::query!(
@@ -334,10 +334,10 @@ pub async fn patch_event(
 
 pub async fn get_stats(
     State(state): State<AppState>,
-    AuthUser(user): AuthUser,
+    OptionalAuthUser(user): OptionalAuthUser,
     Path(project_id): Path<Uuid>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Viewer).await?;
+    require_project_read_access(&state.db, project_id, user.map(|u| u.id)).await?;
 
     struct PlayerRow {
         id: Uuid,
@@ -537,10 +537,10 @@ pub async fn get_stats(
 
 pub async fn get_head_to_head(
     State(state): State<AppState>,
-    AuthUser(user): AuthUser,
+    OptionalAuthUser(user): OptionalAuthUser,
     Path(project_id): Path<Uuid>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Viewer).await?;
+    require_project_read_access(&state.db, project_id, user.map(|u| u.id)).await?;
 
     struct H2HRow {
         winner_player_id: Uuid,
@@ -616,10 +616,10 @@ pub async fn get_head_to_head(
 
 pub async fn get_h2h_sets(
     State(state): State<AppState>,
-    AuthUser(user): AuthUser,
+    OptionalAuthUser(user): OptionalAuthUser,
     Path(path): Path<H2HSetPath>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, path.id, user.id, ProjectMemberRole::Viewer).await?;
+    require_project_read_access(&state.db, path.id, user.map(|u| u.id)).await?;
 
     struct H2HSetRow {
         winner_player_id: Uuid,

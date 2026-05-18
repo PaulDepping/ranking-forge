@@ -10,12 +10,11 @@ use uuid::Uuid;
 
 use crate::{
     error::{AppError, Result},
-    routes::auth::AuthUser,
-    routes::projects::require_project_access,
+    routes::auth::{AuthUser, OptionalAuthUser},
+    routes::projects::{require_project_access, require_project_read_access},
     state::AppState,
 };
-use common::models::ProjectMemberRole;
-use common::{jobs::ImportParams, models::Job};
+use common::{jobs::ImportParams, models::{Job, ProjectMemberRole}};
 
 #[derive(Serialize)]
 pub struct JobResponse {
@@ -61,7 +60,7 @@ pub async fn start_import(
     Path(project_id): Path<Uuid>,
     body: Option<Json<ImportRequest>>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Viewer).await?;
+    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Editor).await?;
     let req = body.map(|b| b.0).unwrap_or_default();
     let params = ImportParams {
         after_date: req.after_date.map(date_to_timestamp),
@@ -74,13 +73,12 @@ pub async fn start_import(
 
 pub async fn get_import_status(
     State(state): State<AppState>,
-    AuthUser(user): AuthUser,
+    OptionalAuthUser(user): OptionalAuthUser,
     Path(project_id): Path<Uuid>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Viewer).await?;
+    require_project_read_access(&state.db, project_id, user.map(|u| u.id)).await?;
     let job = common::jobs::latest_for_project(&state.db, project_id)
         .await?
         .ok_or(AppError::NotFound)?;
-    tracing::debug!(user_id = %user.id, %project_id, job_id = %job.id, status = %job.status, "import status queried");
     Ok(Json(JobResponse::from(job)))
 }
