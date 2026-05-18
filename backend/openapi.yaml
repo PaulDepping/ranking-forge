@@ -257,6 +257,30 @@ components:
           items:
             $ref: '#/components/schemas/SetRecord'
 
+    TournamentAttendance:
+      type: object
+      required: [tournament_name, tournament_slug, event_name]
+      properties:
+        tournament_name:
+          type: string
+        tournament_slug:
+          type: string
+        event_name:
+          type: string
+        placement:
+          type: integer
+          nullable: true
+        num_entrants:
+          type: integer
+          nullable: true
+        start_at:
+          type: string
+          format: date-time
+          nullable: true
+        location:
+          type: string
+          nullable: true
+
     HeadToHeadEntry:
       type: object
       required: [player_id, opponent_id, wins, losses]
@@ -719,6 +743,42 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /projects/{project_id}/players/{player_id}/tournaments:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: player_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: Get all tournament events a player has attended
+      description: >
+        Returns every event the player entered (via linked start.gg accounts),
+        not restricted to included events or events with tracked opponents.
+        Sorted by tournament start date descending.
+      tags: [Players]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TournamentAttendance'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /projects/{project_id}/players/bulk:
     parameters:
       - name: project_id
@@ -1048,6 +1108,39 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/PlayerStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/stats/{player_id}:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: player_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: Get stats for a single player
+      description: >
+        Same semantics as GET /projects/{project_id}/stats but scoped to one player.
+        Returns a single PlayerStats object rather than an array.
+      tags: [Stats]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerStats'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '404':
