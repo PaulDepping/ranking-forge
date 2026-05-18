@@ -8,8 +8,8 @@
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as Select from '$lib/components/ui/select';
-	import Calendar from '$lib/components/ui/calendar/calendar.svelte';
-	import { type CalendarDate, getLocalTimeZone } from '@internationalized/date';
+	import DateRangePicker from '$lib/components/DateRangePicker.svelte';
+	import type { DateRange } from 'bits-ui';
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import { makeApi } from '$lib/api';
 	import type { Tournament, TournamentEvent } from '$lib/types';
@@ -28,13 +28,9 @@
 	let venueFilter = $state<'all' | 'online' | 'offline'>('all');
 	let minEntrants = $state<number | null>(null);
 	let maxEntrants = $state<number | null>(null);
-	let dateFrom      = $state<CalendarDate | undefined>(undefined);
-	let dateTo        = $state<CalendarDate | undefined>(undefined);
-	let dateFromOpen  = $state(false);
-	let dateToOpen    = $state(false);
-
-	const dateFromStr = $derived(dateFrom?.toString() ?? '');
-	const dateToStr   = $derived(dateTo?.toString() ?? '');
+	let dateRange = $state<DateRange | undefined>(undefined);
+	const dateFromStr = $derived(dateRange?.start?.toString() ?? '');
+	const dateToStr   = $derived(dateRange?.end?.toString() ?? '');
 	let eventType   = $state<'all' | 'singles' | 'teams'>('all');
 
 	// Bracket type filter
@@ -110,8 +106,7 @@
 		venueFilter = 'all';
 		minEntrants = null;
 		maxEntrants = null;
-		dateFrom    = undefined;
-		dateTo      = undefined;
+		dateRange = undefined;
 		eventType   = 'all';
 		resetBracketFilter();
 	}
@@ -297,48 +292,11 @@
 							<span class="text-muted-foreground">–</span>
 							<Input type="number" min="0" placeholder="max" bind:value={maxEntrants} class="w-20" />
 						</div>
-						<div class="flex items-center gap-1.5">
-							<span class="text-xs text-muted-foreground">From</span>
-							<Popover.Root bind:open={dateFromOpen}>
-								<Popover.Trigger>
-									{#snippet child({ props })}
-										<Button {...props} variant="outline" size="sm" class="w-32 justify-start font-normal">
-											{dateFrom
-												? formatDate(dateFrom.toDate(getLocalTimeZone()))
-												: 'Pick date'}
-										</Button>
-									{/snippet}
-								</Popover.Trigger>
-								<Popover.Content class="w-auto overflow-hidden p-0" align="start">
-									<Calendar
-										type="single"
-										bind:value={dateFrom}
-										captionLayout="dropdown"
-										onValueChange={() => { dateFromOpen = false; }}
-									/>
-								</Popover.Content>
-							</Popover.Root>
-							<span class="text-xs text-muted-foreground">To</span>
-							<Popover.Root bind:open={dateToOpen}>
-								<Popover.Trigger>
-									{#snippet child({ props })}
-										<Button {...props} variant="outline" size="sm" class="w-32 justify-start font-normal">
-											{dateTo
-												? formatDate(dateTo.toDate(getLocalTimeZone()))
-												: 'Pick date'}
-										</Button>
-									{/snippet}
-								</Popover.Trigger>
-								<Popover.Content class="w-auto overflow-hidden p-0" align="start">
-									<Calendar
-										type="single"
-										bind:value={dateTo}
-										captionLayout="dropdown"
-										onValueChange={() => { dateToOpen = false; }}
-									/>
-								</Popover.Content>
-							</Popover.Root>
-						</div>
+						<DateRangePicker
+							value={dateRange}
+							onSelect={(r) => { dateRange = r; }}
+							placeholder="All time"
+						/>
 					</div>
 
 					<!-- Row 3: event type + bracket filter -->

@@ -4,25 +4,19 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Alert } from '$lib/components/ui/alert';
-	import { Label } from '$lib/components/ui/label';
 	import * as Card from '$lib/components/ui/card';
-	import * as Popover from '$lib/components/ui/popover';
-	import Calendar from '$lib/components/ui/calendar/calendar.svelte';
-	import { type CalendarDate, getLocalTimeZone } from '@internationalized/date';
+	import DateRangePicker from '$lib/components/DateRangePicker.svelte';
+	import type { DateRange } from 'bits-ui';
 	import { PUBLIC_API_URL } from '$env/static/public';
 	import { makeApi } from '$lib/api';
 	import type { Job } from '$lib/types';
-	import { formatDate, formatDateTime } from '$lib/utils';
+	import { formatDateTime } from '$lib/utils';
 
 	let { data, form } = $props();
 
-	let afterDate     = $state<CalendarDate | undefined>(undefined);
-	let beforeDate    = $state<CalendarDate | undefined>(undefined);
-	let afterDateOpen = $state(false);
-	let beforeDateOpen = $state(false);
-
-	const afterDateStr  = $derived(afterDate?.toString() ?? '');
-	const beforeDateStr = $derived(beforeDate?.toString() ?? '');
+	let dateRange = $state<DateRange | undefined>(undefined);
+	const afterDateStr  = $derived(dateRange?.start?.toString() ?? '');
+	const beforeDateStr = $derived(dateRange?.end?.toString() ?? '');
 
 	// Local state so we can update after polling; synced when server data changes
 	let job = $state<Job | null>(untrack(() => data.job ?? null));
@@ -112,52 +106,11 @@
 	>
 		<input type="hidden" name="after_date" value={afterDateStr} />
 		<input type="hidden" name="before_date" value={beforeDateStr} />
-		<div class="grid grid-cols-2 gap-4">
-			<div class="space-y-1">
-				<Label>From date</Label>
-				<Popover.Root bind:open={afterDateOpen}>
-					<Popover.Trigger>
-						{#snippet child({ props })}
-							<Button {...props} variant="outline" class="w-full justify-start font-normal">
-								{afterDate
-									? formatDate(afterDate.toDate(getLocalTimeZone()))
-									: 'Pick date'}
-							</Button>
-						{/snippet}
-					</Popover.Trigger>
-					<Popover.Content class="w-auto overflow-hidden p-0" align="start">
-						<Calendar
-							type="single"
-							bind:value={afterDate}
-							captionLayout="dropdown"
-							onValueChange={() => { afterDateOpen = false; }}
-						/>
-					</Popover.Content>
-				</Popover.Root>
-			</div>
-			<div class="space-y-1">
-				<Label>To date</Label>
-				<Popover.Root bind:open={beforeDateOpen}>
-					<Popover.Trigger>
-						{#snippet child({ props })}
-							<Button {...props} variant="outline" class="w-full justify-start font-normal">
-								{beforeDate
-									? formatDate(beforeDate.toDate(getLocalTimeZone()))
-									: 'Pick date'}
-							</Button>
-						{/snippet}
-					</Popover.Trigger>
-					<Popover.Content class="w-auto overflow-hidden p-0" align="start">
-						<Calendar
-							type="single"
-							bind:value={beforeDate}
-							captionLayout="dropdown"
-							onValueChange={() => { beforeDateOpen = false; }}
-						/>
-					</Popover.Content>
-				</Popover.Root>
-			</div>
-		</div>
+		<DateRangePicker
+			value={dateRange}
+			onSelect={(r) => { dateRange = r; }}
+			placeholder="All time"
+		/>
 		<p class="text-xs text-muted-foreground">Leave blank to import all tournaments.</p>
 		<Button type="submit">
 			{job ? 'Re-import' : 'Start import'}
