@@ -14,6 +14,16 @@ const MOCK_PROJECTS = [
 	}
 ];
 
+const MOCK_VIEWER_PROJECT = {
+	id: 'proj-viewer',
+	name: 'SSBM Power Ranking',
+	game_id: 1,
+	game_name: 'Super Smash Bros. Melee',
+	created_at: '2026-01-01T00:00:00Z',
+	published: true,
+	user_role: 'viewer'
+};
+
 const MOCK_PLAYERS = [
 	{ id: 'player-1', project_id: 'proj-1', name: 'Alice', rank_position: 1, created_at: '2026-01-01T00:00:00Z', accounts: [] },
 	{ id: 'player-2', project_id: 'proj-1', name: 'Bob', rank_position: 2, created_at: '2026-01-01T00:00:00Z', accounts: [] },
@@ -233,7 +243,12 @@ function createMockServer() {
 
 		const projectMatch = path.match(/^\/projects\/([^/]+)$/);
 		if (projectMatch && req.method === 'GET') {
-			respond(res, 200, MOCK_PROJECTS[0]);
+			const projectId = projectMatch[1];
+			if (projectId === 'proj-viewer' || projectId === 'proj-viewer-tournaments') {
+				respond(res, 200, { ...MOCK_VIEWER_PROJECT, id: projectId });
+			} else {
+				respond(res, 200, MOCK_PROJECTS[0]);
+			}
 			return;
 		}
 
@@ -318,7 +333,8 @@ function createMockServer() {
 		const tournamentsMatch = path.match(/^\/projects\/([^/]+)\/tournaments$/);
 		if (tournamentsMatch && req.method === 'GET') {
 			const projectId = tournamentsMatch[1];
-			respond(res, 200, projectId === 'proj-tournaments' ? MOCK_TOURNAMENTS : []);
+			const hasTournaments = projectId === 'proj-tournaments' || projectId === 'proj-viewer-tournaments';
+			respond(res, 200, hasTournaments ? MOCK_TOURNAMENTS : []);
 			return;
 		}
 
