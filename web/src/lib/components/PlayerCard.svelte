@@ -3,6 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import AccountBadge from '$lib/components/AccountBadge.svelte';
 	import type { Player } from '$lib/types';
 
@@ -19,6 +20,9 @@
 	$effect(() => {
 		if (isEditing) editingName = player.name;
 	});
+
+	let deleteDialogOpen = $state(false);
+	let deleteFormEl = $state<HTMLFormElement | null>(null);
 </script>
 
 <div class="rounded-md border border-border p-3">
@@ -71,19 +75,34 @@
 			</div>
 			<div class="flex gap-1">
 				<Button type="button" variant="ghost" size="sm" onclick={onEdit}>Edit</Button>
-				<form method="POST" action="?/deletePlayer" use:enhance>
+				<form method="POST" action="?/deletePlayer" use:enhance bind:this={deleteFormEl}>
 					<input type="hidden" name="pid" value={player.id} />
 					<Button
-						type="submit"
+						type="button"
 						variant="ghost"
 						size="sm"
 						class="text-destructive hover:text-destructive"
-						onclick={(e: MouseEvent) => {
-							if (!confirm(`Remove ${player.name}?`)) e.preventDefault();
-						}}
+						onclick={() => { deleteDialogOpen = true; }}
 					>Remove</Button>
 				</form>
 			</div>
 		</div>
+		<AlertDialog.Root bind:open={deleteDialogOpen}>
+			<AlertDialog.Content>
+				<AlertDialog.Header>
+					<AlertDialog.Title>Remove {player.name}?</AlertDialog.Title>
+					<AlertDialog.Description>
+						This will permanently remove the player and all their stats from this project.
+					</AlertDialog.Description>
+				</AlertDialog.Header>
+				<AlertDialog.Footer>
+					<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+					<AlertDialog.Action
+						class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+						onclick={() => deleteFormEl?.requestSubmit()}
+					>Remove</AlertDialog.Action>
+				</AlertDialog.Footer>
+			</AlertDialog.Content>
+		</AlertDialog.Root>
 	{/if}
 </div>
