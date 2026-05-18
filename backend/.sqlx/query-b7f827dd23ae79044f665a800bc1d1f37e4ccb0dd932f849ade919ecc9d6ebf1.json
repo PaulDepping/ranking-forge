@@ -1,0 +1,69 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.id, p.name, p.game_id, p.game_name, p.published, p.created_at,\n                  pm.role as \"role: ProjectMemberRole\"\n           FROM ranking_projects p\n           JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1\n           ORDER BY p.created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "game_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "game_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "published",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "role: ProjectMemberRole",
+        "type_info": {
+          "Custom": {
+            "name": "project_member_role",
+            "kind": {
+              "Enum": [
+                "owner",
+                "editor",
+                "viewer"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b7f827dd23ae79044f665a800bc1d1f37e4ccb0dd932f849ade919ecc9d6ebf1"
+}

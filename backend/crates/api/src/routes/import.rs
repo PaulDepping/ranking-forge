@@ -11,9 +11,10 @@ use uuid::Uuid;
 use crate::{
     error::{AppError, Result},
     routes::auth::AuthUser,
-    routes::projects::require_project,
+    routes::projects::require_project_access,
     state::AppState,
 };
+use common::models::ProjectMemberRole;
 use common::{jobs::ImportParams, models::Job};
 
 #[derive(Serialize)]
@@ -60,7 +61,7 @@ pub async fn start_import(
     Path(project_id): Path<Uuid>,
     body: Option<Json<ImportRequest>>,
 ) -> Result<impl IntoResponse> {
-    require_project(&state.db, project_id, user.id).await?;
+    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Viewer).await?;
     let req = body.map(|b| b.0).unwrap_or_default();
     let params = ImportParams {
         after_date: req.after_date.map(date_to_timestamp),
@@ -76,7 +77,7 @@ pub async fn get_import_status(
     AuthUser(user): AuthUser,
     Path(project_id): Path<Uuid>,
 ) -> Result<impl IntoResponse> {
-    require_project(&state.db, project_id, user.id).await?;
+    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Viewer).await?;
     let job = common::jobs::latest_for_project(&state.db, project_id)
         .await?
         .ok_or(AppError::NotFound)?;

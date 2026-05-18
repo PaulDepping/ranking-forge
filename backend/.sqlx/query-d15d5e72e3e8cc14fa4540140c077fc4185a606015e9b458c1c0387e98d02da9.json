@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE ranking_projects SET name = $1 WHERE id = $2 AND user_id = $3\n         RETURNING id, user_id, name, game_id, game_name, created_at",
+  "query": "SELECT id, name, game_id, game_name, published, created_at\n         FROM ranking_projects WHERE id = $1",
   "describe": {
     "columns": [
       {
@@ -10,23 +10,23 @@
       },
       {
         "ordinal": 1,
-        "name": "user_id",
-        "type_info": "Uuid"
-      },
-      {
-        "ordinal": 2,
         "name": "name",
         "type_info": "Text"
       },
       {
-        "ordinal": 3,
+        "ordinal": 2,
         "name": "game_id",
         "type_info": "Int8"
       },
       {
-        "ordinal": 4,
+        "ordinal": 3,
         "name": "game_name",
         "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "published",
+        "type_info": "Bool"
       },
       {
         "ordinal": 5,
@@ -36,19 +36,17 @@
     ],
     "parameters": {
       "Left": [
-        "Text",
-        "Uuid",
         "Uuid"
       ]
     },
     "nullable": [
       false,
       false,
+      true,
+      true,
       false,
-      true,
-      true,
       false
     ]
   },
-  "hash": "a8fef36cdc75d06b9c874b253219fccefcbda050ebfe91726dfe0434eb028f7a"
+  "hash": "d15d5e72e3e8cc14fa4540140c077fc4185a606015e9b458c1c0387e98d02da9"
 }

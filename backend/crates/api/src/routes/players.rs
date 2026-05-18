@@ -13,10 +13,10 @@ use uuid::Uuid;
 use crate::{
     error::{AppError, Result},
     routes::auth::AuthUser,
-    routes::projects::require_project,
+    routes::projects::require_project_access,
     state::AppState,
 };
-use common::models::{Player, StartggAccount};
+use common::models::{Player, ProjectMemberRole, StartggAccount};
 
 // ── Request / response types ──────────────────────────────────────────────────
 
@@ -92,7 +92,7 @@ async fn list_players(
     AuthUser(user): AuthUser,
     Path(project_id): Path<Uuid>,
 ) -> Result<impl IntoResponse> {
-    require_project(&state.db, project_id, user.id).await?;
+    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Viewer).await?;
 
     let players = sqlx::query_as!(
         Player,
@@ -146,7 +146,7 @@ async fn add_player(
     Path(project_id): Path<Uuid>,
     Json(body): Json<CreatePlayerRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project(&state.db, project_id, user.id).await?;
+    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Viewer).await?;
 
     if body.name.trim().is_empty() {
         return Err(AppError::UnprocessableEntity(
@@ -176,7 +176,7 @@ async fn delete_player(
     AuthUser(user): AuthUser,
     Path(path): Path<ProjectPlayerPath>,
 ) -> Result<impl IntoResponse> {
-    require_project(&state.db, path.id, user.id).await?;
+    require_project_access(&state.db, path.id, user.id, ProjectMemberRole::Viewer).await?;
 
     let result = sqlx::query!(
         "DELETE FROM players WHERE id = $1 AND project_id = $2",
@@ -199,7 +199,7 @@ async fn link_account(
     Path(path): Path<ProjectPlayerPath>,
     Json(body): Json<LinkAccountRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project(&state.db, path.id, user.id).await?;
+    require_project_access(&state.db, path.id, user.id, ProjectMemberRole::Viewer).await?;
 
     sqlx::query!(
         "SELECT id FROM players WHERE id = $1 AND project_id = $2",
@@ -247,7 +247,7 @@ async fn unlink_account(
     AuthUser(user): AuthUser,
     Path(path): Path<ProjectPlayerAccountPath>,
 ) -> Result<impl IntoResponse> {
-    require_project(&state.db, path.id, user.id).await?;
+    require_project_access(&state.db, path.id, user.id, ProjectMemberRole::Viewer).await?;
 
     let result = sqlx::query!(
         "DELETE FROM startgg_accounts
@@ -332,7 +332,7 @@ pub async fn bulk_add_players(
     Path(id): Path<Uuid>,
     Json(body): Json<BulkAddRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project(&state.db, id, user.id).await?;
+    require_project_access(&state.db, id, user.id, ProjectMemberRole::Viewer).await?;
 
     let mut results = Vec::new();
 
@@ -384,7 +384,7 @@ pub async fn add_players_by_handles(
     Path(id): Path<Uuid>,
     Json(body): Json<ByHandlesRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project(&state.db, id, user.id).await?;
+    require_project_access(&state.db, id, user.id, ProjectMemberRole::Viewer).await?;
 
     let mut results = Vec::new();
 
@@ -484,7 +484,7 @@ pub async fn list_tournament_entrants(
     Path(id): Path<Uuid>,
     Query(q): Query<TournamentEntrantsQuery>,
 ) -> Result<impl IntoResponse> {
-    require_project(&state.db, id, user.id).await?;
+    require_project_access(&state.db, id, user.id, ProjectMemberRole::Viewer).await?;
 
     let handle = normalize_tournament_handle(&q.tournament);
 
@@ -548,7 +548,7 @@ async fn rename_player(
         return Err(AppError::UnprocessableEntity("name cannot be empty".into()));
     }
 
-    require_project(&state.db, path.id, user.id).await?;
+    require_project_access(&state.db, path.id, user.id, ProjectMemberRole::Viewer).await?;
 
     let player = sqlx::query_as!(
         Player,
@@ -599,7 +599,7 @@ pub async fn reorder_players(
     Path(project_id): Path<Uuid>,
     Json(body): Json<ReorderRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project(&state.db, project_id, user.id).await?;
+    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Viewer).await?;
 
     let existing_ids: Vec<Uuid> = sqlx::query_scalar!(
         "SELECT id FROM players WHERE project_id = $1",

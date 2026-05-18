@@ -1,0 +1,33 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT role as \"role: String\" FROM project_members WHERE project_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "role: String",
+        "type_info": {
+          "Custom": {
+            "name": "project_member_role",
+            "kind": {
+              "Enum": [
+                "owner",
+                "editor",
+                "viewer"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "df0f34ae9fc4829bbc8272864dad852e7da8598458ede871dfacf0bcebb3f241"
+}

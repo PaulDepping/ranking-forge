@@ -136,13 +136,23 @@ mod tests {
         .await
         .unwrap();
 
-        sqlx::query_scalar!(
-            "INSERT INTO ranking_projects (user_id, name) VALUES ($1, 'Test') RETURNING id",
-            user_id
+        let project_id: Uuid = sqlx::query_scalar!(
+            "INSERT INTO ranking_projects (name) VALUES ('Test') RETURNING id"
         )
         .fetch_one(pool)
         .await
-        .unwrap()
+        .unwrap();
+
+        sqlx::query!(
+            "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'owner')",
+            project_id,
+            user_id,
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+
+        project_id
     }
 
     #[sqlx::test(migrations = "../../migrations")]

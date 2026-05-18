@@ -1,12 +1,13 @@
 pub mod auth;
 pub mod games;
 pub mod import;
+pub mod invite_links;
+pub mod members;
 pub mod players;
 pub mod projects;
 pub mod tournaments;
 
 use axum::{Router, routing::get};
-
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {

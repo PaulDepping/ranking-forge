@@ -11,9 +11,10 @@ use uuid::Uuid;
 use crate::{
     error::{AppError, Result},
     routes::auth::AuthUser,
-    routes::projects::require_project,
+    routes::projects::require_project_access,
     state::AppState,
 };
+use common::models::ProjectMemberRole;
 use common::upset::set_upset_factor;
 
 // ── Response types ────────────────────────────────────────────────────────────
@@ -135,7 +136,7 @@ pub async fn list_tournaments(
     AuthUser(user): AuthUser,
     Path(project_id): Path<Uuid>,
 ) -> Result<impl IntoResponse> {
-    require_project(&state.db, project_id, user.id).await?;
+    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Viewer).await?;
 
     #[derive(Debug)]
     struct Row {
@@ -257,7 +258,7 @@ pub async fn patch_event(
     Path(path): Path<ProjectEventPath>,
     Json(body): Json<PatchEventBody>,
 ) -> Result<impl IntoResponse> {
-    require_project(&state.db, path.id, user.id).await?;
+    require_project_access(&state.db, path.id, user.id, ProjectMemberRole::Viewer).await?;
 
     // Verify the event belongs to this project.
     sqlx::query!(
@@ -336,7 +337,7 @@ pub async fn get_stats(
     AuthUser(user): AuthUser,
     Path(project_id): Path<Uuid>,
 ) -> Result<impl IntoResponse> {
-    require_project(&state.db, project_id, user.id).await?;
+    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Viewer).await?;
 
     struct PlayerRow {
         id: Uuid,
@@ -539,7 +540,7 @@ pub async fn get_head_to_head(
     AuthUser(user): AuthUser,
     Path(project_id): Path<Uuid>,
 ) -> Result<impl IntoResponse> {
-    require_project(&state.db, project_id, user.id).await?;
+    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Viewer).await?;
 
     struct H2HRow {
         winner_player_id: Uuid,
@@ -618,7 +619,7 @@ pub async fn get_h2h_sets(
     AuthUser(user): AuthUser,
     Path(path): Path<H2HSetPath>,
 ) -> Result<impl IntoResponse> {
-    require_project(&state.db, path.id, user.id).await?;
+    require_project_access(&state.db, path.id, user.id, ProjectMemberRole::Viewer).await?;
 
     struct H2HSetRow {
         winner_player_id: Uuid,
