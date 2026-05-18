@@ -8,7 +8,9 @@ const MOCK_PROJECTS = [
 		name: 'SSBM Power Ranking',
 		game_id: 1,
 		game_name: 'Super Smash Bros. Melee',
-		created_at: '2026-01-01T00:00:00Z'
+		created_at: '2026-01-01T00:00:00Z',
+		published: false,
+		user_role: 'owner'
 	}
 ];
 
@@ -88,6 +90,12 @@ const MOCK_H2H = [
 	{ player_id: 'player-2', opponent_id: 'player-3', wins: 2, losses: 1 },
 	{ player_id: 'player-3', opponent_id: 'player-2', wins: 1, losses: 2 }
 ];
+
+const MOCK_MEMBERS = [
+	{ project_id: 'proj-1', user_id: 'user-1', username: 'testuser', role: 'owner', joined_at: '2026-01-01T00:00:00Z' }
+];
+
+const MOCK_INVITE_LINKS = [];
 
 const MOCK_SET_BASE = {
 	winner_score: 3, loser_score: 1,
@@ -331,6 +339,46 @@ function createMockServer() {
 			respond(res, 200, [
 				{ ...MOCK_SET_BASE, opponent_id: h2hSetsMatch[3], opponent_name: 'Bob', upset_factor: 2, is_win: true },
 			]);
+			return;
+		}
+
+		const membersMatch = path.match(/^\/projects\/([^/]+)\/members$/);
+		if (membersMatch) {
+			if (req.method === 'GET') { respond(res, 200, MOCK_MEMBERS); return; }
+			if (req.method === 'POST') { respond(res, 204, null); return; }
+		}
+
+		const transferMatch = path.match(/^\/projects\/([^/]+)\/members\/transfer-ownership$/);
+		if (transferMatch && req.method === 'POST') {
+			respond(res, 204, null);
+			return;
+		}
+
+		const memberMatch = path.match(/^\/projects\/([^/]+)\/members\/([^/]+)$/);
+		if (memberMatch) {
+			if (req.method === 'PATCH') { respond(res, 204, null); return; }
+			if (req.method === 'DELETE') { respond(res, 204, null); return; }
+		}
+
+		const inviteLinksMatch = path.match(/^\/projects\/([^/]+)\/invite-links$/);
+		if (inviteLinksMatch) {
+			if (req.method === 'GET') { respond(res, 200, MOCK_INVITE_LINKS); return; }
+			if (req.method === 'POST') {
+				const body = await readBody(req);
+				respond(res, 201, { id: 'link-new', project_id: inviteLinksMatch[1], role: body?.role ?? 'editor', created_by: 'user-1', expires_at: body?.expires_at ?? null, revoked_at: null, created_at: new Date().toISOString() });
+				return;
+			}
+		}
+
+		const inviteLinkMatch = path.match(/^\/projects\/([^/]+)\/invite-links\/([^/]+)$/);
+		if (inviteLinkMatch && req.method === 'DELETE') {
+			respond(res, 204, null);
+			return;
+		}
+
+		const inviteAcceptMatch = path.match(/^\/invite\/([^/]+)\/accept$/);
+		if (inviteAcceptMatch && req.method === 'POST') {
+			respond(res, 200, { project_id: 'proj-1' });
 			return;
 		}
 
