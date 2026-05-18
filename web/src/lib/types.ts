@@ -10,6 +10,8 @@ export interface Project {
 	game_id: number | null;
 	game_name: string | null;
 	created_at: string;
+	published: boolean;
+	user_role: 'owner' | 'editor' | 'viewer' | null;
 }
 
 export interface Account {
@@ -149,4 +151,26 @@ export interface Game {
 	id: number;
 	name: string;
 	display_name: string | null;
+}
+
+export interface ProjectMember {
+	project_id: string;
+	user_id: string;
+	username: string;
+	role: 'owner' | 'editor' | 'viewer';
+	joined_at: string;
+}
+
+export interface InviteLink {
+	id: string;
+	project_id: string;
+	role: 'editor' | 'viewer';
+	created_by: string;
+	expires_at: string | null;
+	revoked_at: string | null;
+	created_at: string;
+}
+
+export interface AcceptInviteResponse {
+	project_id: string;
 }

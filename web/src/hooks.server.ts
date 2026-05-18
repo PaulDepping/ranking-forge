@@ -13,8 +13,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 		event.locals.user = await res.json();
 	} else {
 		event.locals.user = null;
-		const publicRoutes = ['/login', '/register'];
-		if (!publicRoutes.includes(pathname)) {
+		const isPublic =
+			['/login', '/register'].includes(pathname) ||
+			/^\/projects\/[^/]/.test(pathname) ||
+			/^\/invite\//.test(pathname);
+		if (!isPublic) {
 			redirect(303, '/login');
 		}
 	}
