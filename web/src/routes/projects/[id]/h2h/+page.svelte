@@ -121,10 +121,11 @@
 										{@const rec = getRecord(row.id, col.id)}
 										<Table.Cell class="px-2 py-1 text-center tabular-nums">
 											{#if rec}
-												<button
-													class="rounded px-1
+												<Button
+													variant="ghost"
+													class="h-auto rounded px-1 py-0
 														{isSelected(row.id, col.id)
-															? 'ring-2 ring-primary bg-primary/10'
+															? 'ring-2 ring-primary bg-primary/10 hover:bg-primary/10'
 															: rec.wins > rec.losses
 																? 'bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400'
 																: rec.wins < rec.losses
@@ -133,7 +134,7 @@
 													onclick={() => selectCell(row, col)}
 												>
 													{rec.wins}–{rec.losses}
-												</button>
+												</Button>
 											{:else}
 												<span class="text-muted-foreground">—</span>
 											{/if}
@@ -178,8 +179,9 @@
 						{:else}
 							<div class="space-y-px">
 								{#each selectedPair.sets as set, i (i)}
-									<button
-										class="w-full flex items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-muted/50 border-b border-border last:border-0"
+									<Button
+										variant="ghost"
+										class="h-auto w-full flex items-center gap-2 rounded px-2 py-1.5 text-xs border-b border-border last:border-0 justify-start"
 										onclick={() => { selectedSet = set; selectedIsWin = set.is_win; }}
 									>
 										<span class={set.is_win ? 'font-bold text-green-600 dark:text-green-400 min-w-[12px]' : 'font-bold text-red-600 dark:text-red-400 min-w-[12px]'}>
@@ -194,7 +196,7 @@
 										{#if set.round_name}
 											<span class="text-muted-foreground shrink-0">{set.round_name}</span>
 										{/if}
-									</button>
+									</Button>
 								{/each}
 							</div>
 						{/if}
