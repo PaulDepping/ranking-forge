@@ -2438,3 +2438,30 @@ async fn player_stats_returns_404_for_unknown_player(pool: PgPool) {
     let resp = get_req(&app, &format!("/projects/{pid}/stats/{fake_id}"), &cookie).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn player_stats_returns_losses_correctly(pool: PgPool) {
+    let app = make_app(pool.clone(), "");
+    let cookie = register(&app, "bob_ps", "password123").await;
+    let pid_str = create_project(&app, &cookie).await;
+    let pid = Uuid::parse_str(&pid_str).unwrap();
+
+    let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
+    let bob_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
+
+    let (_, event_id) = seed_tournament_event(&pool, pid, 7002, 8002).await;
+    let alice_e = seed_entrant(&pool, event_id, Some(alice_id), 311, Some(1)).await;
+    let bob_e = seed_entrant(&pool, event_id, Some(bob_id), 312, Some(2)).await;
+
+    // Alice beats Bob — Bob's perspective should be 0 wins, 1 loss
+    seed_set(&pool, event_id, alice_e, bob_e, 411).await;
+
+    let resp = get_req(&app, &format!("/projects/{pid}/stats/{bob_id}"), &cookie).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = read_json(resp).await;
+    assert_eq!(body["player_id"], bob_id.to_string());
+    assert_eq!(body["wins"].as_array().unwrap().len(), 0);
+    assert_eq!(body["losses"].as_array().unwrap().len(), 1);
+    assert_eq!(body["losses"][0]["opponent_name"], "Alice");
+}

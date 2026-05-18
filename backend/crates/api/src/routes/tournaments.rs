@@ -129,6 +129,39 @@ pub struct H2HSet {
     pub is_win: bool,
 }
 
+// ── Shared query row type ─────────────────────────────────────────────────────
+
+struct SetRow {
+    winner_player_id: Option<Uuid>,
+    winner_name: String,
+    winner_seed: Option<i32>,
+    winner_entrant_id: Uuid,
+    loser_player_id: Option<Uuid>,
+    loser_name: String,
+    loser_seed: Option<i32>,
+    loser_entrant_id: Uuid,
+    winner_score: Option<i16>,
+    loser_score: Option<i16>,
+    event_name: String,
+    tournament_name: String,
+    tournament_handle: String,
+    round_name: Option<String>,
+    completed_at: Option<DateTime<Utc>>,
+    is_dq: bool,
+    vod_url: Option<String>,
+    startgg_set_id: i64,
+    phase_name: Option<String>,
+    pool_identifier: Option<String>,
+    winner_placement: Option<i32>,
+    loser_placement: Option<i32>,
+    num_entrants: Option<i32>,
+    online: bool,
+    city: Option<String>,
+    addr_state: Option<String>,
+    country_code: Option<String>,
+    event_handle: Option<String>,
+}
+
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
 pub async fn list_tournaments(
@@ -352,37 +385,6 @@ pub async fn get_stats(
     .fetch_all(&state.db)
     .await?;
 
-    struct SetRow {
-        winner_player_id: Option<Uuid>,
-        winner_name: String,
-        winner_seed: Option<i32>,
-        winner_entrant_id: Uuid,
-        loser_player_id: Option<Uuid>,
-        loser_name: String,
-        loser_seed: Option<i32>,
-        loser_entrant_id: Uuid,
-        winner_score: Option<i16>,
-        loser_score: Option<i16>,
-        event_name: String,
-        tournament_name: String,
-        tournament_handle: String,
-        round_name: Option<String>,
-        completed_at: Option<DateTime<Utc>>,
-        is_dq: bool,
-        vod_url: Option<String>,
-        startgg_set_id: i64,
-        phase_name: Option<String>,
-        pool_identifier: Option<String>,
-        winner_placement: Option<i32>,
-        loser_placement: Option<i32>,
-        num_entrants: Option<i32>,
-        online: bool,
-        city: Option<String>,
-        addr_state: Option<String>,
-        country_code: Option<String>,
-        event_handle: Option<String>,
-    }
-
     let sets = sqlx::query_as!(
         SetRow,
         r#"
@@ -550,37 +552,6 @@ pub async fn get_player_stats(
     .fetch_optional(&state.db)
     .await?;
     let name = name.ok_or(AppError::NotFound)?;
-
-    struct SetRow {
-        winner_player_id: Option<Uuid>,
-        winner_name: String,
-        winner_seed: Option<i32>,
-        winner_entrant_id: Uuid,
-        loser_player_id: Option<Uuid>,
-        loser_name: String,
-        loser_seed: Option<i32>,
-        loser_entrant_id: Uuid,
-        winner_score: Option<i16>,
-        loser_score: Option<i16>,
-        event_name: String,
-        tournament_name: String,
-        tournament_handle: String,
-        round_name: Option<String>,
-        completed_at: Option<DateTime<Utc>>,
-        is_dq: bool,
-        vod_url: Option<String>,
-        startgg_set_id: i64,
-        phase_name: Option<String>,
-        pool_identifier: Option<String>,
-        winner_placement: Option<i32>,
-        loser_placement: Option<i32>,
-        num_entrants: Option<i32>,
-        online: bool,
-        city: Option<String>,
-        addr_state: Option<String>,
-        country_code: Option<String>,
-        event_handle: Option<String>,
-    }
 
     let sets = sqlx::query_as!(
         SetRow,
