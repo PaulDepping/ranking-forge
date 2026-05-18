@@ -99,7 +99,7 @@
 					<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
 					<AlertDialog.Action
 						class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-						onclick={() => deleteFormEl?.requestSubmit()}
+						onclick={() => { deleteDialogOpen = false; deleteFormEl?.requestSubmit(); }}
 					>Remove</AlertDialog.Action>
 				</AlertDialog.Footer>
 			</AlertDialog.Content>

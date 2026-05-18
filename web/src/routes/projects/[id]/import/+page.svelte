@@ -139,7 +139,7 @@
 		</AlertDialog.Header>
 		<AlertDialog.Footer>
 			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action onclick={() => importFormEl?.requestSubmit()}>
+			<AlertDialog.Action onclick={() => { importDialogOpen = false; importFormEl?.requestSubmit(); }}>
 				Start import
 			</AlertDialog.Action>
 		</AlertDialog.Footer>
