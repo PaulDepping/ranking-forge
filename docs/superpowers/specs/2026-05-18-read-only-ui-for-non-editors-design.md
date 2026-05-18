@@ -41,7 +41,7 @@ When `!canEdit`:
 - **Bulk action buttons** ("Include all visible" / "Exclude all visible"): hidden. The bulk-actions `<div>` at the bottom of the filter panel is removed.
 - **Filter controls** (search, venue, date range, entrants, event type, bracket filter): remain visible. Filters are read-only and useful for navigating tournament data.
 
-The "Filters & Actions" collapsible trigger label can stay as-is; "Actions" becomes a misnomer for viewers, but relabelling it just for that edge case isn't worth the complexity. Alternatively, the label could be simplified to just "Filters" for non-editors.
+The collapsible trigger label changes from "Filters & Actions" to "Filters" when `!canEdit`, since there are no actions available.
 
 ## What Does Not Change
 
