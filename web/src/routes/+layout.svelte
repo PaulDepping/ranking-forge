@@ -2,6 +2,7 @@
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { PUBLIC_API_URL } from '$env/static/public';
+	import { goto } from '$app/navigation';
 	import { ModeWatcher } from 'mode-watcher';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -11,7 +12,7 @@
 
 	async function logout() {
 		await fetch(`${PUBLIC_API_URL}/auth/logout`, { method: 'POST', credentials: 'include' });
-		location.href = '/login';
+		await goto('/login');
 	}
 </script>
 
