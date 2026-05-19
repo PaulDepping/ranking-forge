@@ -5,7 +5,8 @@ CREATE TYPE job_status AS ENUM ('pending', 'running', 'done', 'failed');
 -- Users and sessions
 CREATE TABLE users (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    username      TEXT        NOT NULL UNIQUE,
+    email         TEXT        NOT NULL UNIQUE,
+    display_name  TEXT        NOT NULL,
     password_hash TEXT        NOT NULL,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -19,20 +20,23 @@ CREATE TABLE sessions (
 
 CREATE INDEX sessions_user_id_idx ON sessions(user_id);
 
--- Project membership roles
-CREATE TYPE project_member_role AS ENUM ('owner', 'editor', 'viewer');
+-- Project membership roles (owner is stored on ranking_projects.owner_id, not here)
+CREATE TYPE project_member_role AS ENUM ('editor', 'viewer');
 
 -- Ranking projects
 CREATE TABLE ranking_projects (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name        TEXT        NOT NULL,
-    game_id     BIGINT,                -- start.gg videogame ID
-    game_name   TEXT,                  -- cached display name
+    game_id     BIGINT,
+    game_name   TEXT,
     published   BOOLEAN     NOT NULL DEFAULT FALSE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Project membership (replaces ranking_projects.user_id)
+CREATE INDEX ranking_projects_owner_id_idx ON ranking_projects(owner_id);
+
+-- Project membership (editors and viewers only; owner is in ranking_projects.owner_id)
 CREATE TABLE project_members (
     project_id  UUID                NOT NULL REFERENCES ranking_projects(id) ON DELETE CASCADE,
     user_id     UUID                NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -43,12 +47,12 @@ CREATE TABLE project_members (
 
 CREATE INDEX project_members_user_id_idx ON project_members(user_id);
 
--- Invite links (role-baked, revokable, optionally expiring)
+-- Invite links (editor or viewer only)
 CREATE TABLE project_invite_links (
     id          UUID                PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id  UUID                NOT NULL REFERENCES ranking_projects(id) ON DELETE CASCADE,
-    role        project_member_role NOT NULL CHECK (role IN ('editor', 'viewer')),
-    created_by  UUID                NOT NULL REFERENCES users(id),
+    role        project_member_role NOT NULL,
+    created_by  UUID                NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     expires_at  TIMESTAMPTZ,
     revoked_at  TIMESTAMPTZ,
     created_at  TIMESTAMPTZ         NOT NULL DEFAULT NOW()
@@ -73,14 +77,13 @@ CREATE TABLE startgg_accounts (
     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     player_id       UUID        NOT NULL REFERENCES players(id) ON DELETE CASCADE,
     startgg_user_id BIGINT      NOT NULL,
-    handle          TEXT        NOT NULL,  -- e.g. 'mang0'
+    handle          TEXT        NOT NULL,
     display_name    TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (player_id, startgg_user_id)
 );
 
 CREATE INDEX startgg_accounts_player_id_idx ON startgg_accounts(player_id);
--- Used when matching imported entrants back to our players
 CREATE INDEX startgg_accounts_user_id_idx ON startgg_accounts(startgg_user_id);
 
 -- Tournaments (imported from start.gg, shared across projects)
@@ -88,7 +91,7 @@ CREATE TABLE tournaments (
     id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     startgg_id     BIGINT      NOT NULL UNIQUE,
     name           TEXT        NOT NULL,
-    handle         TEXT        NOT NULL,  -- bare handle, e.g. 'some-weekly'
+    handle         TEXT        NOT NULL,
     city           TEXT,
     addr_state     TEXT,
     country_code   TEXT,
@@ -105,16 +108,13 @@ CREATE TABLE tournaments (
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Events within tournaments (e.g. "Singles", "Doubles")
--- start_at is stored on the event (not just the tournament) because a multi-day
--- tournament's events may fall on different days, and time-range filtering should
--- key off the specific event time.
+-- Events within tournaments
 CREATE TABLE events (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     tournament_id UUID        NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
     startgg_id    BIGINT      NOT NULL UNIQUE,
     name          TEXT        NOT NULL,
-    handle        TEXT        NOT NULL,  -- event segment only, e.g. 'melee-singles'
+    handle        TEXT        NOT NULL,
     state         TEXT,
     is_online     BOOLEAN,
     event_type    INTEGER,
@@ -128,10 +128,9 @@ CREATE TABLE events (
 );
 
 CREATE INDEX events_start_at_idx ON events(start_at);
-
 CREATE INDEX events_tournament_id_idx ON events(tournament_id);
 
--- Bracket phases within an event (e.g. "Pools", "Top 8 Bracket")
+-- Bracket phases within an event
 CREATE TABLE phases (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     startgg_id    BIGINT      NOT NULL UNIQUE,
@@ -147,7 +146,7 @@ CREATE TABLE phases (
 
 CREATE INDEX phases_event_id_idx ON phases(event_id);
 
--- Individual pools/brackets within a phase (e.g. "Pool A", "Top 8")
+-- Individual pools/brackets within a phase
 CREATE TABLE phase_groups (
     id                 UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     startgg_id         BIGINT      NOT NULL UNIQUE,
@@ -163,7 +162,7 @@ CREATE TABLE phase_groups (
 
 CREATE INDEX phase_groups_phase_id_idx ON phase_groups(phase_id);
 
--- Per-project event inclusion (default: included)
+-- Per-project event inclusion
 CREATE TABLE project_events (
     project_id UUID    NOT NULL REFERENCES ranking_projects(id) ON DELETE CASCADE,
     event_id   UUID    NOT NULL REFERENCES events(id) ON DELETE CASCADE,
@@ -172,17 +171,16 @@ CREATE TABLE project_events (
 );
 
 -- Entrants: one player's participation in one event
--- player_id is NULL when the entrant's start.gg user isn't in our tracked list
 CREATE TABLE entrants (
     id                  UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id            UUID    NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     player_id           UUID    REFERENCES players(id) ON DELETE SET NULL,
     startgg_entrant_id  BIGINT  NOT NULL,
-    startgg_user_id     BIGINT,           -- for matching against startgg_accounts
+    startgg_user_id     BIGINT,
     seed                INTEGER,
     display_name        TEXT    NOT NULL,
     is_disqualified     BOOLEAN NOT NULL DEFAULT FALSE,
-    final_placement     INTEGER,          -- finish position in the event (from Standing where isFinal=true)
+    final_placement     INTEGER,
     UNIQUE (event_id, startgg_entrant_id)
 );
 
@@ -190,10 +188,7 @@ CREATE INDEX entrants_event_id_idx ON entrants(event_id);
 CREATE INDEX entrants_player_id_idx ON entrants(player_id);
 CREATE INDEX entrants_startgg_user_id_idx ON entrants(startgg_user_id);
 
--- Sets: match results (winner/loser entrant pairs)
--- is_dq is denormalized here for cheap filtering; a set can be a DQ independently
--- of entrant.is_disqualified (which marks a full event DQ). DQ sets are excluded
--- from upset factor calculations.
+-- Sets: match results
 CREATE TABLE sets (
     id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id          UUID        NOT NULL REFERENCES events(id) ON DELETE CASCADE,
