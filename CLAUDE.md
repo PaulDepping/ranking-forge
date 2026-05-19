@@ -85,7 +85,7 @@ cargo test -p common -- test_name
 |---|---|---|
 | `DATABASE_URL` | api, worker | Postgres connection string |
 | `STARTGG_API_KEY` | api, worker | Shared start.gg API key |
-| `CORS_ORIGIN` | api | Default: `https://rankingforge.example.com`; set to `http://localhost:5173` for local dev |
+| `CORS_ORIGIN` | api | Required. Set to `http://localhost:5173` for local dev |
 
 ## start.gg API reference
 

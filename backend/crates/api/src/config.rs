@@ -19,11 +19,7 @@ pub struct Config {
     pub startgg_api_key: String,
 
     /// Allowed CORS origin. Set to http://localhost:5173 for local dev.
-    #[arg(
-        long,
-        env = "CORS_ORIGIN",
-        default_value = "https://rankingforge.example.com"
-    )]
+    #[arg(long, env = "CORS_ORIGIN")]
     pub cors_origin: String,
 
     #[arg(long, env = "RUST_LOG", default_value = "info")]
