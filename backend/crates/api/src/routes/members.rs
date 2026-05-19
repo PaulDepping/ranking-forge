@@ -18,7 +18,7 @@ use common::models::{MemberRole, ProjectMember, UserRole};
 
 #[derive(Deserialize)]
 struct AddMemberRequest {
-    username: String,
+    email: String,
     role: MemberRole,
 }
 
@@ -61,15 +61,21 @@ async fn add_member(
     Path(project_id): Path<Uuid>,
     Json(body): Json<AddMemberRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
+    let (project, _) = require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
 
     let target = sqlx::query!(
-        "SELECT id FROM users WHERE display_name = $1",
-        body.username,
+        "SELECT id FROM users WHERE email = $1",
+        body.email.to_lowercase(),
     )
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::UnprocessableEntity("user not found".into()))?;
+
+    if target.id == project.owner_id {
+        return Err(AppError::UnprocessableEntity(
+            "cannot add the project owner as a member; they already have full access".into(),
+        ));
+    }
 
     sqlx::query!(
         r#"INSERT INTO project_members (project_id, user_id, role)
@@ -91,7 +97,13 @@ async fn change_member_role(
     Path((project_id, target_user_id)): Path<(Uuid, Uuid)>,
     Json(body): Json<ChangeMemberRoleRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
+    let (project, _) = require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
+
+    if target_user_id == project.owner_id {
+        return Err(AppError::UnprocessableEntity(
+            "cannot change the owner's role; use transfer-ownership".into(),
+        ));
+    }
 
     let result = sqlx::query!(
         r#"UPDATE project_members SET role = $1
@@ -115,11 +127,11 @@ async fn remove_member(
     AuthUser(user): AuthUser,
     Path((project_id, target_user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
+    let (project, _) = require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
 
-    if target_user_id == user.id {
+    if target_user_id == project.owner_id {
         return Err(AppError::UnprocessableEntity(
-            "owner cannot remove themselves; transfer ownership first".into(),
+            "owner cannot be removed; transfer ownership first".into(),
         ));
     }
 
@@ -263,7 +275,7 @@ mod tests {
                 .header("content-type", "application/json")
                 .header("cookie", &owner_cookie)
                 .body(Body::from(serde_json::to_vec(
-                    &json!({"username": "mem_user", "role": "editor"})
+                    &json!({"email": "mem_user@test.com", "role": "editor"})
                 ).unwrap())).unwrap()
         ).await.unwrap();
         assert_eq!(resp.status(), 204);
