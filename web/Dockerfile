@@ -9,7 +9,6 @@ RUN --mount=type=cache,target=/root/.npm \
 
 COPY . .
 
-ARG PUBLIC_API_URL
 ARG INTERNAL_API_URL
 RUN npm run build
 
