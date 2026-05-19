@@ -12,7 +12,9 @@
 	let { children, data } = $props();
 
 	afterNavigate((navigation) => {
-		previousPage.set(navigation.from?.url.pathname ?? null);
+		previousPage.set(
+			navigation.from ? navigation.from.url.pathname + navigation.from.url.search : null
+		);
 	});
 
 	async function logout() {

@@ -53,6 +53,10 @@ test('back button returns to previous in-app page', async ({ page }) => {
 
 test('back button falls back to players list on direct link', async ({ page }) => {
 	await page.goto('/projects/proj-1/players/player-1');
+	await expect(page.getByRole('link', { name: '← Back' })).toHaveAttribute(
+		'href',
+		'/projects/proj-1/players'
+	);
 	await page.getByRole('link', { name: '← Back' }).click();
 	await expect(page).toHaveURL('/projects/proj-1/players');
 });
