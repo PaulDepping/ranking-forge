@@ -6,7 +6,7 @@
     import { Checkbox } from '$lib/components/ui/checkbox';
     import { ScrollArea } from '$lib/components/ui/scroll-area';
     import * as Tabs from '$lib/components/ui/tabs';
-    import { PUBLIC_API_URL } from '$env/static/public';
+    import { PUBLIC_API_URL } from '$env/dynamic/public';
     import { makeApi } from '$lib/api';
     import { invalidateAll } from '$app/navigation';
     import type { Player, TournamentData, TournamentParticipant, TournamentEntrantOrdered } from '$lib/types';

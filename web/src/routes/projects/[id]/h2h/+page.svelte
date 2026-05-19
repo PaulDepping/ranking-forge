@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { PUBLIC_API_URL } from '$env/static/public';
+	import { PUBLIC_API_URL } from '$env/dynamic/public';
 	import { makeApi } from '$lib/api';
 	import type { HeadToHeadEntry, H2HSet } from '$lib/types';
 	import SetDetailModal from '$lib/components/SetDetailModal.svelte';

@@ -11,7 +11,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import DateRangePicker from '$lib/components/DateRangePicker.svelte';
 	import type { DateRange } from 'bits-ui';
-	import { PUBLIC_API_URL } from '$env/static/public';
+	import { PUBLIC_API_URL } from '$env/dynamic/public';
 	import { makeApi } from '$lib/api';
 	import type { Tournament, TournamentEvent } from '$lib/types';
 	import * as Empty from '$lib/components/ui/empty';

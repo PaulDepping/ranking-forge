@@ -3,7 +3,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Textarea } from '$lib/components/ui/textarea';
-	import { PUBLIC_API_URL } from '$env/static/public';
+	import { PUBLIC_API_URL } from '$env/dynamic/public';
 	import { makeApi } from '$lib/api';
 	import { invalidateAll } from '$app/navigation';
 	import type { ByHandlesResult } from '$lib/types';

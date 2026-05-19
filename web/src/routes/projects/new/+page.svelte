@@ -6,7 +6,7 @@
 	import { Alert } from '$lib/components/ui/alert';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Command from '$lib/components/ui/command';
-	import { PUBLIC_API_URL } from '$env/static/public';
+	import { PUBLIC_API_URL } from '$env/dynamic/public';
 	import type { Game } from '$lib/types';
 
 	let { form } = $props();

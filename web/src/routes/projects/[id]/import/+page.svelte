@@ -7,7 +7,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import DateRangePicker from '$lib/components/DateRangePicker.svelte';
 	import type { DateRange } from 'bits-ui';
-	import { PUBLIC_API_URL } from '$env/static/public';
+	import { PUBLIC_API_URL } from '$env/dynamic/public';
 	import { makeApi } from '$lib/api';
 	import type { Job } from '$lib/types';
 	import { formatDateTime } from '$lib/utils';
