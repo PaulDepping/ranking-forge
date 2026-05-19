@@ -1,3 +1,4 @@
+pub mod account;
 pub mod auth;
 pub mod games;
 pub mod import;
@@ -13,6 +14,7 @@ use crate::state::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .nest("/auth", auth::router())
+        .nest("/account", account::router())
         .nest("/projects", projects::router())
         .route("/games", get(games::search_games))
         .route("/invite/{token}/accept", post(invite_links::accept_invite_link))
