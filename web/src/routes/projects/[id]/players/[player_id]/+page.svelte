@@ -139,4 +139,8 @@
 	isWin={selectedIsWin}
 	currentPlayerName={data.stats.name}
 	onClose={() => (selectedSet = null)}
+	projectId={data.projectId}
+	opponentPlayerId={selectedSet && data.trackedPlayerIds.has(selectedSet.opponent_id)
+		? selectedSet.opponent_id
+		: undefined}
 />

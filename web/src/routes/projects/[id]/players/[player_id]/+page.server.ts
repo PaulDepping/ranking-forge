@@ -1,15 +1,16 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { makeApi } from '$lib/api';
-import type { PlayerStats, TournamentAttendance } from '$lib/types';
+import type { Player, PlayerStats, TournamentAttendance } from '$lib/types';
 import { INTERNAL_API_URL } from '$env/static/private';
 
 export const load: PageServerLoad = async ({ fetch, params, cookies }) => {
 	const api = makeApi(fetch, INTERNAL_API_URL, cookies.get('session_id'));
 
-	const [statsRes, tournamentsRes] = await Promise.all([
+	const [statsRes, tournamentsRes, playersRes] = await Promise.all([
 		api.get(`/projects/${params.id}/stats/${params.player_id}`),
-		api.get(`/projects/${params.id}/players/${params.player_id}/tournaments`)
+		api.get(`/projects/${params.id}/players/${params.player_id}/tournaments`),
+		api.get(`/projects/${params.id}/players`)
 	]);
 
 	if (!statsRes.ok) {
@@ -27,5 +28,8 @@ export const load: PageServerLoad = async ({ fetch, params, cookies }) => {
 
 	const tournaments: TournamentAttendance[] = await tournamentsRes.json();
 
-	return { stats, tournaments };
+	const players: Player[] = playersRes.ok ? await playersRes.json() : [];
+	const trackedPlayerIds = new Set(players.map((p) => p.id));
+
+	return { stats, tournaments, trackedPlayerIds, projectId: params.id };
 };
