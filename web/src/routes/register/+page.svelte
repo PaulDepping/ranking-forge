@@ -11,8 +11,7 @@
 <div class="flex min-h-[60vh] items-center justify-center">
 	<div class="w-full max-w-sm space-y-6">
 		<div class="space-y-1 text-center">
-			<h1 class="text-2xl font-bold">RankingForge</h1>
-			<p class="text-muted-foreground">Create an account</p>
+			<p class="text-lg font-semibold">Create an account</p>
 		</div>
 
 		{#if form?.error}

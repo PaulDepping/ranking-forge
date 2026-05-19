@@ -2,11 +2,11 @@ import { test, expect } from '@playwright/test';
 
 test('login page renders the sign-in form', async ({ page }) => {
 	await page.goto('/login');
-	await expect(page.getByRole('heading', { name: 'RankingForge' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'RankingForge' })).toBeVisible();
 	await expect(page.getByLabel('Username')).toBeVisible();
 	await expect(page.getByLabel('Password')).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
-	await expect(page.getByRole('link', { name: 'Register' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Register' }).first()).toBeVisible();
 });
 
 test('shows error alert on invalid credentials', async ({ page }) => {

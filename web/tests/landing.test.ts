@@ -36,7 +36,7 @@ test('header shows Sign in and Register nav buttons when logged out', async ({ p
 
 test('header does not show Projects link when logged out', async ({ page }) => {
 	await page.goto('/');
-	await expect(page.getByRole('link', { name: 'Projects' })).not.toBeVisible();
+	await expect(page.getByRole('link', { name: 'Projects', exact: true })).not.toBeVisible();
 });
 
 test('landing page shows all four feature cards', async ({ page }) => {
