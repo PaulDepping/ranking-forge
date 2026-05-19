@@ -5,7 +5,7 @@
 
 ## Problem
 
-`INTERNAL_API_URL` is imported from `$env/static/private` in 14 server-side files. This bakes the value into the SvelteKit build artifact at compile time, making the Docker image environment-specific — a separate build is required for each deployment target.
+`INTERNAL_API_URL` is imported from `$env/static/private` in 15 server-side files. This bakes the value into the SvelteKit build artifact at compile time, making the Docker image environment-specific — a separate build is required for each deployment target.
 
 ## Goal
 
@@ -17,16 +17,18 @@ Use `$env/dynamic/private` instead of `$env/static/private`. With `adapter-node`
 
 ## Changes
 
-### Web source files (14 files)
+### Web source files (15 files)
 
-In every server-side file that imports `INTERNAL_API_URL`, change the import source:
+In every server-side file that imports `INTERNAL_API_URL`, switch to the `$env/dynamic/private` env object (`$env/dynamic/private` does not support named exports):
 
 ```ts
 // before
 import { INTERNAL_API_URL } from '$env/static/private';
+// usage: INTERNAL_API_URL
 
 // after
-import { INTERNAL_API_URL } from '$env/dynamic/private';
+import { env } from '$env/dynamic/private';
+// usage: env.INTERNAL_API_URL
 ```
 
 Files to update:
