@@ -177,9 +177,9 @@
 
 			<div class="flex gap-4 border-t pt-3 text-sm">
 				<a
-					href={set.event_slug
-						? `https://www.start.gg/${set.tournament_slug}/event/${set.event_slug}/set/${set.startgg_set_id}`
-						: `https://www.start.gg/${set.tournament_slug}`}
+					href={set.event_handle
+						? `https://www.start.gg/tournament/${set.tournament_handle}/event/${set.event_handle}/set/${set.startgg_set_id}`
+						: `https://www.start.gg/tournament/${set.tournament_handle}`}
 					target="_blank"
 					rel="noopener noreferrer"
 					class="text-primary hover:underline"

@@ -14,7 +14,7 @@ function makeSet(opponentName: string, uf: number): SetRecord {
 		winner_score: null,
 		loser_score: null,
 		tournament_name: 'Test Tournament',
-		tournament_slug: 'tournament/test',
+		tournament_handle: 'test',
 		event_name: 'Melee Singles',
 		round_name: 'Round 1',
 		completed_at: null,
@@ -29,7 +29,7 @@ function makeSet(opponentName: string, uf: number): SetRecord {
 		loser_placement: null,
 		location: null,
 		num_entrants: null,
-		event_slug: null,
+		event_handle: null,
 	};
 }
 

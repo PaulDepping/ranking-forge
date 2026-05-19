@@ -111,7 +111,7 @@ export interface SetRecord {
 	winner_score: number | null;
 	loser_score: number | null;
 	tournament_name: string;
-	tournament_slug: string;
+	tournament_handle: string;
 	event_name: string;
 	round_name: string | null;
 	completed_at: string | null;
@@ -126,7 +126,7 @@ export interface SetRecord {
 	loser_placement: number | null;
 	location: string | null;
 	num_entrants: number | null;
-	event_slug: string | null;
+	event_handle: string | null;
 }
 
 export interface H2HSet extends SetRecord {
