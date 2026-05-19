@@ -10,7 +10,7 @@ const baseSet: SetRecord = {
 	winner_score: 3,
 	loser_score: 1,
 	tournament_name: 'Genesis 9',
-	tournament_slug: 'tournament/genesis-9',
+	tournament_handle: 'genesis-9',
 	event_name: 'Melee Singles',
 	round_name: 'Winners Finals',
 	completed_at: '2024-01-20T18:00:00Z',
@@ -25,7 +25,7 @@ const baseSet: SetRecord = {
 	loser_placement: null,
 	location: null,
 	num_entrants: null,
-	event_slug: 'melee-singles',
+	event_handle: 'melee-singles',
 };
 
 describe('SetDetailModal', () => {
