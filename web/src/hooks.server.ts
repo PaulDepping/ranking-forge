@@ -1,6 +1,6 @@
 import type { Handle } from '@sveltejs/kit';
 import { redirect } from '@sveltejs/kit';
-import { INTERNAL_API_URL } from '$env/static/private';
+import { INTERNAL_API_URL } from '$env/dynamic/private';
 
 export const handle: Handle = async ({ event, resolve }) => {
 	const { pathname } = event.url;

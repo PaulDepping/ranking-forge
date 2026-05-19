@@ -1,7 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { makeApi } from '$lib/api';
-import { INTERNAL_API_URL } from '$env/static/private';
+import { INTERNAL_API_URL } from '$env/dynamic/private';
 
 export const actions: Actions = {
 	default: async ({ fetch, request, cookies }) => {

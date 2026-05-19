@@ -2,7 +2,7 @@ import { fail, redirect, error } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { makeApi } from '$lib/api';
 import type { ProjectMember, InviteLink } from '$lib/types';
-import { INTERNAL_API_URL } from '$env/static/private';
+import { INTERNAL_API_URL } from '$env/dynamic/private';
 
 export const load: PageServerLoad = async ({ fetch, params, cookies, parent }) => {
 	const { project } = await parent();

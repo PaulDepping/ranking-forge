@@ -1,6 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { INTERNAL_API_URL } from '$env/static/private';
+import { INTERNAL_API_URL } from '$env/dynamic/private';
 
 export const load: PageServerLoad = ({ locals }) => {
 	if (locals.user) redirect(303, '/projects');
