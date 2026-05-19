@@ -52,6 +52,7 @@ Frontend-specific guidance for the SvelteKit app in this directory.
 | Scroll Area | `$lib/components/ui/scroll-area` |
 | Skeleton | `$lib/components/ui/skeleton` |
 | Tooltip | `$lib/components/ui/tooltip` |
+| Navigation Menu | `$lib/components/ui/navigation-menu` |
 
 Update this list when adding new components.
 
