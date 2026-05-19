@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO project_invite_links (project_id, role, created_by, expires_at)\n           VALUES ($1, $2, $3, $4)\n           RETURNING id, project_id, role as \"role: ProjectMemberRole\",\n                     created_by, expires_at, revoked_at, created_at",
+  "query": "SELECT id, project_id, role as \"role: MemberRole\",\n                  created_by, expires_at, revoked_at, created_at\n           FROM project_invite_links\n           WHERE project_id = $1 AND revoked_at IS NULL\n           ORDER BY created_at DESC",
   "describe": {
     "columns": [
       {
@@ -15,13 +15,12 @@
       },
       {
         "ordinal": 2,
-        "name": "role: ProjectMemberRole",
+        "name": "role: MemberRole",
         "type_info": {
           "Custom": {
             "name": "project_member_role",
             "kind": {
               "Enum": [
-                "owner",
                 "editor",
                 "viewer"
               ]
@@ -52,21 +51,7 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        {
-          "Custom": {
-            "name": "project_member_role",
-            "kind": {
-              "Enum": [
-                "owner",
-                "editor",
-                "viewer"
-              ]
-            }
-          }
-        },
-        "Uuid",
-        "Timestamptz"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -79,5 +64,5 @@
       false
     ]
   },
-  "hash": "2ef844d2c73fa2df4c5f0de70472f7d44e752a211706ecd4bdb36772236bbddf"
+  "hash": "a1a899efaf3a6945b402efde8c9449a7fc23e85c30952b4a11ccd6b5367e4060"
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT role::text as \"role: String\" FROM project_members\n               WHERE project_id = $1 AND user_id = (SELECT id FROM users WHERE username = 'inv_user')",
+  "query": "SELECT role::text as \"role: String\" FROM project_members\n               WHERE project_id = $1 AND user_id = (SELECT id FROM users WHERE email = 'inv_user@test.com')",
   "describe": {
     "columns": [
       {
@@ -18,5 +18,5 @@
       null
     ]
   },
-  "hash": "489749089d4d0e8a4758f91730313ffef8dae452a4ba5a605bb0195c3a7aabb6"
+  "hash": "908a9a757ce4d1d9c38e0c7ddfac362d446009adbe8267f825f6334c92b26c35"
 }

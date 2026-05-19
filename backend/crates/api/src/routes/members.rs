@@ -14,17 +14,17 @@ use crate::{
     routes::projects::require_project_access,
     state::AppState,
 };
-use common::models::{ProjectMember, ProjectMemberRole};
+use common::models::{MemberRole, ProjectMember, UserRole};
 
 #[derive(Deserialize)]
 struct AddMemberRequest {
     username: String,
-    role: ProjectMemberRole,
+    role: MemberRole,
 }
 
 #[derive(Deserialize)]
 struct ChangeMemberRoleRequest {
-    role: ProjectMemberRole,
+    role: MemberRole,
 }
 
 #[derive(Deserialize)]
@@ -37,12 +37,12 @@ async fn list_members(
     AuthUser(user): AuthUser,
     Path(project_id): Path<Uuid>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Owner).await?;
+    require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
 
     let members = sqlx::query_as!(
         ProjectMember,
-        r#"SELECT pm.project_id, pm.user_id, u.username,
-                  pm.role as "role: ProjectMemberRole", pm.joined_at
+        r#"SELECT pm.project_id, pm.user_id, u.display_name,
+                  pm.role as "role: MemberRole", pm.joined_at
            FROM project_members pm
            JOIN users u ON u.id = pm.user_id
            WHERE pm.project_id = $1
@@ -61,36 +61,15 @@ async fn add_member(
     Path(project_id): Path<Uuid>,
     Json(body): Json<AddMemberRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Owner).await?;
-
-    if body.role == ProjectMemberRole::Owner {
-        return Err(AppError::UnprocessableEntity(
-            "cannot assign owner role via add-member; use transfer-ownership".into(),
-        ));
-    }
+    require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
 
     let target = sqlx::query!(
-        "SELECT id FROM users WHERE username = $1",
+        "SELECT id FROM users WHERE display_name = $1",
         body.username,
     )
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::UnprocessableEntity("user not found".into()))?;
-
-    let is_owner = sqlx::query_scalar!(
-        r#"SELECT 1 AS one FROM project_members
-           WHERE project_id = $1 AND user_id = $2 AND role = 'owner'"#,
-        project_id,
-        target.id,
-    )
-    .fetch_optional(&state.db)
-    .await?;
-
-    if is_owner.is_some() {
-        return Err(AppError::UnprocessableEntity(
-            "cannot change the owner's role; use transfer-ownership".into(),
-        ));
-    }
 
     sqlx::query!(
         r#"INSERT INTO project_members (project_id, user_id, role)
@@ -98,7 +77,7 @@ async fn add_member(
            ON CONFLICT (project_id, user_id) DO UPDATE SET role = EXCLUDED.role"#,
         project_id,
         target.id,
-        body.role as ProjectMemberRole,
+        body.role as MemberRole,
     )
     .execute(&state.db)
     .await?;
@@ -112,33 +91,12 @@ async fn change_member_role(
     Path((project_id, target_user_id)): Path<(Uuid, Uuid)>,
     Json(body): Json<ChangeMemberRoleRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Owner).await?;
-
-    if body.role == ProjectMemberRole::Owner {
-        return Err(AppError::UnprocessableEntity(
-            "cannot assign owner role; use transfer-ownership".into(),
-        ));
-    }
-
-    let is_owner = sqlx::query_scalar!(
-        r#"SELECT 1 AS one FROM project_members
-           WHERE project_id = $1 AND user_id = $2 AND role = 'owner'"#,
-        project_id,
-        target_user_id,
-    )
-    .fetch_optional(&state.db)
-    .await?;
-
-    if is_owner.is_some() {
-        return Err(AppError::UnprocessableEntity(
-            "cannot change the owner's role; use transfer-ownership".into(),
-        ));
-    }
+    require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
 
     let result = sqlx::query!(
         r#"UPDATE project_members SET role = $1
            WHERE project_id = $2 AND user_id = $3"#,
-        body.role as ProjectMemberRole,
+        body.role as MemberRole,
         project_id,
         target_user_id,
     )
@@ -157,7 +115,7 @@ async fn remove_member(
     AuthUser(user): AuthUser,
     Path((project_id, target_user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Owner).await?;
+    require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
 
     if target_user_id == user.id {
         return Err(AppError::UnprocessableEntity(
@@ -186,7 +144,7 @@ async fn transfer_ownership(
     Path(project_id): Path<Uuid>,
     Json(body): Json<TransferOwnershipRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Owner).await?;
+    require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
 
     if body.user_id == user.id {
         return Err(AppError::UnprocessableEntity(
@@ -210,16 +168,29 @@ async fn transfer_ownership(
 
     let mut tx = state.db.begin().await?;
 
+    // Transfer ownership: update owner_id on the project
     sqlx::query!(
-        "UPDATE project_members SET role = 'owner' WHERE project_id = $1 AND user_id = $2",
+        "UPDATE ranking_projects SET owner_id = $1 WHERE id = $2",
+        body.user_id,
+        project_id,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    // Remove the new owner from project_members (they are now the owner via owner_id)
+    sqlx::query!(
+        "DELETE FROM project_members WHERE project_id = $1 AND user_id = $2",
         project_id,
         body.user_id,
     )
     .execute(&mut *tx)
     .await?;
 
+    // Add the old owner as an editor member
     sqlx::query!(
-        "UPDATE project_members SET role = 'editor' WHERE project_id = $1 AND user_id = $2",
+        r#"INSERT INTO project_members (project_id, user_id, role)
+           VALUES ($1, $2, 'editor')
+           ON CONFLICT (project_id, user_id) DO UPDATE SET role = 'editor'"#,
         project_id,
         user.id,
     )
@@ -254,12 +225,12 @@ mod tests {
         routes::router().with_state(state)
     }
 
-    async fn register(app: &Router, username: &str) -> String {
+    async fn register(app: &Router, name: &str) -> String {
         let resp = app.clone().oneshot(
             Request::builder().method("POST").uri("/auth/register")
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(
-                    &json!({"username": username, "password": "password123"})
+                    &json!({"email": format!("{name}@test.com"), "display_name": name, "password": "password123"})
                 ).unwrap())).unwrap()
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
@@ -305,7 +276,9 @@ mod tests {
         assert_eq!(resp.status(), 200);
         let bytes = resp.into_body().collect().await.unwrap().to_bytes();
         let members: Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(members.as_array().unwrap().len(), 2);
+        // Owner is identified by ranking_projects.owner_id and is not in project_members,
+        // so the list only contains the added editor member.
+        assert_eq!(members.as_array().unwrap().len(), 1);
     }
 
     #[sqlx::test(migrations = "../../migrations")]
@@ -316,7 +289,7 @@ mod tests {
         let proj_id = create_project(&app, &owner_cookie, "Remove Test").await;
 
         // Add member via SQL
-        let user_id = sqlx::query_scalar!("SELECT id FROM users WHERE username = 'rem_user'")
+        let user_id = sqlx::query_scalar!("SELECT id FROM users WHERE email = 'rem_user@test.com'")
             .fetch_one(&pool).await.unwrap();
         let proj_uuid: uuid::Uuid = proj_id.parse().unwrap();
         sqlx::query!(
@@ -349,7 +322,7 @@ mod tests {
         let _ = register(&app, "new_owner").await;
         let proj_id = create_project(&app, &old_owner_cookie, "Transfer Project").await;
 
-        let new_owner_id = sqlx::query_scalar!("SELECT id FROM users WHERE username = 'new_owner'")
+        let new_owner_id = sqlx::query_scalar!("SELECT id FROM users WHERE email = 'new_owner@test.com'")
             .fetch_one(&pool).await.unwrap();
         let proj_uuid: uuid::Uuid = proj_id.parse().unwrap();
         sqlx::query!(
@@ -368,18 +341,19 @@ mod tests {
         ).await.unwrap();
         assert_eq!(resp.status(), 204);
 
+        // After transfer: old owner becomes an editor member
         let old_role = sqlx::query_scalar!(
             r#"SELECT role::text FROM project_members
-               WHERE project_id = $1 AND user_id = (SELECT id FROM users WHERE username = 'old_owner')"#,
+               WHERE project_id = $1 AND user_id = (SELECT id FROM users WHERE email = 'old_owner@test.com')"#,
             proj_uuid
         ).fetch_one(&pool).await.unwrap();
         assert_eq!(old_role, Some("editor".to_string()));
 
-        let new_role = sqlx::query_scalar!(
-            r#"SELECT role::text FROM project_members
-               WHERE project_id = $1 AND user_id = $2"#,
-            proj_uuid, new_owner_id
+        // New owner is now owner via owner_id, not in project_members
+        let new_owner_id_check = sqlx::query_scalar!(
+            "SELECT owner_id FROM ranking_projects WHERE id = $1",
+            proj_uuid
         ).fetch_one(&pool).await.unwrap();
-        assert_eq!(new_role, Some("owner".to_string()));
+        assert_eq!(new_owner_id_check, new_owner_id);
     }
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO ranking_projects (name) VALUES ('Test') RETURNING id",
+  "query": "SELECT id FROM users WHERE email = 'owner2@test.com'",
   "describe": {
     "columns": [
       {
@@ -16,5 +16,5 @@
       false
     ]
   },
-  "hash": "ef2c815d8fa2581f6adea44947b2bfba6f85e6a6711e6850cbca65f009698466"
+  "hash": "5de23ed03d40a1806bdd322590324305e173e962762c57b085d31b280e76e6d5"
 }

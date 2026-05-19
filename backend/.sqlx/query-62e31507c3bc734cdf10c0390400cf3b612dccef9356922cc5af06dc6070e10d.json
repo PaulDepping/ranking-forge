@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'owner')",
+  "query": "UPDATE ranking_projects SET owner_id = $1 WHERE id = $2",
   "describe": {
     "columns": [],
     "parameters": {
@@ -11,5 +11,5 @@
     },
     "nullable": []
   },
-  "hash": "c29aa02d9f285a4cb12868cbf274ab46888f9d518fcee0249c07cf84547e2f13"
+  "hash": "62e31507c3bc734cdf10c0390400cf3b612dccef9356922cc5af06dc6070e10d"
 }

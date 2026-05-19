@@ -1,17 +1,16 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT role as \"role: ProjectMemberRole\" FROM project_members\n               WHERE project_id = $1 AND user_id = $2",
+  "query": "SELECT role AS \"role: MemberRole\" FROM project_members\n                       WHERE project_id = $1 AND user_id = $2",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "role: ProjectMemberRole",
+        "name": "role: MemberRole",
         "type_info": {
           "Custom": {
             "name": "project_member_role",
             "kind": {
               "Enum": [
-                "owner",
                 "editor",
                 "viewer"
               ]
@@ -30,5 +29,5 @@
       false
     ]
   },
-  "hash": "5025f706b45939c9ebf8b67656001152a05fb3b976a02020377d869fd6d39e1d"
+  "hash": "9fee6f3dc500f99a8a4b072c62a9f596c77e60ff2eda29590fa5819d697c0391"
 }

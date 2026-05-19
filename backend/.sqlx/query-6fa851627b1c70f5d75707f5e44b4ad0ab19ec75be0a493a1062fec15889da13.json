@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT 1 AS one FROM project_members\n           WHERE project_id = $1 AND user_id = $2 AND role = 'owner'",
+  "query": "SELECT 1 AS one FROM ranking_projects WHERE id = $1 AND owner_id = $2",
   "describe": {
     "columns": [
       {
@@ -19,5 +19,5 @@
       null
     ]
   },
-  "hash": "d9dbe881d2546eea5f6e1ac587458629907df4833743b6a4fbf39c593f529f68"
+  "hash": "6fa851627b1c70f5d75707f5e44b4ad0ab19ec75be0a493a1062fec15889da13"
 }

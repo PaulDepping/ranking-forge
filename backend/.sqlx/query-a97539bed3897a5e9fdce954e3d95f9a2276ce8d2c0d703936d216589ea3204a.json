@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO ranking_projects (name, game_id, game_name)\n         VALUES ($1, $2, $3)\n         RETURNING id, name, game_id, game_name, published, created_at",
+  "query": "INSERT INTO ranking_projects (owner_id, name, game_id, game_name)\n         VALUES ($1, $2, $3, $4)\n         RETURNING id, owner_id, name, game_id, game_name, published, created_at",
   "describe": {
     "columns": [
       {
@@ -10,32 +10,38 @@
       },
       {
         "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
         "name": "name",
         "type_info": "Text"
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "game_id",
         "type_info": "Int8"
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "game_name",
         "type_info": "Text"
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "published",
         "type_info": "Bool"
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
+        "Uuid",
         "Text",
         "Int8",
         "Text"
@@ -44,11 +50,12 @@
     "nullable": [
       false,
       false,
+      false,
       true,
       true,
       false,
       false
     ]
   },
-  "hash": "24810731069bcc951c1eaace9a897daf675616f2c014db542126df6f87d29c43"
+  "hash": "a97539bed3897a5e9fdce954e3d95f9a2276ce8d2c0d703936d216589ea3204a"
 }

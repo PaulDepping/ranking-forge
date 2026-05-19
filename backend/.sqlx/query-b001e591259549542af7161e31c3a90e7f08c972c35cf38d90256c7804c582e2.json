@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO users (username, password_hash) VALUES ('alice', 'hash') RETURNING id",
+  "query": "SELECT id FROM users WHERE email = 'rem_user@test.com'",
   "describe": {
     "columns": [
       {
@@ -16,5 +16,5 @@
       false
     ]
   },
-  "hash": "572abb0fd461cac42c4860038357cb8df7e75f64c1ea4027fb0ed9b99dacfadd"
+  "hash": "b001e591259549542af7161e31c3a90e7f08c972c35cf38d90256c7804c582e2"
 }

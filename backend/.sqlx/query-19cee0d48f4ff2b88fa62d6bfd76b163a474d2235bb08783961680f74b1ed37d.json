@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id FROM users WHERE username = 'editor1'",
+  "query": "SELECT id FROM users WHERE email = 'viewer_pl@test.com'",
   "describe": {
     "columns": [
       {
@@ -16,5 +16,5 @@
       false
     ]
   },
-  "hash": "de54ed0d84133248784784b92d0499fd7f5ec5062fb473e4073244b1973d1219"
+  "hash": "19cee0d48f4ff2b88fa62d6bfd76b163a474d2235bb08783961680f74b1ed37d"
 }

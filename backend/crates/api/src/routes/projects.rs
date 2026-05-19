@@ -15,7 +15,7 @@ use crate::{
     routes::auth::{AuthUser, OptionalAuthUser},
     state::AppState,
 };
-use common::models::{Project, ProjectMemberRole};
+use common::models::{MemberRole, Project, UserRole};
 
 // ── Request / response types ──────────────────────────────────────────────────
 
@@ -40,11 +40,11 @@ pub struct ProjectResponse {
     pub game_name: Option<String>,
     pub published: bool,
     pub created_at: DateTime<Utc>,
-    pub user_role: Option<ProjectMemberRole>,
+    pub user_role: Option<UserRole>,
 }
 
 impl ProjectResponse {
-    fn from_project(p: Project, user_role: Option<ProjectMemberRole>) -> Self {
+    fn from_project(p: Project, user_role: Option<UserRole>) -> Self {
         ProjectResponse {
             id: p.id,
             name: p.name,
@@ -59,31 +59,35 @@ impl ProjectResponse {
 
 // ── Access helpers ────────────────────────────────────────────────────────────
 
-/// Requires the user to be a project member with at least `min_role`.
-/// Returns 404 if not a member (avoids leaking existence to non-members), 403 if role is too low.
+/// Requires the user to be the owner or a project member with at least `min_role`.
+/// Returns 404 if not a member/owner (avoids leaking existence to non-members), 403 if role is too low.
 pub async fn require_project_access(
     db: &PgPool,
     project_id: Uuid,
     user_id: Uuid,
-    min_role: ProjectMemberRole,
-) -> Result<(Project, ProjectMemberRole)> {
+    min_role: UserRole,
+) -> Result<(Project, UserRole)> {
     struct Row {
         id: Uuid,
+        owner_id: Uuid,
         name: String,
         game_id: Option<i64>,
         game_name: Option<String>,
         published: bool,
         created_at: DateTime<Utc>,
-        role: ProjectMemberRole,
+        is_owner: Option<bool>,
+        member_role: Option<MemberRole>,
     }
 
     let row = sqlx::query_as!(
         Row,
-        r#"SELECT p.id, p.name, p.game_id, p.game_name, p.published, p.created_at,
-                  pm.role as "role: ProjectMemberRole"
+        r#"SELECT p.id, p.owner_id, p.name, p.game_id, p.game_name, p.published, p.created_at,
+                  (p.owner_id = $2) AS is_owner,
+                  CASE WHEN pm.user_id IS NOT NULL THEN pm.role END AS "member_role: MemberRole"
            FROM ranking_projects p
-           JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $2
-           WHERE p.id = $1"#,
+           LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $2
+           WHERE p.id = $1
+             AND (p.owner_id = $2 OR pm.user_id = $2)"#,
         project_id,
         user_id,
     )
@@ -91,33 +95,40 @@ pub async fn require_project_access(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    if !row.role.satisfies(&min_role) {
+    let role = if row.is_owner == Some(true) {
+        UserRole::Owner
+    } else {
+        row.member_role.map(UserRole::from).ok_or(AppError::NotFound)?
+    };
+
+    if !role.satisfies(&min_role) {
         return Err(AppError::Forbidden);
     }
 
     Ok((
         Project {
             id: row.id,
+            owner_id: row.owner_id,
             name: row.name,
             game_id: row.game_id,
             game_name: row.game_name,
             published: row.published,
             created_at: row.created_at,
         },
-        row.role,
+        role,
     ))
 }
 
-/// Grants access if the user is a member (any role) OR the project is published.
+/// Grants access if the user is the owner, a member (any role), OR the project is published.
 /// Returns 404 for private projects with no membership (same response for non-existent projects).
 pub async fn require_project_read_access(
     db: &PgPool,
     project_id: Uuid,
     user_id: Option<Uuid>,
-) -> Result<(Project, Option<ProjectMemberRole>)> {
+) -> Result<(Project, Option<UserRole>)> {
     let project = sqlx::query_as!(
         Project,
-        "SELECT id, name, game_id, game_name, published, created_at
+        "SELECT id, owner_id, name, game_id, game_name, published, created_at
          FROM ranking_projects WHERE id = $1",
         project_id,
     )
@@ -127,24 +138,32 @@ pub async fn require_project_read_access(
 
     if project.published {
         let role = if let Some(uid) = user_id {
-            sqlx::query_scalar!(
-                r#"SELECT role as "role: ProjectMemberRole" FROM project_members
-                   WHERE project_id = $1 AND user_id = $2"#,
-                project_id,
-                uid,
-            )
-            .fetch_optional(db)
-            .await?
+            if project.owner_id == uid {
+                Some(UserRole::Owner)
+            } else {
+                sqlx::query_scalar!(
+                    r#"SELECT role AS "role: MemberRole" FROM project_members
+                       WHERE project_id = $1 AND user_id = $2"#,
+                    project_id,
+                    uid,
+                )
+                .fetch_optional(db)
+                .await?
+                .map(UserRole::from)
+            }
         } else {
             None
         };
         return Ok((project, role));
     }
 
-    // Not published — require membership
+    // Not published — require ownership or membership
     if let Some(uid) = user_id {
+        if project.owner_id == uid {
+            return Ok((project, Some(UserRole::Owner)));
+        }
         let role = sqlx::query_scalar!(
-            r#"SELECT role as "role: ProjectMemberRole" FROM project_members
+            r#"SELECT role AS "role: MemberRole" FROM project_members
                WHERE project_id = $1 AND user_id = $2"#,
             project_id,
             uid,
@@ -152,7 +171,7 @@ pub async fn require_project_read_access(
         .fetch_optional(db)
         .await?
         .ok_or(AppError::NotFound)?;
-        return Ok((project, Some(role)));
+        return Ok((project, Some(UserRole::from(role))));
     }
 
     Err(AppError::NotFound)
@@ -171,15 +190,18 @@ async fn list_projects(
         game_name: Option<String>,
         published: bool,
         created_at: DateTime<Utc>,
-        role: ProjectMemberRole,
+        is_owner: Option<bool>,
+        member_role: Option<MemberRole>,
     }
 
     let rows = sqlx::query_as!(
         Row,
         r#"SELECT p.id, p.name, p.game_id, p.game_name, p.published, p.created_at,
-                  pm.role as "role: ProjectMemberRole"
+                  (p.owner_id = $1) AS is_owner,
+                  CASE WHEN pm.user_id IS NOT NULL THEN pm.role END AS "member_role: MemberRole"
            FROM ranking_projects p
-           JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1
+           LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1
+           WHERE p.owner_id = $1 OR pm.user_id = $1
            ORDER BY p.created_at DESC"#,
         user.id,
     )
@@ -188,14 +210,21 @@ async fn list_projects(
 
     let resp: Vec<ProjectResponse> = rows
         .into_iter()
-        .map(|r| ProjectResponse {
-            id: r.id,
-            name: r.name,
-            game_id: r.game_id,
-            game_name: r.game_name,
-            published: r.published,
-            created_at: r.created_at,
-            user_role: Some(r.role),
+        .map(|r| {
+            let role = if r.is_owner == Some(true) {
+                UserRole::Owner
+            } else {
+                r.member_role.map(UserRole::from).unwrap_or(UserRole::Viewer)
+            };
+            ProjectResponse {
+                id: r.id,
+                name: r.name,
+                game_id: r.game_id,
+                game_name: r.game_name,
+                published: r.published,
+                created_at: r.created_at,
+                user_role: Some(role),
+            }
         })
         .collect();
     Ok(Json(resp))
@@ -215,33 +244,22 @@ async fn create_project(
         ));
     }
 
-    let mut tx = state.db.begin().await?;
-
     let project = sqlx::query_as!(
         Project,
-        "INSERT INTO ranking_projects (name, game_id, game_name)
-         VALUES ($1, $2, $3)
-         RETURNING id, name, game_id, game_name, published, created_at",
+        "INSERT INTO ranking_projects (owner_id, name, game_id, game_name)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, owner_id, name, game_id, game_name, published, created_at",
+        user.id,
         body.name.trim(),
         body.game_id,
         body.game_name,
     )
-    .fetch_one(&mut *tx)
+    .fetch_one(&state.db)
     .await?;
-
-    sqlx::query!(
-        "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'owner')",
-        project.id,
-        user.id,
-    )
-    .execute(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
 
     Ok((
         StatusCode::CREATED,
-        Json(ProjectResponse::from_project(project, Some(ProjectMemberRole::Owner))),
+        Json(ProjectResponse::from_project(project, Some(UserRole::Owner))),
     ))
 }
 
@@ -262,7 +280,7 @@ async fn patch_project(
     Json(body): Json<PatchProjectRequest>,
 ) -> Result<impl IntoResponse> {
     let (project, role) =
-        require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Owner).await?;
+        require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
 
     let new_name = if let Some(ref n) = body.name {
         let trimmed = n.trim();
@@ -285,7 +303,7 @@ async fn patch_project(
         Project,
         "UPDATE ranking_projects SET name = $1, published = $2
          WHERE id = $3
-         RETURNING id, name, game_id, game_name, published, created_at",
+         RETURNING id, owner_id, name, game_id, game_name, published, created_at",
         new_name,
         new_published,
         project_id,
@@ -301,7 +319,7 @@ async fn delete_project(
     AuthUser(user): AuthUser,
     Path(project_id): Path<Uuid>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Owner).await?;
+    require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
     sqlx::query!("DELETE FROM ranking_projects WHERE id = $1", project_id)
         .execute(&state.db)
         .await?;
@@ -359,12 +377,12 @@ mod tests {
         routes::router().with_state(state)
     }
 
-    async fn register(app: &Router, username: &str) -> String {
+    async fn register(app: &Router, name: &str) -> String {
         let resp = app.clone().oneshot(
             Request::builder().method("POST").uri("/auth/register")
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(
-                    &json!({"username": username, "password": "password123"})
+                    &json!({"email": format!("{name}@test.com"), "display_name": name, "password": "password123"})
                 ).unwrap())).unwrap()
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
@@ -400,7 +418,7 @@ mod tests {
 
         let proj_id = create_project(&app, &owner_cookie, "Test Project").await;
 
-        let editor_id = sqlx::query_scalar!("SELECT id FROM users WHERE username = 'editor1'")
+        let editor_id = sqlx::query_scalar!("SELECT id FROM users WHERE email = 'editor1@test.com'")
             .fetch_one(&pool).await.unwrap();
         let proj_uuid: uuid::Uuid = proj_id.parse().unwrap();
         sqlx::query!(
@@ -428,17 +446,22 @@ mod tests {
     }
 
     #[sqlx::test(migrations = "../../migrations")]
-    async fn test_create_project_inserts_owner_membership(pool: PgPool) {
+    async fn test_create_project_sets_owner_id(pool: PgPool) {
         let app = make_app(pool.clone());
         let cookie = register(&app, "owner2").await;
         let proj_id = create_project(&app, &cookie, "My Project").await;
 
         let proj_uuid: uuid::Uuid = proj_id.parse().unwrap();
-        let row = sqlx::query!(
-            "SELECT role as \"role: String\" FROM project_members WHERE project_id = $1",
+        let owner_id = sqlx::query_scalar!(
+            "SELECT owner_id FROM ranking_projects WHERE id = $1",
             proj_uuid
         ).fetch_one(&pool).await.unwrap();
-        assert_eq!(row.role, "owner");
+
+        let user_id = sqlx::query_scalar!(
+            "SELECT id FROM users WHERE email = 'owner2@test.com'"
+        ).fetch_one(&pool).await.unwrap();
+
+        assert_eq!(owner_id, user_id);
     }
 
     #[sqlx::test(migrations = "../../migrations")]
@@ -528,7 +551,7 @@ mod tests {
         let editor_cookie = register(&app, "editor6").await;
         let proj_id = create_project(&app, &owner_cookie, "Project").await;
 
-        let editor_id = sqlx::query_scalar!("SELECT id FROM users WHERE username = 'editor6'")
+        let editor_id = sqlx::query_scalar!("SELECT id FROM users WHERE email = 'editor6@test.com'")
             .fetch_one(&pool).await.unwrap();
         let proj_uuid: uuid::Uuid = proj_id.parse().unwrap();
         sqlx::query!(
@@ -558,7 +581,7 @@ mod tests {
         let viewer_cookie = register(&app, "viewer_pl").await;
         let proj_id = create_project(&app, &owner_cookie, "Player Project").await;
 
-        let viewer_id = sqlx::query_scalar!("SELECT id FROM users WHERE username = 'viewer_pl'")
+        let viewer_id = sqlx::query_scalar!("SELECT id FROM users WHERE email = 'viewer_pl@test.com'")
             .fetch_one(&pool).await.unwrap();
         let proj_uuid: uuid::Uuid = proj_id.parse().unwrap();
         sqlx::query!(

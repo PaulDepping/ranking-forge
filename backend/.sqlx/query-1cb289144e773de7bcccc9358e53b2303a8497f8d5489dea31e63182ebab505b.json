@@ -10,7 +10,6 @@
             "name": "project_member_role",
             "kind": {
               "Enum": [
-                "owner",
                 "editor",
                 "viewer"
               ]

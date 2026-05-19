@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO project_members (project_id, user_id, role)\n           VALUES ($1, $2, 'editor')\n           ON CONFLICT (project_id, user_id) DO UPDATE SET role = 'editor'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d520e0f8abb3ec7ffcd0e4712d65d1de1deafd2d3faf74ae54725a8b2c62494e"
+}

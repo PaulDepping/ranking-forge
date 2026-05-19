@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT u.id, u.username, u.password_hash, u.created_at\n             FROM sessions s\n             JOIN users u ON u.id = s.user_id\n             WHERE s.id = $1 AND s.expires_at > NOW()",
+  "query": "SELECT u.id, u.email, u.display_name, u.password_hash, u.created_at\n             FROM sessions s\n             JOIN users u ON u.id = s.user_id\n             WHERE s.id = $1 AND s.expires_at > NOW()",
   "describe": {
     "columns": [
       {
@@ -10,16 +10,21 @@
       },
       {
         "ordinal": 1,
-        "name": "username",
+        "name": "email",
         "type_info": "Text"
       },
       {
         "ordinal": 2,
-        "name": "password_hash",
+        "name": "display_name",
         "type_info": "Text"
       },
       {
         "ordinal": 3,
+        "name": "password_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
@@ -33,8 +38,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "e0282366662f71a0d9c121d1a68a03a40cc1e4784f7c752297c0abcd17fb0cf8"
+  "hash": "57100aafd76d6f0cf5222b0f66d8d0af3b25a5b4f8e0598095dc415e81016712"
 }
