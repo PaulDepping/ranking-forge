@@ -2,7 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import { PUBLIC_API_URL } from '$env/static/public';
+	import { env } from '$env/dynamic/public';
 	import { makeApi } from '$lib/api';
 	import { invalidateAll } from '$app/navigation';
 
@@ -17,7 +17,7 @@
 		if (!trimmed) return;
 		submitting = true;
 		error = null;
-		const api = makeApi(fetch, PUBLIC_API_URL);
+		const api = makeApi(fetch, env.PUBLIC_API_URL);
 		const res = await api.post(`/projects/${projectId}/players`, { name: trimmed });
 		submitting = false;
 		if (res.ok) {

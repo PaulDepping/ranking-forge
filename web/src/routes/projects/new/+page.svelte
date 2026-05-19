@@ -6,7 +6,7 @@
 	import { Alert } from '$lib/components/ui/alert';
 	import * as Popover from '$lib/components/ui/popover';
 	import * as Command from '$lib/components/ui/command';
-	import { PUBLIC_API_URL } from '$env/static/public';
+	import { env } from '$env/dynamic/public';
 	import type { Game } from '$lib/types';
 
 	let { form } = $props();
@@ -25,7 +25,7 @@
 		if (value.length < 2) { gameResults = []; return; }
 		searching = true;
 		searchTimeout = setTimeout(async () => {
-			const res = await fetch(`${PUBLIC_API_URL}/games?q=${encodeURIComponent(value)}`, { credentials: 'include' });
+			const res = await fetch(`${env.PUBLIC_API_URL}/games?q=${encodeURIComponent(value)}`, { credentials: 'include' });
 			gameResults = res.ok ? await res.json() : [];
 			searching = false;
 		}, 300);

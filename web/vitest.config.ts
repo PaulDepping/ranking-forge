@@ -7,7 +7,7 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			$lib: resolve('./src/lib'),
-			'$env/static/public': resolve('./src/__mocks__/env.ts')
+			'$env/dynamic/public': resolve('./src/__mocks__/env.ts')
 		},
 		conditions: ['browser']
 	},
