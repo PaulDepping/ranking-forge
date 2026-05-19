@@ -48,11 +48,10 @@ services:
   web:
     build:
       context: ./web
-      args:
-        INTERNAL_API_URL: http://api:3000
     environment:
       ORIGIN: ${ORIGIN:-https://rankingforge.example.com}
       PUBLIC_API_URL: ${PUBLIC_API_URL:-https://rankingforge.example.com}
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://api:3000}
     ports:
       - "127.0.0.1:5173:3000"
     depends_on:
