@@ -61,15 +61,23 @@ impl KeyExtractor for ClientIpExtractor {
 // ── Request / response types ──────────────────────────────────────────────────
 
 #[derive(Deserialize)]
-pub struct AuthRequest {
-    pub username: String,
+pub struct RegisterRequest {
+    pub email: String,
+    pub display_name: String,
+    pub password: String,
+}
+
+#[derive(Deserialize)]
+pub struct LoginRequest {
+    pub email: String,
     pub password: String,
 }
 
 #[derive(Serialize)]
 pub struct UserResponse {
     pub id: Uuid,
-    pub username: String,
+    pub email: String,
+    pub display_name: String,
     pub created_at: DateTime<Utc>,
 }
 
@@ -77,7 +85,8 @@ impl From<User> for UserResponse {
     fn from(u: User) -> Self {
         UserResponse {
             id: u.id,
-            username: u.username,
+            email: u.email,
+            display_name: u.display_name,
             created_at: u.created_at,
         }
     }
@@ -103,7 +112,7 @@ impl FromRequestParts<AppState> for AuthUser {
 
         let user = sqlx::query_as!(
             User,
-            "SELECT u.id, u.username, u.password_hash, u.created_at
+            "SELECT u.id, u.email, u.display_name, u.password_hash, u.created_at
              FROM sessions s
              JOIN users u ON u.id = s.user_id
              WHERE s.id = $1 AND s.expires_at > NOW()",
@@ -135,7 +144,7 @@ impl FromRequestParts<AppState> for OptionalAuthUser {
         let user = if let Some(sid) = session_id {
             sqlx::query_as!(
                 User,
-                "SELECT u.id, u.username, u.password_hash, u.created_at
+                "SELECT u.id, u.email, u.display_name, u.password_hash, u.created_at
                  FROM sessions s
                  JOIN users u ON u.id = s.user_id
                  WHERE s.id = $1 AND s.expires_at > NOW()",
@@ -151,7 +160,7 @@ impl FromRequestParts<AppState> for OptionalAuthUser {
     }
 }
 
-// Equalize login response time when a username isn't found: verify_password against
+// Equalize login response time when an email isn't found: verify_password against
 // this hash so the code path matches a real wrong-password attempt (~100ms Argon2).
 static DUMMY_HASH: LazyLock<String> = LazyLock::new(|| {
     let salt = SaltString::generate(&mut OsRng);
@@ -163,7 +172,7 @@ static DUMMY_HASH: LazyLock<String> = LazyLock::new(|| {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async fn hash_password(password: String) -> Result<String> {
+pub(super) async fn hash_password(password: String) -> Result<String> {
     tokio::task::spawn_blocking(move || {
         let salt = SaltString::generate(&mut OsRng);
         Argon2::default()
@@ -175,7 +184,7 @@ async fn hash_password(password: String) -> Result<String> {
     .map_err(|_| AppError::PasswordHash)?
 }
 
-async fn verify_password(password: String, hash: String) -> Result<()> {
+pub(super) async fn verify_password(password: String, hash: String) -> Result<()> {
     tokio::task::spawn_blocking(move || {
         let parsed = PasswordHash::new(&hash).map_err(|_| AppError::PasswordHash)?;
         Argon2::default()
@@ -202,7 +211,7 @@ async fn create_session(db: &sqlx::PgPool, user_id: Uuid) -> Result<Uuid> {
     Ok(session_id)
 }
 
-fn session_cookie(id: Uuid) -> Cookie<'static> {
+pub(super) fn session_cookie(id: Uuid) -> Cookie<'static> {
     Cookie::build(("session_id", id.to_string()))
         .http_only(true)
         .same_site(SameSite::Strict)
@@ -212,7 +221,7 @@ fn session_cookie(id: Uuid) -> Cookie<'static> {
         .build()
 }
 
-fn clear_cookie() -> Cookie<'static> {
+pub(super) fn clear_cookie() -> Cookie<'static> {
     Cookie::build(("session_id", ""))
         .http_only(true)
         .same_site(SameSite::Strict)
@@ -222,48 +231,52 @@ fn clear_cookie() -> Cookie<'static> {
         .build()
 }
 
+fn is_valid_email(s: &str) -> bool {
+    let parts: Vec<&str> = s.splitn(2, '@').collect();
+    parts.len() == 2 && !parts[0].is_empty() && parts[1].contains('.')
+}
+
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
 async fn register(
     State(state): State<AppState>,
     jar: CookieJar,
-    Json(body): Json<AuthRequest>,
+    Json(body): Json<RegisterRequest>,
 ) -> Result<impl IntoResponse> {
-    if body.username.chars().count() < 3 {
-        return Err(AppError::UnprocessableEntity(
-            "username must be at least 3 characters".into(),
-        ));
+    if !is_valid_email(&body.email) {
+        return Err(AppError::UnprocessableEntity("invalid email address".into()));
     }
-    if body.username.chars().count() > 50 {
-        return Err(AppError::UnprocessableEntity(
-            "username must be at most 50 characters".into(),
-        ));
+    if body.email.chars().count() > 255 {
+        return Err(AppError::UnprocessableEntity("email must be at most 255 characters".into()));
+    }
+    if body.display_name.chars().count() < 1 {
+        return Err(AppError::UnprocessableEntity("display name must not be empty".into()));
+    }
+    if body.display_name.chars().count() > 50 {
+        return Err(AppError::UnprocessableEntity("display name must be at most 50 characters".into()));
     }
     if body.password.chars().count() < 8 {
-        return Err(AppError::UnprocessableEntity(
-            "password must be at least 8 characters".into(),
-        ));
+        return Err(AppError::UnprocessableEntity("password must be at least 8 characters".into()));
     }
     if body.password.chars().count() > 128 {
-        return Err(AppError::UnprocessableEntity(
-            "password must be at most 128 characters".into(),
-        ));
+        return Err(AppError::UnprocessableEntity("password must be at most 128 characters".into()));
     }
 
     let password_hash = hash_password(body.password).await?;
 
     let user = sqlx::query_as!(
         User,
-        "INSERT INTO users (username, password_hash) VALUES ($1, $2)
-         RETURNING id, username, password_hash, created_at",
-        body.username,
+        "INSERT INTO users (email, display_name, password_hash) VALUES ($1, $2, $3)
+         RETURNING id, email, display_name, password_hash, created_at",
+        body.email.to_lowercase(),
+        body.display_name,
         password_hash,
     )
     .fetch_one(&state.db)
     .await
     .map_err(|e| match e {
-        sqlx::Error::Database(ref db_err) if db_err.constraint() == Some("users_username_key") => {
-            AppError::UnprocessableEntity("username already taken".into())
+        sqlx::Error::Database(ref db_err) if db_err.constraint() == Some("users_email_key") => {
+            AppError::UnprocessableEntity("email already registered".into())
         }
         other => AppError::Db(other),
     })?;
@@ -277,12 +290,12 @@ async fn register(
 async fn login(
     State(state): State<AppState>,
     jar: CookieJar,
-    Json(body): Json<AuthRequest>,
+    Json(body): Json<LoginRequest>,
 ) -> Result<impl IntoResponse> {
     let user = sqlx::query_as!(
         User,
-        "SELECT id, username, password_hash, created_at FROM users WHERE username = $1",
-        body.username,
+        "SELECT id, email, display_name, password_hash, created_at FROM users WHERE email = $1",
+        body.email.to_lowercase(),
     )
     .fetch_optional(&state.db)
     .await?;
