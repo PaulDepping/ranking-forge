@@ -42,3 +42,17 @@ test('stats page player name links to detail page', async ({ page }) => {
 	await page.getByRole('link', { name: 'Alice' }).first().click();
 	await expect(page).toHaveURL(/\/projects\/proj-1\/players\/player-1/);
 });
+
+test('back button returns to previous in-app page', async ({ page }) => {
+	await page.goto('/projects/proj-1/players');
+	await page.getByRole('link', { name: 'Alice' }).click();
+	await expect(page).toHaveURL('/projects/proj-1/players/player-1');
+	await page.getByRole('link', { name: '← Back' }).click();
+	await expect(page).toHaveURL('/projects/proj-1/players');
+});
+
+test('back button falls back to players list on direct link', async ({ page }) => {
+	await page.goto('/projects/proj-1/players/player-1');
+	await page.getByRole('link', { name: '← Back' }).click();
+	await expect(page).toHaveURL('/projects/proj-1/players');
+});

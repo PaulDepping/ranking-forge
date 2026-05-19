@@ -7,11 +7,16 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as Table from '$lib/components/ui/table';
 	import { winRate, toOrdinal, formatDate } from '$lib/utils';
+	import { previousPage } from '$lib/stores/navigation';
 
 	let { data } = $props();
 
 	let selectedSet = $state<SetRecord | null>(null);
 	let selectedIsWin = $state(false);
+
+	const backHref = $derived(
+		$previousPage ?? `/projects/${data.projectId}/players`
+	);
 
 	function openModal(set: SetRecord, isWin: boolean) {
 		selectedSet = set;
@@ -26,7 +31,7 @@
 
 <div class="space-y-6">
 	<!-- Back button -->
-	<Button variant="link" class="px-0" onclick={() => history.back()}>← Back</Button>
+	<Button variant="link" class="px-0" href={backHref}>← Back</Button>
 
 	<!-- Header -->
 	<div>
