@@ -18,7 +18,8 @@ pub struct Job {
 #[derive(Debug, Clone, sqlx::FromRow, Serialize)]
 pub struct User {
     pub id: Uuid,
-    pub username: String,
+    pub email: String,
+    pub display_name: String,
     pub password_hash: String,
     pub created_at: DateTime<Utc>,
 }
@@ -34,6 +35,7 @@ pub struct Session {
 #[derive(Debug, Clone, sqlx::FromRow, Serialize)]
 pub struct Project {
     pub id: Uuid,
+    pub owner_id: Uuid,
     pub name: String,
     pub game_id: Option<i64>,
     pub game_name: Option<String>,
@@ -41,22 +43,42 @@ pub struct Project {
     pub created_at: DateTime<Utc>,
 }
 
+/// DB-mapped role for project_members rows. Only editor and viewer — owner is
+/// stored as ranking_projects.owner_id.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::Type, Serialize, Deserialize)]
 #[sqlx(type_name = "project_member_role", rename_all = "snake_case")]
 #[serde(rename_all = "lowercase")]
-pub enum ProjectMemberRole {
+pub enum MemberRole {
+    Editor,
+    Viewer,
+}
+
+/// Role returned in API responses — includes Owner (synthesised from owner_id,
+/// never stored in project_members).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum UserRole {
     Owner,
     Editor,
     Viewer,
 }
 
-impl ProjectMemberRole {
-    pub fn satisfies(&self, min: &ProjectMemberRole) -> bool {
+impl UserRole {
+    pub fn satisfies(&self, min: &UserRole) -> bool {
         match (self, min) {
-            (_, ProjectMemberRole::Viewer) => true,
-            (ProjectMemberRole::Owner | ProjectMemberRole::Editor, ProjectMemberRole::Editor) => true,
-            (ProjectMemberRole::Owner, ProjectMemberRole::Owner) => true,
+            (_, UserRole::Viewer) => true,
+            (UserRole::Owner | UserRole::Editor, UserRole::Editor) => true,
+            (UserRole::Owner, UserRole::Owner) => true,
             _ => false,
+        }
+    }
+}
+
+impl From<MemberRole> for UserRole {
+    fn from(r: MemberRole) -> Self {
+        match r {
+            MemberRole::Editor => UserRole::Editor,
+            MemberRole::Viewer => UserRole::Viewer,
         }
     }
 }
@@ -65,8 +87,8 @@ impl ProjectMemberRole {
 pub struct ProjectMember {
     pub project_id: Uuid,
     pub user_id: Uuid,
-    pub username: String,
-    pub role: ProjectMemberRole,
+    pub display_name: String,
+    pub role: MemberRole,
     pub joined_at: DateTime<Utc>,
 }
 
@@ -74,7 +96,7 @@ pub struct ProjectMember {
 pub struct ProjectInviteLink {
     pub id: Uuid,
     pub project_id: Uuid,
-    pub role: ProjectMemberRole,
+    pub role: MemberRole,
     pub created_by: Uuid,
     pub expires_at: Option<DateTime<Utc>>,
     pub revoked_at: Option<DateTime<Utc>>,
