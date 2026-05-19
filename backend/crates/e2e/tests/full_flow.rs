@@ -35,7 +35,7 @@ async fn register(app: &Router, username: &str, password: &str) -> String {
         .uri("/auth/register")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"username": username, "password": password})).unwrap(),
+            serde_json::to_vec(&json!({"email": format!("{username}@test.com"), "display_name": username, "password": password})).unwrap(),
         ))
         .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();

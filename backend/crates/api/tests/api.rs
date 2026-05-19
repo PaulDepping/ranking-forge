@@ -38,7 +38,7 @@ async fn register(app: &Router, username: &str, password: &str) -> String {
         .uri("/auth/register")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"username": username, "password": password})).unwrap(),
+            serde_json::to_vec(&json!({"email": format!("{username}@test.com"), "display_name": username, "password": password})).unwrap(),
         ))
         .unwrap();
 
@@ -324,7 +324,7 @@ async fn auth_register_and_me(pool: PgPool) {
 
     let resp = get_req(&app, "/auth/me", &cookie).await;
     assert_eq!(resp.status(), StatusCode::OK);
-    assert_eq!(read_json(resp).await["username"], "alice");
+    assert_eq!(read_json(resp).await["display_name"], "alice");
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -375,7 +375,7 @@ async fn auth_login(pool: PgPool) {
         .uri("/auth/login")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"username": "alice", "password": "password123"})).unwrap(),
+            serde_json::to_vec(&json!({"email": "alice@test.com", "password": "password123"})).unwrap(),
         ))
         .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
@@ -401,7 +401,7 @@ async fn auth_login(pool: PgPool) {
     // Cookie from login must work for authenticated endpoints
     let resp = get_req(&app, "/auth/me", &cookie).await;
     assert_eq!(resp.status(), StatusCode::OK);
-    assert_eq!(read_json(resp).await["username"], "alice");
+    assert_eq!(read_json(resp).await["display_name"], "alice");
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -414,7 +414,7 @@ async fn auth_login_wrong_password(pool: PgPool) {
         .uri("/auth/login")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"username": "alice", "password": "wrongpassword"})).unwrap(),
+            serde_json::to_vec(&json!({"email": "alice@test.com", "password": "wrongpassword"})).unwrap(),
         ))
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -430,7 +430,7 @@ async fn auth_login_unknown_user(pool: PgPool) {
         .uri("/auth/login")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"username": "nobody", "password": "password123"})).unwrap(),
+            serde_json::to_vec(&json!({"email": "nobody@test.com", "password": "password123"})).unwrap(),
         ))
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -438,14 +438,14 @@ async fn auth_login_unknown_user(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
-async fn auth_register_short_username(pool: PgPool) {
+async fn auth_register_empty_display_name(pool: PgPool) {
     let app = make_app(pool, "");
     let req = Request::builder()
         .method("POST")
         .uri("/auth/register")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"username": "ab", "password": "password123"})).unwrap(),
+            serde_json::to_vec(&json!({"email": "a@b.com", "display_name": "", "password": "password123"})).unwrap(),
         ))
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -460,7 +460,7 @@ async fn auth_register_short_password(pool: PgPool) {
         .uri("/auth/register")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"username": "alice", "password": "short"})).unwrap(),
+            serde_json::to_vec(&json!({"email": "alice@test.com", "display_name": "alice", "password": "short"})).unwrap(),
         ))
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -477,7 +477,7 @@ async fn auth_register_duplicate_username(pool: PgPool) {
         .uri("/auth/register")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"username": "alice", "password": "different!"})).unwrap(),
+            serde_json::to_vec(&json!({"email": "alice@test.com", "display_name": "alice2", "password": "different!"})).unwrap(),
         ))
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -2147,7 +2147,7 @@ async fn auth_register_cookie_is_secure(pool: PgPool) {
         .uri("/auth/register")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"username": "alice", "password": "password123"})).unwrap(),
+            serde_json::to_vec(&json!({"email": "alice@test.com", "display_name": "alice", "password": "password123"})).unwrap(),
         ))
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -2166,7 +2166,7 @@ async fn auth_login_cookie_is_secure(pool: PgPool) {
         .uri("/auth/login")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"username": "alice", "password": "password123"})).unwrap(),
+            serde_json::to_vec(&json!({"email": "alice@test.com", "password": "password123"})).unwrap(),
         ))
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -2197,7 +2197,7 @@ async fn auth_logout_cookie_is_secure(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
-async fn auth_register_long_username(pool: PgPool) {
+async fn auth_register_long_display_name(pool: PgPool) {
     let app = make_app(pool, "");
     let req = Request::builder()
         .method("POST")
@@ -2205,7 +2205,8 @@ async fn auth_register_long_username(pool: PgPool) {
         .header("content-type", "application/json")
         .body(Body::from(
             serde_json::to_vec(&json!({
-                "username": "a".repeat(51),
+                "email": "alice@test.com",
+                "display_name": "a".repeat(51),
                 "password": "password123"
             }))
             .unwrap(),
@@ -2224,7 +2225,8 @@ async fn auth_register_long_password(pool: PgPool) {
         .header("content-type", "application/json")
         .body(Body::from(
             serde_json::to_vec(&json!({
-                "username": "alice",
+                "email": "alice@test.com",
+                "display_name": "alice",
                 "password": "x".repeat(129)
             }))
             .unwrap(),
@@ -2252,7 +2254,7 @@ async fn projects_create_long_name(pool: PgPool) {
 async fn auth_rate_limit_after_burst(pool: PgPool) {
     let app = make_app(pool, "");
 
-    // burst_size=5: first 5 requests must go through (returned as 422 — short username
+    // burst_size=5: first 5 requests must go through (returned as 422 — short password
     // fails validation before any expensive work, making the test fast)
     for i in 0..5 {
         let req = Request::builder()
@@ -2260,7 +2262,7 @@ async fn auth_rate_limit_after_burst(pool: PgPool) {
             .uri("/auth/register")
             .header("content-type", "application/json")
             .body(Body::from(
-                serde_json::to_vec(&json!({"username": "ab", "password": "x"})).unwrap(),
+                serde_json::to_vec(&json!({"email": "a@b.com", "display_name": "a", "password": "x"})).unwrap(),
             ))
             .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
@@ -2277,7 +2279,7 @@ async fn auth_rate_limit_after_burst(pool: PgPool) {
         .uri("/auth/register")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"username": "ab", "password": "x"})).unwrap(),
+            serde_json::to_vec(&json!({"email": "a@b.com", "display_name": "a", "password": "x"})).unwrap(),
         ))
         .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
