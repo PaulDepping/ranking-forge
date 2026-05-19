@@ -59,7 +59,7 @@
 			<div class="ml-auto flex items-center gap-2">
 				<ThemeToggle />
 				{#if data.user}
-					<span class="text-sm text-muted-foreground">{data.user.username}</span>
+					<a href="/account" class="text-sm text-muted-foreground hover:text-foreground">{data.user.display_name}</a>
 					<Button variant="ghost" size="sm" onclick={logout}>Logout</Button>
 				{:else}
 					<a href="/login" class={buttonVariants({ variant: 'outline', size: 'sm' })}>Sign in</a>

@@ -20,8 +20,12 @@
 
 		<form method="POST" use:enhance class="space-y-4">
 			<div class="space-y-2">
-				<Label for="username">Username</Label>
-				<Input id="username" name="username" required minlength={3} autocomplete="username" />
+				<Label for="email">Email</Label>
+				<Input id="email" name="email" type="email" required autocomplete="email" />
+			</div>
+			<div class="space-y-2">
+				<Label for="display_name">Display name</Label>
+				<Input id="display_name" name="display_name" required maxlength={50} autocomplete="nickname" />
 			</div>
 			<div class="space-y-2">
 				<Label for="password">Password</Label>

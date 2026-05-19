@@ -9,13 +9,13 @@ export const load: PageServerLoad = ({ locals }) => {
 export const actions: Actions = {
 	default: async ({ fetch, request, cookies }) => {
 		const data = await request.formData();
-		const username = data.get('username') as string;
+		const email = data.get('email') as string;
 		const password = data.get('password') as string;
 
 		const res = await fetch(`${env.INTERNAL_API_URL}/auth/login`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ username, password })
+			body: JSON.stringify({ email, password })
 		});
 
 		if (!res.ok) {

@@ -1,6 +1,7 @@
 export interface User {
 	id: string;
-	username: string;
+	email: string;
+	display_name: string;
 	created_at: string;
 }
 
@@ -156,8 +157,8 @@ export interface Game {
 export interface ProjectMember {
 	project_id: string;
 	user_id: string;
-	username: string;
-	role: 'owner' | 'editor' | 'viewer';
+	display_name: string;
+	role: 'editor' | 'viewer';
 	joined_at: string;
 }
 
