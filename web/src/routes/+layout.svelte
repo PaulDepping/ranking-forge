@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
-	import { PUBLIC_API_URL } from '$env/dynamic/public';
+	import { env } from '$env/dynamic/public';
 	import { afterNavigate, goto } from '$app/navigation';
 	import { ModeWatcher } from 'mode-watcher';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -20,7 +20,7 @@
 	});
 
 	async function logout() {
-		await fetch(`${PUBLIC_API_URL}/auth/logout`, { method: 'POST', credentials: 'include' });
+		await fetch(`${env.PUBLIC_API_URL}/auth/logout`, { method: 'POST', credentials: 'include' });
 		await goto('/login');
 	}
 </script>

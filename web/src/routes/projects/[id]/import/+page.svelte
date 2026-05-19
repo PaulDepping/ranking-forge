@@ -7,7 +7,7 @@
 	import * as Card from '$lib/components/ui/card';
 	import DateRangePicker from '$lib/components/DateRangePicker.svelte';
 	import type { DateRange } from 'bits-ui';
-	import { PUBLIC_API_URL } from '$env/dynamic/public';
+	import { env } from '$env/dynamic/public';
 	import { makeApi } from '$lib/api';
 	import type { Job } from '$lib/types';
 	import { formatDateTime } from '$lib/utils';
@@ -38,7 +38,7 @@
 	$effect(() => {
 		if (!isActiveJob) return;
 		const interval = setInterval(async () => {
-			const api = makeApi(fetch, PUBLIC_API_URL);
+			const api = makeApi(fetch, env.PUBLIC_API_URL);
 			const res = await api.get(`/projects/${data.project.id}/import`);
 			if (res.ok) {
 				job = await res.json() as Job;

@@ -3,7 +3,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Textarea } from '$lib/components/ui/textarea';
-	import { PUBLIC_API_URL } from '$env/dynamic/public';
+	import { env } from '$env/dynamic/public';
 	import { makeApi } from '$lib/api';
 	import { invalidateAll } from '$app/navigation';
 	import type { ByHandlesResult } from '$lib/types';
@@ -20,7 +20,7 @@
 		if (!handles.length) return;
 		submitting = true;
 		error = null;
-		const api = makeApi(fetch, PUBLIC_API_URL);
+		const api = makeApi(fetch, env.PUBLIC_API_URL);
 		const res = await api.post(`/projects/${projectId}/players/by-handles`, { handles });
 		submitting = false;
 		if (res.ok) {

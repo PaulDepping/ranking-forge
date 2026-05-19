@@ -6,7 +6,7 @@
     import { Checkbox } from '$lib/components/ui/checkbox';
     import { ScrollArea } from '$lib/components/ui/scroll-area';
     import * as Tabs from '$lib/components/ui/tabs';
-    import { PUBLIC_API_URL } from '$env/dynamic/public';
+    import { env } from '$env/dynamic/public';
     import { makeApi } from '$lib/api';
     import { invalidateAll } from '$app/navigation';
     import type { Player, TournamentData, TournamentParticipant, TournamentEntrantOrdered } from '$lib/types';
@@ -118,7 +118,7 @@
         activeTab = 'all';
         selected = new Set();
         search = '';
-        const api = makeApi(fetch, PUBLIC_API_URL);
+        const api = makeApi(fetch, env.PUBLIC_API_URL);
         const res = await api.get(
             `/projects/${projectId}/tournament-entrants?tournament=${encodeURIComponent(tournamentInput.trim())}`
         );
@@ -139,7 +139,7 @@
         if (!entries.length) return;
         submitting = true;
         addError = null;
-        const api = makeApi(fetch, PUBLIC_API_URL);
+        const api = makeApi(fetch, env.PUBLIC_API_URL);
         const res = await api.post(`/projects/${projectId}/players/bulk`, { players: entries });
         submitting = false;
         if (res.ok) {
