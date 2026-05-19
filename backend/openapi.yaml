@@ -20,12 +20,15 @@ components:
 
     User:
       type: object
-      required: [id, username, created_at]
+      required: [id, email, display_name, created_at]
       properties:
         id:
           type: string
           format: uuid
-        username:
+        email:
+          type: string
+          format: email
+        display_name:
           type: string
         created_at:
           type: string
@@ -395,14 +398,18 @@ paths:
           application/json:
             schema:
               type: object
-              required: [username, password]
+              required: [email, display_name, password]
               properties:
-                username:
+                email:
                   type: string
-                  minLength: 3
+                  format: email
+                display_name:
+                  type: string
+                  maxLength: 50
                 password:
                   type: string
                   minLength: 8
+                  maxLength: 128
       responses:
         '201':
           description: Account created; session cookie set
@@ -423,10 +430,11 @@ paths:
           application/json:
             schema:
               type: object
-              required: [username, password]
+              required: [email, password]
               properties:
-                username:
+                email:
                   type: string
+                  format: email
                 password:
                   type: string
       responses:
@@ -1239,5 +1247,74 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Game'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── Account ─────────────────────────────────────────────────────────────────
+
+  /account/profile:
+    patch:
+      summary: Update profile (display name and/or email)
+      tags: [Account]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                display_name:
+                  type: string
+                  maxLength: 50
+                email:
+                  type: string
+                  format: email
+      responses:
+        '204':
+          description: Updated
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /account/password:
+    patch:
+      summary: Change password
+      tags: [Account]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password:
+                  type: string
+                new_password:
+                  type: string
+                  minLength: 8
+                  maxLength: 128
+      responses:
+        '204':
+          description: Password changed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /account:
+    delete:
+      summary: Delete account (cascades owned projects)
+      tags: [Account]
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Account deleted; session cleared
         '401':
           $ref: '#/components/responses/Unauthorized'
