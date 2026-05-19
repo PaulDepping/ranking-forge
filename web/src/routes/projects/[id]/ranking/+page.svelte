@@ -168,7 +168,7 @@
 							</Button>
 						{/if}
 
-						<span class="flex-1 font-semibold">{item.name}</span>
+						<a href="/projects/{data.project.id}/players/{item.id}" class="flex-1 font-semibold hover:underline">{item.name}</a>
 
 						{#if s}
 							<span class="text-xs text-muted-foreground">{wlRecord(s)}</span>
@@ -183,7 +183,7 @@
 					{@const s = statsMap[item.id]}
 					<div class="flex items-center gap-3 rounded-md border bg-card px-3 py-2.5 text-sm">
 						<span class="w-8 text-center text-xs text-muted-foreground">{i + 1}</span>
-						<span class="flex-1 font-semibold">{item.name}</span>
+						<a href="/projects/{data.project.id}/players/{item.id}" class="flex-1 font-semibold hover:underline">{item.name}</a>
 						{#if s}
 							<span class="text-xs text-muted-foreground">{wlRecord(s)}</span>
 							<span class="min-w-[36px] text-right text-xs font-semibold">{winRate(s.wins.length, s.losses.length)}</span>
