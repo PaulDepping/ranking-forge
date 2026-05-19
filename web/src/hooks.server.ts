@@ -14,6 +14,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	} else {
 		event.locals.user = null;
 		const isPublic =
+			pathname === '/' ||
 			['/login', '/register'].includes(pathname) ||
 			/^\/projects\/[^/]/.test(pathname) ||
 			/^\/invite\//.test(pathname);
