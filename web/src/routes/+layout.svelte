@@ -37,14 +37,20 @@
 			<NavigationMenu.Root>
 				<NavigationMenu.List>
 					<NavigationMenu.Item>
-						<NavigationMenu.Link href="/" class={navigationMenuTriggerStyle()}>
-							<span class="font-semibold">RankingForge</span>
+						<NavigationMenu.Link>
+							{#snippet child()}
+								<a href="/" class={navigationMenuTriggerStyle()}>
+									<span class="font-semibold">RankingForge</span>
+								</a>
+							{/snippet}
 						</NavigationMenu.Link>
 					</NavigationMenu.Item>
 					{#if data.user}
 						<NavigationMenu.Item>
-							<NavigationMenu.Link href="/projects" class={navigationMenuTriggerStyle()}>
-								Projects
+							<NavigationMenu.Link>
+								{#snippet child()}
+									<a href="/projects" class={navigationMenuTriggerStyle()}>Projects</a>
+								{/snippet}
 							</NavigationMenu.Link>
 						</NavigationMenu.Item>
 					{/if}
