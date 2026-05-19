@@ -1,6 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { INTERNAL_API_URL } from '$env/dynamic/private';
+import { env } from '$env/dynamic/private';
 
 export const load: PageServerLoad = ({ locals }) => {
 	if (locals.user) redirect(303, '/projects');
@@ -17,7 +17,7 @@ export const actions: Actions = {
 			return fail(400, { error: 'Passwords do not match' });
 		}
 
-		const res = await fetch(`${INTERNAL_API_URL}/auth/register`, {
+		const res = await fetch(`${env.INTERNAL_API_URL}/auth/register`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ username, password })
