@@ -5,8 +5,10 @@
 	import { afterNavigate, goto } from '$app/navigation';
 	import { ModeWatcher } from 'mode-watcher';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import { Button } from '$lib/components/ui/button';
+	import { Button, buttonVariants } from '$lib/components/ui/button';
 	import * as Tooltip from '$lib/components/ui/tooltip';
+	import * as NavigationMenu from '$lib/components/ui/navigation-menu';
+	import { navigationMenuTriggerStyle } from '$lib/components/ui/navigation-menu/navigation-menu-trigger.svelte';
 	import { previousPage } from '$lib/stores/navigation';
 
 	let { children, data } = $props();
@@ -30,18 +32,36 @@
 <ModeWatcher />
 
 <Tooltip.Provider>
-	{#if data.user}
-		<header class="border-b border-border bg-card">
-			<div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-				<a href="/projects" class="font-semibold text-foreground hover:text-primary">RankingForge</a>
-				<div class="flex items-center gap-4">
+	<header class="border-b border-border bg-card">
+		<div class="mx-auto flex max-w-5xl items-center px-4">
+			<NavigationMenu.Root>
+				<NavigationMenu.List>
+					<NavigationMenu.Item>
+						<NavigationMenu.Link href="/" class={navigationMenuTriggerStyle()}>
+							<span class="font-semibold">RankingForge</span>
+						</NavigationMenu.Link>
+					</NavigationMenu.Item>
+					{#if data.user}
+						<NavigationMenu.Item>
+							<NavigationMenu.Link href="/projects" class={navigationMenuTriggerStyle()}>
+								Projects
+							</NavigationMenu.Link>
+						</NavigationMenu.Item>
+					{/if}
+				</NavigationMenu.List>
+			</NavigationMenu.Root>
+			<div class="ml-auto flex items-center gap-2">
+				<ThemeToggle />
+				{#if data.user}
 					<span class="text-sm text-muted-foreground">{data.user.username}</span>
-					<ThemeToggle />
 					<Button variant="ghost" size="sm" onclick={logout}>Logout</Button>
-				</div>
+				{:else}
+					<a href="/login" class={buttonVariants({ variant: 'outline', size: 'sm' })}>Sign in</a>
+					<a href="/register" class={buttonVariants({ variant: 'default', size: 'sm' })}>Register</a>
+				{/if}
 			</div>
-		</header>
-	{/if}
+		</div>
+	</header>
 
 	<main class="mx-auto max-w-5xl px-4 py-8">
 		{@render children()}
