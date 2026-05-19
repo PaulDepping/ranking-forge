@@ -93,7 +93,7 @@
 
 	<!-- Tournament history -->
 	<div>
-		<h3 class="mb-2 text-base font-semibold">Tournament History</h3>
+		<h3 class="mb-2 text-base font-semibold">Tournament history ({data.tournaments.length})</h3>
 		{#if data.tournaments.length === 0}
 			<Empty.Root>
 				<Empty.Header>

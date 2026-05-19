@@ -115,6 +115,34 @@ const MOCK_SET_BASE = {
 	vod_url: null, startgg_set_id: 1001, winner_seed: 3, loser_seed: 7,
 };
 
+const MOCK_PLAYER_STATS = {
+	player_id: 'player-1',
+	name: 'Alice',
+	wins: [{ ...MOCK_SET_BASE, opponent_id: 'player-2', opponent_name: 'Bob', upset_factor: 3 }],
+	losses: [{ ...MOCK_SET_BASE, opponent_id: 'player-3', opponent_name: 'Charlie', upset_factor: 1 }],
+};
+
+const MOCK_PLAYER_TOURNAMENTS = [
+	{
+		tournament_name: 'Genesis 9',
+		tournament_slug: 'tournament/genesis-9',
+		event_name: 'Melee Singles',
+		placement: 1,
+		num_entrants: 486,
+		start_at: '2024-01-12T00:00:00Z',
+		location: 'San Jose, CA',
+	},
+	{
+		tournament_name: 'CEO 2024',
+		tournament_slug: 'tournament/ceo-2024',
+		event_name: 'Melee Singles',
+		placement: 5,
+		num_entrants: 312,
+		start_at: '2024-06-14T00:00:00Z',
+		location: 'Kissimmee, FL',
+	},
+];
+
 const MOCK_STATS = [
 	{
 		player_id: 'player-1',
@@ -300,6 +328,12 @@ function createMockServer() {
 			return;
 		}
 
+		const playerTournamentsMatch = path.match(/^\/projects\/([^/]+)\/players\/([^/]+)\/tournaments$/);
+		if (playerTournamentsMatch && req.method === 'GET') {
+			respond(res, 200, MOCK_PLAYER_TOURNAMENTS);
+			return;
+		}
+
 		const playerPatchMatch = path.match(/^\/projects\/([^/]+)\/players\/([^/]+)$/);
 		if (playerPatchMatch && req.method === 'PATCH') {
 			const body = await readBody(req);
@@ -335,6 +369,12 @@ function createMockServer() {
 			const projectId = tournamentsMatch[1];
 			const hasTournaments = projectId === 'proj-tournaments' || projectId === 'proj-viewer-tournaments';
 			respond(res, 200, hasTournaments ? MOCK_TOURNAMENTS : []);
+			return;
+		}
+
+		const playerStatsMatch = path.match(/^\/projects\/([^/]+)\/stats\/([^/]+)$/);
+		if (playerStatsMatch && req.method === 'GET') {
+			respond(res, 200, MOCK_PLAYER_STATS);
 			return;
 		}
 
