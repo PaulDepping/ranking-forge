@@ -16,6 +16,7 @@ done
 CONTAINER="ranking-forge-test"
 PORT=15432
 export DATABASE_URL="postgres://postgres:postgres@localhost:${PORT}/postgres"
+export SQLX_OFFLINE=true
 
 cleanup() {
     docker rm -f "$CONTAINER" 2>/dev/null || true
