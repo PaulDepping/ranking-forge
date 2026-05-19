@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test('login page renders the sign-in form', async ({ page }) => {
 	await page.goto('/login');
 	await expect(page.getByRole('link', { name: 'RankingForge' })).toBeVisible();
-	await expect(page.getByLabel('Username')).toBeVisible();
+	await expect(page.getByLabel('Email')).toBeVisible();
 	await expect(page.getByLabel('Password')).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Register' }).first()).toBeVisible();
@@ -11,7 +11,7 @@ test('login page renders the sign-in form', async ({ page }) => {
 
 test('shows error alert on invalid credentials', async ({ page }) => {
 	await page.goto('/login');
-	await page.getByLabel('Username').fill('wronguser');
+	await page.getByLabel('Email').fill('wrong@test.com');
 	await page.getByLabel('Password').fill('wrongpass');
 	await page.getByRole('button', { name: 'Sign in' }).click();
 
@@ -24,7 +24,7 @@ test('valid credentials are accepted without an error', async ({ page }) => {
 	// Full session-cookie persistence relies on SvelteKit forwarding Set-Cookie from
 	// event.fetch responses — tested in projects.test.ts via pre-set cookie fixture.
 	await page.goto('/login');
-	await page.getByLabel('Username').fill('testuser');
+	await page.getByLabel('Email').fill('testuser@test.com');
 	await page.getByLabel('Password').fill('testpass');
 	await page.getByRole('button', { name: 'Sign in' }).click();
 
@@ -40,7 +40,8 @@ test('unauthenticated visit to /projects redirects to /login', async ({ page }) 
 
 test('register page renders the registration form', async ({ page }) => {
 	await page.goto('/register');
-	await expect(page.getByLabel('Username')).toBeVisible();
+	await expect(page.getByLabel('Email')).toBeVisible();
+	await expect(page.getByLabel('Display name')).toBeVisible();
 	await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Create account' })).toBeVisible();
 });
@@ -52,7 +53,8 @@ test('register page shows Confirm password field', async ({ page }) => {
 
 test('shows error when passwords do not match', async ({ page }) => {
 	await page.goto('/register');
-	await page.getByLabel('Username').fill('newuser');
+	await page.getByLabel('Email').fill('newuser@test.com');
+	await page.getByLabel('Display name').fill('newuser');
 	await page.getByLabel('Password', { exact: true }).fill('password123');
 	await page.getByLabel('Confirm password').fill('different123');
 	await page.getByRole('button', { name: 'Create account' }).click();
@@ -62,7 +64,8 @@ test('shows error when passwords do not match', async ({ page }) => {
 
 test('registration succeeds when passwords match', async ({ page }) => {
 	await page.goto('/register');
-	await page.getByLabel('Username').fill('newuser');
+	await page.getByLabel('Email').fill('newuser@test.com');
+	await page.getByLabel('Display name').fill('newuser');
 	await page.getByLabel('Password', { exact: true }).fill('password123');
 	await page.getByLabel('Confirm password').fill('password123');
 	await page.getByRole('button', { name: 'Create account' }).click();

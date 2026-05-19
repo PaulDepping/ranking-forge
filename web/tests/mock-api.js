@@ -1,6 +1,6 @@
 import http from 'http';
 
-const MOCK_USER = { id: 'user-1', username: 'testuser', created_at: '2026-01-01T00:00:00Z' };
+const MOCK_USER = { id: 'user-1', email: 'testuser@test.com', display_name: 'testuser', created_at: '2026-01-01T00:00:00Z' };
 
 const MOCK_PROJECTS = [
 	{
@@ -102,7 +102,7 @@ const MOCK_H2H = [
 ];
 
 const MOCK_MEMBERS = [
-	{ project_id: 'proj-1', user_id: 'user-1', username: 'testuser', role: 'owner', joined_at: '2026-01-01T00:00:00Z' }
+	{ project_id: 'proj-1', user_id: 'user-2', display_name: 'editor_user', role: 'editor', joined_at: '2026-01-01T00:00:00Z' }
 ];
 
 const MOCK_INVITE_LINKS = [];
@@ -228,7 +228,7 @@ function createMockServer() {
 
 		if (path === '/auth/login' && req.method === 'POST') {
 			const body = await readBody(req);
-			if (body?.username === 'testuser' && body?.password === 'testpass') {
+			if (body?.email === 'testuser@test.com' && body?.password === 'testpass') {
 				res.setHeader('Set-Cookie', 'session_id=test-session; HttpOnly; Path=/; SameSite=Strict');
 				respond(res, 200, MOCK_USER);
 			} else {
@@ -435,6 +435,22 @@ function createMockServer() {
 		const inviteAcceptMatch = path.match(/^\/invite\/([^/]+)\/accept$/);
 		if (inviteAcceptMatch && req.method === 'POST') {
 			respond(res, 200, { project_id: 'proj-1' });
+			return;
+		}
+
+		if (path === '/account/profile' && req.method === 'PATCH') {
+			respond(res, 204, null);
+			return;
+		}
+
+		if (path === '/account/password' && req.method === 'PATCH') {
+			respond(res, 204, null);
+			return;
+		}
+
+		if (path === '/account' && req.method === 'DELETE') {
+			res.setHeader('Set-Cookie', 'session_id=; Max-Age=0; Path=/');
+			respond(res, 204, null);
 			return;
 		}
 
