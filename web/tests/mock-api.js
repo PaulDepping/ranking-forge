@@ -10,7 +10,8 @@ const MOCK_PROJECTS = [
 		game_name: 'Super Smash Bros. Melee',
 		created_at: '2026-01-01T00:00:00Z',
 		published: false,
-		user_role: 'owner'
+		user_role: 'owner',
+		owner_has_startgg_key: true
 	}
 ];
 
@@ -21,7 +22,8 @@ const MOCK_VIEWER_PROJECT = {
 	game_name: 'Super Smash Bros. Melee',
 	created_at: '2026-01-01T00:00:00Z',
 	published: true,
-	user_role: 'viewer'
+	user_role: 'viewer',
+	owner_has_startgg_key: true
 };
 
 const MOCK_PLAYERS = [
