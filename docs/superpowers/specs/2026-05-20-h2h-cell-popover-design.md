@@ -33,13 +33,13 @@ Each non-diagonal cell that has a record gets a `Popover.Root` wrapping its trig
       </Button>
     {/snippet}
   </Popover.Trigger>
-  <Popover.Content side="right" align="start" class="w-64 p-0">
+  <Popover.Content side="right" align="center" class="w-64 p-0">
     <!-- detail content -->
   </Popover.Content>
 </Popover.Root>
 ```
 
-`side="right"` is the preferred direction; floating-ui flips to left/top/bottom automatically when the viewport edge is too close.
+`side="right"` is the preferred direction; floating-ui flips to left/top/bottom automatically when the viewport edge is too close. `align="center"` vertically centers the popover on the trigger cell.
 
 ### Popover content
 
