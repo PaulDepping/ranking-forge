@@ -191,14 +191,14 @@ test('From tournament tab: switching to event tab shows sort toggle', async ({ p
 	await page.getByRole('button', { name: 'Fetch' }).click();
 
 	// Sort toggle is not visible on All tab
-	await expect(page.getByRole('button', { name: 'Placement' })).not.toBeVisible();
+	await expect(page.getByRole('radio', { name: 'Placement' })).not.toBeVisible();
 
 	// Switch to Melee Singles event tab
 	await page.getByRole('tab', { name: 'Melee Singles' }).click();
 
 	// Sort toggle appears
-	await expect(page.getByRole('button', { name: 'Placement' })).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Seed' })).toBeVisible();
+	await expect(page.getByRole('radio', { name: 'Placement' })).toBeVisible();
+	await expect(page.getByRole('radio', { name: 'Seed' })).toBeVisible();
 });
 
 test('From tournament tab: selections persist across tab switches', async ({ page }) => {
