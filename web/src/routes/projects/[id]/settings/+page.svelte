@@ -7,6 +7,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Separator } from '$lib/components/ui/separator';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+	import * as Card from '$lib/components/ui/card';
 	import * as Table from '$lib/components/ui/table';
 	import * as Select from '$lib/components/ui/select';
 	let { data, form } = $props();
@@ -136,30 +137,30 @@
 		<h2 class="text-lg font-semibold">Invite links</h2>
 
 		{#each data.inviteLinks as link}
-			<div class="flex items-center justify-between rounded-md border p-3 gap-2">
-				<div class="text-sm space-y-0.5">
-					<span class="font-medium capitalize">{link.role}</span>
+			<Card.Root class="py-0 gap-0">
+				<Card.Header class="p-3">
+					<Card.Title class="text-sm font-medium capitalize">{link.role}</Card.Title>
 					{#if link.expires_at}
-						<span class="text-muted-foreground">
-							· expires {new Date(link.expires_at).toLocaleDateString()}</span
-						>
+						<Card.Description class="text-xs">
+							expires {new Date(link.expires_at).toLocaleDateString()}
+						</Card.Description>
 					{/if}
-				</div>
-				<div class="flex gap-2">
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						onclick={() => navigator.clipboard.writeText(`${location.origin}/invite/${link.id}`)}
-					>
-						Copy link
-					</Button>
-					<form method="POST" action="?/revokeInviteLink" use:enhance class="inline">
-						<input type="hidden" name="link_id" value={link.id} />
-						<Button type="submit" variant="ghost" size="sm">Revoke</Button>
-					</form>
-				</div>
-			</div>
+					<Card.Action class="flex gap-2">
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onclick={() => navigator.clipboard.writeText(`${location.origin}/invite/${link.id}`)}
+						>
+							Copy link
+						</Button>
+						<form method="POST" action="?/revokeInviteLink" use:enhance class="inline">
+							<input type="hidden" name="link_id" value={link.id} />
+							<Button type="submit" variant="ghost" size="sm">Revoke</Button>
+						</form>
+					</Card.Action>
+				</Card.Header>
+			</Card.Root>
 		{/each}
 
 		<form method="POST" action="?/createInviteLink" use:enhance class="flex gap-2 items-end">
