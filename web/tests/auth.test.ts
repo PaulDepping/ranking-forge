@@ -81,3 +81,8 @@ test('viewer visiting /import is redirected to login with return URL', async ({ 
 	await page.goto('/projects/proj-viewer/import');
 	await expect(page).toHaveURL('/login?redirect=%2Fprojects%2Fproj-viewer%2Fimport');
 });
+
+test('visiting project root as non-editor redirects to ranking', async ({ page }) => {
+	await page.goto('/projects/proj-viewer');
+	await expect(page).toHaveURL('/projects/proj-viewer/ranking');
+});
