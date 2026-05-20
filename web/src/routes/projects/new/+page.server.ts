@@ -1,7 +1,11 @@
 import { fail, redirect } from "@sveltejs/kit";
-import type { Actions } from "./$types";
+import type { Actions, PageServerLoad } from "./$types";
 import { makeApi } from "$lib/api";
 import { env } from "$env/dynamic/private";
+
+export const load: PageServerLoad = ({ locals }) => {
+  return { hasStartggKey: locals.user?.has_startgg_key ?? false };
+};
 
 export const actions: Actions = {
   default: async ({ fetch, request, cookies }) => {

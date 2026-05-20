@@ -1,6 +1,8 @@
 import http from 'http';
 
-const MOCK_USER = { id: 'user-1', email: 'testuser@test.com', display_name: 'testuser', created_at: '2026-01-01T00:00:00Z' };
+const MOCK_USER = { id: 'user-1', email: 'testuser@test.com', display_name: 'testuser', has_startgg_key: true, created_at: '2026-01-01T00:00:00Z' };
+
+const MOCK_USER_NO_KEY = { id: 'user-2', email: 'nokey@test.com', display_name: 'nokey', has_startgg_key: false, created_at: '2026-01-01T00:00:00Z' };
 
 const MOCK_PROJECTS = [
 	{
@@ -226,8 +228,13 @@ function createMockServer() {
 		const isAuthenticated = hasCookie(req, 'session_id', 'test-session');
 
 		if (path === '/auth/me') {
-			if (isAuthenticated) respond(res, 200, MOCK_USER);
-			else respond(res, 401, { message: 'Unauthorized' });
+			if (hasCookie(req, 'session_id', 'nokey-session')) {
+				respond(res, 200, MOCK_USER_NO_KEY);
+			} else if (isAuthenticated) {
+				respond(res, 200, MOCK_USER);
+			} else {
+				respond(res, 401, { message: 'Unauthorized' });
+			}
 			return;
 		}
 
