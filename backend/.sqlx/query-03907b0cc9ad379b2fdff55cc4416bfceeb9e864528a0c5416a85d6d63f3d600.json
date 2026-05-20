@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO users (email, display_name, password_hash) VALUES ($1, $2, $3)\n         RETURNING id, email, display_name, password_hash, created_at",
+  "query": "SELECT u.id, u.email, u.display_name, u.password_hash, u.startgg_api_key, u.created_at\n             FROM sessions s\n             JOIN users u ON u.id = s.user_id\n             WHERE s.id = $1 AND s.expires_at > NOW()",
   "describe": {
     "columns": [
       {
@@ -25,15 +25,18 @@
       },
       {
         "ordinal": 4,
+        "name": "startgg_api_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Text",
-        "Text",
-        "Text"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -41,8 +44,9 @@
       false,
       false,
       false,
+      true,
       false
     ]
   },
-  "hash": "d90a4918d33d8001cfec377acf6926ae624787bf1b2ba2e4f8280d41c9737067"
+  "hash": "03907b0cc9ad379b2fdff55cc4416bfceeb9e864528a0c5416a85d6d63f3d600"
 }

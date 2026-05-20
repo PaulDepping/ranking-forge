@@ -4,11 +4,12 @@ CREATE TYPE job_status AS ENUM ('pending', 'running', 'done', 'failed');
 
 -- Users and sessions
 CREATE TABLE users (
-    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    email         TEXT        NOT NULL UNIQUE,
-    display_name  TEXT        NOT NULL,
-    password_hash TEXT        NOT NULL,
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    email           TEXT        NOT NULL UNIQUE,
+    display_name    TEXT        NOT NULL,
+    password_hash   TEXT        NOT NULL,
+    startgg_api_key TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE sessions (

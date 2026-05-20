@@ -22,6 +22,7 @@ pub struct User {
     pub email: String,
     pub display_name: String,
     pub password_hash: String,
+    pub startgg_api_key: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 

@@ -8,6 +8,7 @@ declare global {
         id: string;
         email: string;
         display_name: string;
+        has_startgg_key: boolean;
         created_at: string;
       } | null;
     }

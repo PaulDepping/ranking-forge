@@ -81,6 +81,7 @@ pub struct UserResponse {
     pub id: Uuid,
     pub email: String,
     pub display_name: String,
+    pub has_startgg_key: bool,
     pub created_at: DateTime<Utc>,
 }
 
@@ -90,6 +91,7 @@ impl From<User> for UserResponse {
             id: u.id,
             email: u.email,
             display_name: u.display_name,
+            has_startgg_key: u.startgg_api_key.is_some(),
             created_at: u.created_at,
         }
     }
@@ -115,7 +117,7 @@ impl FromRequestParts<AppState> for AuthUser {
 
         let user = sqlx::query_as!(
             User,
-            "SELECT u.id, u.email, u.display_name, u.password_hash, u.created_at
+            "SELECT u.id, u.email, u.display_name, u.password_hash, u.startgg_api_key, u.created_at
              FROM sessions s
              JOIN users u ON u.id = s.user_id
              WHERE s.id = $1 AND s.expires_at > NOW()",
@@ -147,7 +149,7 @@ impl FromRequestParts<AppState> for OptionalAuthUser {
         let user = if let Some(sid) = session_id {
             sqlx::query_as!(
                 User,
-                "SELECT u.id, u.email, u.display_name, u.password_hash, u.created_at
+                "SELECT u.id, u.email, u.display_name, u.password_hash, u.startgg_api_key, u.created_at
                  FROM sessions s
                  JOIN users u ON u.id = s.user_id
                  WHERE s.id = $1 AND s.expires_at > NOW()",
@@ -282,7 +284,7 @@ async fn register(
     let user = sqlx::query_as!(
         User,
         "INSERT INTO users (email, display_name, password_hash) VALUES ($1, $2, $3)
-         RETURNING id, email, display_name, password_hash, created_at",
+         RETURNING id, email, display_name, password_hash, startgg_api_key, created_at",
         body.email.to_lowercase(),
         body.display_name,
         password_hash,
@@ -309,7 +311,7 @@ async fn login(
 ) -> Result<impl IntoResponse> {
     let user = sqlx::query_as!(
         User,
-        "SELECT id, email, display_name, password_hash, created_at FROM users WHERE email = $1",
+        "SELECT id, email, display_name, password_hash, startgg_api_key, created_at FROM users WHERE email = $1",
         body.email.to_lowercase(),
     )
     .fetch_optional(&state.db)

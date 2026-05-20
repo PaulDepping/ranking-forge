@@ -2,6 +2,7 @@ export interface User {
   id: string;
   email: string;
   display_name: string;
+  has_startgg_key: boolean;
   created_at: string;
 }
 
@@ -13,6 +14,7 @@ export interface Project {
   created_at: string;
   published: boolean;
   user_role: "owner" | "editor" | "viewer" | null;
+  owner_has_startgg_key: boolean;
 }
 
 export interface Account {

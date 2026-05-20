@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT u.id, u.email, u.display_name, u.password_hash, u.created_at\n             FROM sessions s\n             JOIN users u ON u.id = s.user_id\n             WHERE s.id = $1 AND s.expires_at > NOW()",
+  "query": "SELECT id, email, display_name, password_hash, startgg_api_key, created_at FROM users WHERE email = $1",
   "describe": {
     "columns": [
       {
@@ -25,13 +25,18 @@
       },
       {
         "ordinal": 4,
+        "name": "startgg_api_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
         "name": "created_at",
         "type_info": "Timestamptz"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Text"
       ]
     },
     "nullable": [
@@ -39,8 +44,9 @@
       false,
       false,
       false,
+      true,
       false
     ]
   },
-  "hash": "57100aafd76d6f0cf5222b0f66d8d0af3b25a5b4f8e0598095dc415e81016712"
+  "hash": "ea5086ef90a525f35e687a42a9513e40b0e2f4d11fbb78af40a2347c55098faa"
 }
