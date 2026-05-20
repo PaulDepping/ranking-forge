@@ -6,6 +6,7 @@
     import { Checkbox } from '$lib/components/ui/checkbox';
     import { ScrollArea } from '$lib/components/ui/scroll-area';
     import * as Tabs from '$lib/components/ui/tabs';
+    import * as ToggleGroup from '$lib/components/ui/toggle-group';
     import { env } from '$env/dynamic/public';
     import { makeApi } from '$lib/api';
     import { invalidateAll } from '$app/navigation';
@@ -189,20 +190,15 @@
         <div class="flex gap-2 items-center">
             <Input bind:value={search} placeholder="Search entrants…" class="flex-1" />
             {#if activeTab !== 'all'}
-                <div class="flex rounded-md border overflow-hidden flex-shrink-0">
-                    <Button
-                        variant={sortMode === 'placement' ? 'default' : 'ghost'}
-                        size="sm"
-                        class="rounded-none h-8 text-xs"
-                        onclick={() => (sortMode = 'placement')}
-                    >Placement</Button>
-                    <Button
-                        variant={sortMode === 'seed' ? 'default' : 'ghost'}
-                        size="sm"
-                        class="rounded-none border-l h-8 text-xs"
-                        onclick={() => (sortMode = 'seed')}
-                    >Seed</Button>
-                </div>
+                <ToggleGroup.Root
+                    type="single"
+                    value={sortMode}
+                    onValueChange={(v) => { if (v === 'placement' || v === 'seed') sortMode = v; }}
+                    class="flex-shrink-0"
+                >
+                    <ToggleGroup.Item value="placement" class="h-8 text-xs">Placement</ToggleGroup.Item>
+                    <ToggleGroup.Item value="seed" class="h-8 text-xs">Seed</ToggleGroup.Item>
+                </ToggleGroup.Root>
             {/if}
         </div>
 
