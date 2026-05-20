@@ -86,3 +86,16 @@ test('visiting project root as non-editor redirects to ranking', async ({ page }
 	await page.goto('/projects/proj-viewer');
 	await expect(page).toHaveURL('/projects/proj-viewer/ranking');
 });
+
+test('login page with ?redirect= passes destination via hidden input', async ({ page }) => {
+	await page.goto('/login?redirect=/projects/proj-viewer/ranking');
+	await expect(page.locator('input[name="redirect"]')).toHaveValue('/projects/proj-viewer/ranking');
+});
+
+test('successful login redirects to the preserved destination', async ({ page }) => {
+	await page.goto('/login?redirect=/projects/proj-viewer/ranking');
+	await page.getByLabel('Email').fill('testuser@test.com');
+	await page.getByLabel('Password').fill('testpass');
+	await page.getByRole('button', { name: 'Sign in' }).click();
+	await expect(page).toHaveURL('/projects/proj-viewer/ranking');
+});
