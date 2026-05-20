@@ -100,12 +100,7 @@ async fn patch_json(
         .unwrap()
 }
 
-async fn put_json(
-    app: &Router,
-    uri: &str,
-    cookie: &str,
-    body: Value,
-) -> axum::response::Response {
+async fn put_json(app: &Router, uri: &str, cookie: &str, body: Value) -> axum::response::Response {
     app.clone()
         .oneshot(
             Request::builder()
@@ -691,7 +686,8 @@ async fn test_rename_project(pool: PgPool) {
         &format!("/projects/{project_id}"),
         &cookie,
         json!({"name": "Renamed"}),
-    ).await;
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
     let body = read_json(resp).await;
     assert_eq!(body["name"], "Renamed");
@@ -708,7 +704,8 @@ async fn test_rename_project(pool: PgPool) {
         &format!("/projects/{project_id}"),
         &cookie,
         json!({"name": "   "}),
-    ).await;
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
     // Name over 100 chars is rejected
@@ -717,7 +714,8 @@ async fn test_rename_project(pool: PgPool) {
         &format!("/projects/{project_id}"),
         &cookie,
         json!({"name": "a".repeat(101)}),
-    ).await;
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
 
     // Another user cannot rename alice's project
@@ -727,7 +725,8 @@ async fn test_rename_project(pool: PgPool) {
         &format!("/projects/{project_id}"),
         &bob_cookie,
         json!({"name": "Stolen"}),
-    ).await;
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 

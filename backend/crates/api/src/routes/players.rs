@@ -17,7 +17,7 @@ use crate::{
     routes::tournaments::get_player_tournaments,
     state::AppState,
 };
-use common::models::{Player, ProjectMemberRole, StartggAccount};
+use common::models::{Player, StartggAccount, UserRole};
 
 // ── Request / response types ──────────────────────────────────────────────────
 
@@ -147,7 +147,7 @@ async fn add_player(
     Path(project_id): Path<Uuid>,
     Json(body): Json<CreatePlayerRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Editor).await?;
+    require_project_access(&state.db, project_id, user.id, UserRole::Editor).await?;
 
     if body.name.trim().is_empty() {
         return Err(AppError::UnprocessableEntity(
@@ -169,7 +169,10 @@ async fn add_player(
     .fetch_one(&state.db)
     .await?;
 
-    Ok((StatusCode::CREATED, Json(PlayerResponse::from_player(player, vec![]))))
+    Ok((
+        StatusCode::CREATED,
+        Json(PlayerResponse::from_player(player, vec![])),
+    ))
 }
 
 async fn delete_player(
@@ -177,7 +180,7 @@ async fn delete_player(
     AuthUser(user): AuthUser,
     Path(path): Path<ProjectPlayerPath>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, path.id, user.id, ProjectMemberRole::Editor).await?;
+    require_project_access(&state.db, path.id, user.id, UserRole::Editor).await?;
 
     let result = sqlx::query!(
         "DELETE FROM players WHERE id = $1 AND project_id = $2",
@@ -200,7 +203,7 @@ async fn link_account(
     Path(path): Path<ProjectPlayerPath>,
     Json(body): Json<LinkAccountRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, path.id, user.id, ProjectMemberRole::Editor).await?;
+    require_project_access(&state.db, path.id, user.id, UserRole::Editor).await?;
 
     sqlx::query!(
         "SELECT id FROM players WHERE id = $1 AND project_id = $2",
@@ -248,7 +251,7 @@ async fn unlink_account(
     AuthUser(user): AuthUser,
     Path(path): Path<ProjectPlayerAccountPath>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, path.id, user.id, ProjectMemberRole::Editor).await?;
+    require_project_access(&state.db, path.id, user.id, UserRole::Editor).await?;
 
     let result = sqlx::query!(
         "DELETE FROM startgg_accounts
@@ -333,7 +336,7 @@ pub async fn bulk_add_players(
     Path(id): Path<Uuid>,
     Json(body): Json<BulkAddRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, id, user.id, ProjectMemberRole::Editor).await?;
+    require_project_access(&state.db, id, user.id, UserRole::Editor).await?;
 
     let mut results = Vec::new();
 
@@ -354,12 +357,20 @@ pub async fn bulk_add_players(
         .await?;
 
         if existing.is_some() {
-            results.push(BulkAddResult { name, handle, status: "skipped" });
+            results.push(BulkAddResult {
+                name,
+                handle,
+                status: "skipped",
+            });
             continue;
         }
 
         create_player_with_account(&state.db, id, &name, user_id, &handle, None).await?;
-        results.push(BulkAddResult { name, handle, status: "created" });
+        results.push(BulkAddResult {
+            name,
+            handle,
+            status: "created",
+        });
     }
 
     Ok(Json(results))
@@ -385,7 +396,7 @@ pub async fn add_players_by_handles(
     Path(id): Path<Uuid>,
     Json(body): Json<ByHandlesRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, id, user.id, ProjectMemberRole::Editor).await?;
+    require_project_access(&state.db, id, user.id, UserRole::Editor).await?;
 
     let mut results = Vec::new();
 
@@ -407,10 +418,7 @@ pub async fn add_players_by_handles(
         };
 
         let user_id = sg_user.id;
-        let gamer_tag = sg_user
-            .gamer_tag()
-            .unwrap_or(&handle)
-            .to_string();
+        let gamer_tag = sg_user.gamer_tag().unwrap_or(&handle).to_string();
 
         // Check if already linked in this project
         let existing = sqlx::query!(
@@ -432,7 +440,15 @@ pub async fn add_players_by_handles(
             continue;
         }
 
-        create_player_with_account(&state.db, id, &gamer_tag, user_id, &handle, Some(&gamer_tag)).await?;
+        create_player_with_account(
+            &state.db,
+            id,
+            &gamer_tag,
+            user_id,
+            &handle,
+            Some(&gamer_tag),
+        )
+        .await?;
         results.push(ByHandlesResult {
             handle,
             name: Some(gamer_tag),
@@ -485,7 +501,7 @@ pub async fn list_tournament_entrants(
     Path(id): Path<Uuid>,
     Query(q): Query<TournamentEntrantsQuery>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, id, user.id, ProjectMemberRole::Editor).await?;
+    require_project_access(&state.db, id, user.id, UserRole::Editor).await?;
 
     let handle = normalize_tournament_handle(&q.tournament);
 
@@ -529,7 +545,10 @@ pub async fn list_tournament_entrants(
         })
         .collect();
 
-    Ok(Json(TournamentDataResponse { all_participants, events }))
+    Ok(Json(TournamentDataResponse {
+        all_participants,
+        events,
+    }))
 }
 
 // ── Rename player ─────────────────────────────────────────────────────────────
@@ -545,7 +564,7 @@ async fn rename_player(
     Path(path): Path<ProjectPlayerPath>,
     Json(body): Json<RenamePlayerRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, path.id, user.id, ProjectMemberRole::Editor).await?;
+    require_project_access(&state.db, path.id, user.id, UserRole::Editor).await?;
 
     if body.name.trim().is_empty() {
         return Err(AppError::UnprocessableEntity("name cannot be empty".into()));
@@ -570,9 +589,9 @@ async fn rename_player(
 
 fn strip_startgg_url_prefix(s: &str) -> &str {
     s.trim_start_matches("https://")
-     .trim_start_matches("http://")
-     .trim_start_matches("www.start.gg/")
-     .trim_start_matches("start.gg/")
+        .trim_start_matches("http://")
+        .trim_start_matches("www.start.gg/")
+        .trim_start_matches("start.gg/")
 }
 
 fn normalize_handle(input: &str) -> String {
@@ -582,8 +601,7 @@ fn normalize_handle(input: &str) -> String {
 }
 
 fn normalize_tournament_handle(input: &str) -> String {
-    let stripped = strip_startgg_url_prefix(input.trim())
-        .trim_start_matches("tournament/");
+    let stripped = strip_startgg_url_prefix(input.trim()).trim_start_matches("tournament/");
     stripped.split('/').next().unwrap_or(stripped).to_string()
 }
 
@@ -600,17 +618,14 @@ pub async fn reorder_players(
     Path(project_id): Path<Uuid>,
     Json(body): Json<ReorderRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Editor).await?;
+    require_project_access(&state.db, project_id, user.id, UserRole::Editor).await?;
 
-    let existing_ids: Vec<Uuid> = sqlx::query_scalar!(
-        "SELECT id FROM players WHERE project_id = $1",
-        project_id,
-    )
-    .fetch_all(&state.db)
-    .await?;
+    let existing_ids: Vec<Uuid> =
+        sqlx::query_scalar!("SELECT id FROM players WHERE project_id = $1", project_id,)
+            .fetch_all(&state.db)
+            .await?;
 
-    let existing_set: std::collections::HashSet<Uuid> =
-        existing_ids.into_iter().collect();
+    let existing_set: std::collections::HashSet<Uuid> = existing_ids.into_iter().collect();
 
     if body.player_ids.len() != existing_set.len() {
         return Err(AppError::UnprocessableEntity(
@@ -699,18 +714,26 @@ mod tests {
     #[test]
     fn normalize_tournament_handle_full_url() {
         assert_eq!(
-            normalize_tournament_handle("https://www.start.gg/tournament/some-weekly/event/melee-singles"),
+            normalize_tournament_handle(
+                "https://www.start.gg/tournament/some-weekly/event/melee-singles"
+            ),
             "some-weekly"
         );
     }
 
     #[test]
     fn normalize_tournament_handle_with_tournament_prefix() {
-        assert_eq!(normalize_tournament_handle("tournament/some-weekly"), "some-weekly");
+        assert_eq!(
+            normalize_tournament_handle("tournament/some-weekly"),
+            "some-weekly"
+        );
     }
 
     #[test]
     fn normalize_tournament_handle_trims_whitespace() {
-        assert_eq!(normalize_tournament_handle("  some-weekly  "), "some-weekly");
+        assert_eq!(
+            normalize_tournament_handle("  some-weekly  "),
+            "some-weekly"
+        );
     }
 }

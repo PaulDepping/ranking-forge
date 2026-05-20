@@ -4,9 +4,9 @@ mod queries;
 pub use queries::{
     EntrantNode, EntrantPage, EntrantStanding, EventNode, GameNode, PageInfo, Participant,
     ParticipantUser, PhaseGroupNode, PhaseGroupPage, PhaseNode, ScoreValue, SetNode, SetPage,
-    SetPhaseGroup, SetSlot, SlotEntrant, SlotStanding, SlotStats, TeamRosterSize, TournamentEntrant,
-    TournamentEntrantOrdered, TournamentEventWithEntrants, TournamentNode, TournamentPage,
-    TournamentParticipant, UserNode,
+    SetPhaseGroup, SetSlot, SlotEntrant, SlotStanding, SlotStats, TeamRosterSize,
+    TournamentEntrant, TournamentEntrantOrdered, TournamentEventWithEntrants, TournamentNode,
+    TournamentPage, TournamentParticipant, UserNode,
 };
 
 use reqwest::Client;
@@ -620,7 +620,13 @@ mod tests {
 
         let err = client(&mock.uri()).search_games("melee").await.unwrap_err();
         assert!(
-            matches!(err, StartggError::ComplexityTooHigh { limit: 1000, actual: 1203 }),
+            matches!(
+                err,
+                StartggError::ComplexityTooHigh {
+                    limit: 1000,
+                    actual: 1203
+                }
+            ),
             "expected ComplexityTooHigh, got {err:?}"
         );
     }
@@ -932,7 +938,11 @@ mod tests {
         assert_eq!(result[0].name, "Melee Singles");
         assert_eq!(result[0].entrants.len(), 2);
 
-        let mang0 = result[0].entrants.iter().find(|e| e.handle == "mang0").unwrap();
+        let mang0 = result[0]
+            .entrants
+            .iter()
+            .find(|e| e.handle == "mang0")
+            .unwrap();
         assert_eq!(mang0.seed, Some(2));
         assert_eq!(mang0.placement, Some(1));
     }
@@ -1049,7 +1059,11 @@ mod tests {
         let phases = client(&mock.uri()).event_phases(200).await.unwrap();
         assert_eq!(phases.len(), 1);
         let groups = phases[0].phase_groups.as_ref().unwrap();
-        assert_eq!(groups.nodes.len(), 2, "expected groups from both pages merged");
+        assert_eq!(
+            groups.nodes.len(),
+            2,
+            "expected groups from both pages merged"
+        );
         assert_eq!(groups.nodes[0].id, 100);
         assert_eq!(groups.nodes[1].id, 101);
     }

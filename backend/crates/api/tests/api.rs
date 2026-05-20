@@ -123,12 +123,7 @@ async fn patch_json(
         .unwrap()
 }
 
-async fn put_json(
-    app: &Router,
-    uri: &str,
-    cookie: &str,
-    body: Value,
-) -> axum::response::Response {
+async fn put_json(app: &Router, uri: &str, cookie: &str, body: Value) -> axum::response::Response {
     app.clone()
         .oneshot(
             Request::builder()
@@ -375,7 +370,8 @@ async fn auth_login(pool: PgPool) {
         .uri("/auth/login")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"email": "alice@test.com", "password": "password123"})).unwrap(),
+            serde_json::to_vec(&json!({"email": "alice@test.com", "password": "password123"}))
+                .unwrap(),
         ))
         .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
@@ -414,7 +410,8 @@ async fn auth_login_wrong_password(pool: PgPool) {
         .uri("/auth/login")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"email": "alice@test.com", "password": "wrongpassword"})).unwrap(),
+            serde_json::to_vec(&json!({"email": "alice@test.com", "password": "wrongpassword"}))
+                .unwrap(),
         ))
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -430,7 +427,8 @@ async fn auth_login_unknown_user(pool: PgPool) {
         .uri("/auth/login")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"email": "nobody@test.com", "password": "password123"})).unwrap(),
+            serde_json::to_vec(&json!({"email": "nobody@test.com", "password": "password123"}))
+                .unwrap(),
         ))
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -445,7 +443,10 @@ async fn auth_register_empty_display_name(pool: PgPool) {
         .uri("/auth/register")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"email": "a@b.com", "display_name": "", "password": "password123"})).unwrap(),
+            serde_json::to_vec(
+                &json!({"email": "a@b.com", "display_name": "", "password": "password123"}),
+            )
+            .unwrap(),
         ))
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -460,7 +461,10 @@ async fn auth_register_short_password(pool: PgPool) {
         .uri("/auth/register")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"email": "alice@test.com", "display_name": "alice", "password": "short"})).unwrap(),
+            serde_json::to_vec(
+                &json!({"email": "alice@test.com", "display_name": "alice", "password": "short"}),
+            )
+            .unwrap(),
         ))
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
@@ -1621,7 +1625,10 @@ async fn test_bulk_add_players(pool: PgPool) {
     assert_eq!(results.len(), 2);
     // Both should be created
     assert!(results.iter().all(|r| r["status"] == "created"));
-    let handles: Vec<&str> = results.iter().map(|r| r["handle"].as_str().unwrap()).collect();
+    let handles: Vec<&str> = results
+        .iter()
+        .map(|r| r["handle"].as_str().unwrap())
+        .collect();
     assert!(handles.contains(&"mang0"));
     assert!(handles.contains(&"armada"));
 }
@@ -1672,8 +1679,8 @@ async fn test_bulk_add_players_skips_duplicates(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn test_add_players_by_handles(pool: PgPool) {
-    use wiremock::{Mock, MockServer, ResponseTemplate};
     use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     let mock = MockServer::start().await;
 
@@ -1718,8 +1725,8 @@ async fn test_add_players_by_handles(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn test_add_players_by_handles_skips_existing(pool: PgPool) {
-    use wiremock::{Mock, MockServer, ResponseTemplate};
     use wiremock::matchers::method;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     let mock = MockServer::start().await;
 
@@ -1912,10 +1919,8 @@ async fn stats_returns_enriched_set_fields(pool: PgPool) {
     let pid_str = create_project(&app, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
-    let alice_id =
-        Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
-    let bob_id =
-        Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
+    let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
+    let bob_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
 
     // Tournament with location
     let t_id: Uuid = sqlx::query_scalar!(
@@ -2031,10 +2036,8 @@ async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
     let pid_str = create_project(&app, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
-    let alice_id =
-        Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
-    let bob_id =
-        Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
+    let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
+    let bob_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
 
     // Online tournament (location should be "Online")
     let t_id: Uuid = sqlx::query_scalar!(
@@ -2153,7 +2156,10 @@ async fn auth_register_cookie_is_secure(pool: PgPool) {
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::CREATED);
     let cookie = resp.headers().get("set-cookie").unwrap().to_str().unwrap();
-    assert!(cookie.contains("Secure"), "register cookie must have Secure flag; got: {cookie}");
+    assert!(
+        cookie.contains("Secure"),
+        "register cookie must have Secure flag; got: {cookie}"
+    );
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -2166,13 +2172,17 @@ async fn auth_login_cookie_is_secure(pool: PgPool) {
         .uri("/auth/login")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"email": "alice@test.com", "password": "password123"})).unwrap(),
+            serde_json::to_vec(&json!({"email": "alice@test.com", "password": "password123"}))
+                .unwrap(),
         ))
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let cookie = resp.headers().get("set-cookie").unwrap().to_str().unwrap();
-    assert!(cookie.contains("Secure"), "login cookie must have Secure flag; got: {cookie}");
+    assert!(
+        cookie.contains("Secure"),
+        "login cookie must have Secure flag; got: {cookie}"
+    );
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -2193,7 +2203,10 @@ async fn auth_logout_cookie_is_secure(pool: PgPool) {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::NO_CONTENT);
     let set_cookie = resp.headers().get("set-cookie").unwrap().to_str().unwrap();
-    assert!(set_cookie.contains("Secure"), "logout clear cookie must have Secure flag; got: {set_cookie}");
+    assert!(
+        set_cookie.contains("Secure"),
+        "logout clear cookie must have Secure flag; got: {set_cookie}"
+    );
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -2240,13 +2253,7 @@ async fn auth_register_long_password(pool: PgPool) {
 async fn projects_create_long_name(pool: PgPool) {
     let app = make_app(pool, "");
     let cookie = register(&app, "alice", "password123").await;
-    let resp = post_json(
-        &app,
-        "/projects",
-        &cookie,
-        json!({"name": "x".repeat(101)}),
-    )
-    .await;
+    let resp = post_json(&app, "/projects", &cookie, json!({"name": "x".repeat(101)})).await;
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
 
@@ -2262,7 +2269,10 @@ async fn auth_rate_limit_after_burst(pool: PgPool) {
             .uri("/auth/register")
             .header("content-type", "application/json")
             .body(Body::from(
-                serde_json::to_vec(&json!({"email": "a@b.com", "display_name": "a", "password": "x"})).unwrap(),
+                serde_json::to_vec(
+                    &json!({"email": "a@b.com", "display_name": "a", "password": "x"}),
+                )
+                .unwrap(),
             ))
             .unwrap();
         let resp = app.clone().oneshot(req).await.unwrap();
@@ -2279,7 +2289,8 @@ async fn auth_rate_limit_after_burst(pool: PgPool) {
         .uri("/auth/register")
         .header("content-type", "application/json")
         .body(Body::from(
-            serde_json::to_vec(&json!({"email": "a@b.com", "display_name": "a", "password": "x"})).unwrap(),
+            serde_json::to_vec(&json!({"email": "a@b.com", "display_name": "a", "password": "x"}))
+                .unwrap(),
         ))
         .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
@@ -2407,7 +2418,8 @@ async fn player_stats_returns_single_player_data(pool: PgPool) {
 
     let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
     let bob_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
-    let charlie_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Charlie").await).unwrap();
+    let charlie_id =
+        Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Charlie").await).unwrap();
 
     let (_, event_id) = seed_tournament_event(&pool, pid, 7001, 8001).await;
     let alice_e = seed_entrant(&pool, event_id, Some(alice_id), 301, Some(1)).await;
@@ -2482,18 +2494,29 @@ async fn player_tournaments_returns_attendance_history(pool: PgPool) {
         "INSERT INTO tournaments (startgg_id, name, handle, online, city, addr_state)
          VALUES (9101, 'Genesis 9', 'tournament/genesis-9', false, 'San Jose', 'CA')
          RETURNING id"
-    ).fetch_one(&pool).await.unwrap();
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
 
     let e1_id: Uuid = sqlx::query_scalar!(
         "INSERT INTO events (tournament_id, startgg_id, name, num_entrants, handle)
          VALUES ($1, 8101, 'Melee Singles', 486, 'melee-singles')
-         RETURNING id", t1_id
-    ).fetch_one(&pool).await.unwrap();
+         RETURNING id",
+        t1_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
 
     sqlx::query!(
         "INSERT INTO project_events (project_id, event_id, included) VALUES ($1, $2, true)",
-        pid, e1_id
-    ).execute(&pool).await.unwrap();
+        pid,
+        e1_id
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
 
     sqlx::query!(
         "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name, final_placement)
@@ -2506,32 +2529,51 @@ async fn player_tournaments_returns_attendance_history(pool: PgPool) {
         "INSERT INTO tournaments (startgg_id, name, handle, online)
          VALUES (9102, 'CEO 2024', 'tournament/ceo-2024', false)
          RETURNING id"
-    ).fetch_one(&pool).await.unwrap();
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
 
     let e2_id: Uuid = sqlx::query_scalar!(
         "INSERT INTO events (tournament_id, startgg_id, name, handle)
          VALUES ($1, 8102, 'Melee Singles', 'melee-singles-2')
-         RETURNING id", t2_id
-    ).fetch_one(&pool).await.unwrap();
+         RETURNING id",
+        t2_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
 
     sqlx::query!(
         "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name)
          VALUES ($1, $2, 5002, 'Alice')",
-        e2_id, alice_id
-    ).execute(&pool).await.unwrap();
+        e2_id,
+        alice_id
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
 
     let resp = get_req(
         &app,
         &format!("/projects/{pid}/players/{alice_id}/tournaments"),
         &cookie,
-    ).await;
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
 
     let body = read_json(resp).await;
     let entries = body.as_array().unwrap();
-    assert_eq!(entries.len(), 2, "should include both in-project and out-of-project events");
+    assert_eq!(
+        entries.len(),
+        2,
+        "should include both in-project and out-of-project events"
+    );
 
-    let genesis = entries.iter().find(|e| e["tournament_name"] == "Genesis 9").unwrap();
+    let genesis = entries
+        .iter()
+        .find(|e| e["tournament_name"] == "Genesis 9")
+        .unwrap();
     assert_eq!(genesis["placement"], 2);
     assert_eq!(genesis["num_entrants"], 486);
     assert_eq!(genesis["location"], "San Jose, CA");
@@ -2549,6 +2591,7 @@ async fn player_tournaments_returns_404_for_unknown_player(pool: PgPool) {
         &app,
         &format!("/projects/{pid}/players/{fake_id}/tournaments"),
         &cookie,
-    ).await;
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }

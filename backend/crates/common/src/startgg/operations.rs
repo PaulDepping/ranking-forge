@@ -5,12 +5,11 @@ use tracing::instrument;
 use super::queries::{
     EntrantPage, EventEntrantsData, EventEntrantsVars, EventPhasesData, EventPhasesVars,
     EventSetsData, EventSetsVars, GameNode, GameSearchData, GameSearchVars, PhaseNode, SetPage,
-    TournamentAllEventsData, TournamentAllEventsVars, TournamentAllEventNode,
-    TournamentEntrant, TournamentEntrantListData, TournamentEntrantListVars, TournamentEventsData,
-    TournamentEventsVars, TournamentPage, TournamentParticipant, TournamentParticipantsData,
-    TournamentParticipantsVars, TournamentsByUserData, TournamentsByUserVars,
-    TournamentEntrantOrdered, TournamentEventWithEntrants,
-    UserBySlugData, UserBySlugVars, UserNode,
+    TournamentAllEventNode, TournamentAllEventsData, TournamentAllEventsVars, TournamentEntrant,
+    TournamentEntrantListData, TournamentEntrantListVars, TournamentEntrantOrdered,
+    TournamentEventWithEntrants, TournamentEventsData, TournamentEventsVars, TournamentPage,
+    TournamentParticipant, TournamentParticipantsData, TournamentParticipantsVars,
+    TournamentsByUserData, TournamentsByUserVars, UserBySlugData, UserBySlugVars, UserNode,
 };
 use super::{StartggClient, StartggError};
 
@@ -315,12 +314,21 @@ impl StartggClient {
                 let data: TournamentEntrantListData = match self
                     .gql(
                         TOURNAMENT_ENTRANT_LIST_QUERY,
-                        TournamentEntrantListVars { event_id, page, per_page },
+                        TournamentEntrantListVars {
+                            event_id,
+                            page,
+                            per_page,
+                        },
                     )
                     .await
                 {
                     Err(StartggError::ComplexityTooHigh { actual, limit }) if per_page > 1 => {
-                        tracing::warn!(per_page, actual, limit, "complexity too high, halving perPage");
+                        tracing::warn!(
+                            per_page,
+                            actual,
+                            limit,
+                            "complexity too high, halving perPage"
+                        );
                         per_page /= 2;
                         continue 'pages;
                     }
@@ -359,7 +367,10 @@ impl StartggClient {
             }
         }
 
-        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
+        tracing::debug!(
+            elapsed_ms = t.elapsed().as_millis(),
+            "startgg query complete"
+        );
         Ok(result)
     }
 
@@ -407,7 +418,10 @@ impl StartggClient {
             page += 1;
         }
 
-        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
+        tracing::debug!(
+            elapsed_ms = t.elapsed().as_millis(),
+            "startgg query complete"
+        );
         Ok(result)
     }
 
@@ -421,7 +435,9 @@ impl StartggClient {
         let events_data: TournamentAllEventsData = self
             .gql(
                 TOURNAMENT_ALL_EVENTS_QUERY,
-                TournamentAllEventsVars { slug: tournament_handle.to_string() },
+                TournamentAllEventsVars {
+                    slug: tournament_handle.to_string(),
+                },
             )
             .await?;
 
@@ -442,12 +458,21 @@ impl StartggClient {
                 let data: TournamentEntrantListData = match self
                     .gql(
                         TOURNAMENT_ENTRANT_LIST_QUERY,
-                        TournamentEntrantListVars { event_id: event_node.id, page, per_page },
+                        TournamentEntrantListVars {
+                            event_id: event_node.id,
+                            page,
+                            per_page,
+                        },
                     )
                     .await
                 {
                     Err(StartggError::ComplexityTooHigh { actual, limit }) if per_page > 1 => {
-                        tracing::warn!(per_page, actual, limit, "complexity too high, halving perPage");
+                        tracing::warn!(
+                            per_page,
+                            actual,
+                            limit,
+                            "complexity too high, halving perPage"
+                        );
                         per_page /= 2;
                         continue 'pages;
                     }
@@ -464,9 +489,13 @@ impl StartggClient {
                 for node in entrant_data.nodes {
                     let seed = node.initial_seed_num;
                     let placement = node.standing.as_ref().and_then(|s| s.placement);
-                    let Some(participants) = node.participants else { continue };
+                    let Some(participants) = node.participants else {
+                        continue;
+                    };
                     for participant in participants {
-                        let Some(user) = participant.user else { continue };
+                        let Some(user) = participant.user else {
+                            continue;
+                        };
                         if seen.insert(user.id) {
                             let handle = user.slug.trim_start_matches("user/").to_string();
                             entrants.push(TournamentEntrantOrdered {
@@ -493,7 +522,10 @@ impl StartggClient {
             });
         }
 
-        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
+        tracing::debug!(
+            elapsed_ms = t.elapsed().as_millis(),
+            "startgg query complete"
+        );
         Ok(result)
     }
 
@@ -508,11 +540,23 @@ impl StartggClient {
 
             loop {
                 let data: EventPhasesData = match self
-                    .gql(EVENT_PHASES_QUERY, EventPhasesVars { event_id, page, per_page })
+                    .gql(
+                        EVENT_PHASES_QUERY,
+                        EventPhasesVars {
+                            event_id,
+                            page,
+                            per_page,
+                        },
+                    )
                     .await
                 {
                     Err(StartggError::ComplexityTooHigh { actual, limit }) if per_page > 1 => {
-                        tracing::warn!(per_page, actual, limit, "complexity too high, halving perPage");
+                        tracing::warn!(
+                            per_page,
+                            actual,
+                            limit,
+                            "complexity too high, halving perPage"
+                        );
                         per_page /= 2;
                         continue 'pages;
                     }
@@ -550,7 +594,10 @@ impl StartggClient {
             }
         };
 
-        tracing::debug!(elapsed_ms = t.elapsed().as_millis(), "startgg query complete");
+        tracing::debug!(
+            elapsed_ms = t.elapsed().as_millis(),
+            "startgg query complete"
+        );
         Ok(result)
     }
 }

@@ -98,7 +98,9 @@ pub async fn require_project_access(
     let role = if row.is_owner == Some(true) {
         UserRole::Owner
     } else {
-        row.member_role.map(UserRole::from).ok_or(AppError::NotFound)?
+        row.member_role
+            .map(UserRole::from)
+            .ok_or(AppError::NotFound)?
     };
 
     if !role.satisfies(&min_role) {
@@ -214,7 +216,9 @@ async fn list_projects(
             let role = if r.is_owner == Some(true) {
                 UserRole::Owner
             } else {
-                r.member_role.map(UserRole::from).unwrap_or(UserRole::Viewer)
+                r.member_role
+                    .map(UserRole::from)
+                    .unwrap_or(UserRole::Viewer)
             };
             ProjectResponse {
                 id: r.id,
@@ -236,7 +240,9 @@ async fn create_project(
     Json(body): Json<CreateProjectRequest>,
 ) -> Result<impl IntoResponse> {
     if body.name.trim().is_empty() {
-        return Err(AppError::UnprocessableEntity("name must not be empty".into()));
+        return Err(AppError::UnprocessableEntity(
+            "name must not be empty".into(),
+        ));
     }
     if body.name.trim().chars().count() > 100 {
         return Err(AppError::UnprocessableEntity(
@@ -259,7 +265,10 @@ async fn create_project(
 
     Ok((
         StatusCode::CREATED,
-        Json(ProjectResponse::from_project(project, Some(UserRole::Owner))),
+        Json(ProjectResponse::from_project(
+            project,
+            Some(UserRole::Owner),
+        )),
     ))
 }
 
@@ -285,7 +294,9 @@ async fn patch_project(
     let new_name = if let Some(ref n) = body.name {
         let trimmed = n.trim();
         if trimmed.is_empty() {
-            return Err(AppError::UnprocessableEntity("name must not be empty".into()));
+            return Err(AppError::UnprocessableEntity(
+                "name must not be empty".into(),
+            ));
         }
         if trimmed.chars().count() > 100 {
             return Err(AppError::UnprocessableEntity(
@@ -339,8 +350,7 @@ pub fn router() -> Router<AppState> {
         .nest("/{id}/players", crate::routes::players::router())
         .route(
             "/{id}/import",
-            post(crate::routes::import::start_import)
-                .get(crate::routes::import::get_import_status),
+            post(crate::routes::import::start_import).get(crate::routes::import::get_import_status),
         )
         .route(
             "/{id}/tournament-entrants",
@@ -355,14 +365,21 @@ pub fn router() -> Router<AppState> {
             "/{id}/head-to-head/{pid_a}/{pid_b}/sets",
             get(t::get_h2h_sets),
         )
-        .route("/{id}/ranking", put(crate::routes::players::reorder_players))
+        .route(
+            "/{id}/ranking",
+            put(crate::routes::players::reorder_players),
+        )
         .nest("/{id}/members", crate::routes::members::router())
         .nest("/{id}/invite-links", crate::routes::invite_links::router())
 }
 
 #[cfg(test)]
 mod tests {
-    use axum::{Router, body::Body, http::{Request, StatusCode}};
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode},
+    };
     use http_body_util::BodyExt;
     use serde_json::{Value, json};
     use sqlx::PgPool;
@@ -373,7 +390,11 @@ mod tests {
 
     fn make_app(pool: PgPool) -> Router {
         let startgg = StartggClient::new_with_base_url("test".into(), "http://localhost:1".into());
-        let state = AppState { db: pool, startgg, cors_origin: "http://localhost".into() };
+        let state = AppState {
+            db: pool,
+            startgg,
+            cors_origin: "http://localhost".into(),
+        };
         routes::router().with_state(state)
     }
 
@@ -386,19 +407,33 @@ mod tests {
                 ).unwrap())).unwrap()
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
-        resp.headers().get("set-cookie").unwrap().to_str().unwrap()
-            .split(';').next().unwrap().to_string()
+        resp.headers()
+            .get("set-cookie")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .split(';')
+            .next()
+            .unwrap()
+            .to_string()
     }
 
     pub async fn create_project(app: &Router, cookie: &str, name: &str) -> String {
-        let resp = app.clone().oneshot(
-            Request::builder().method("POST").uri("/projects")
-                .header("content-type", "application/json")
-                .header("cookie", cookie)
-                .body(Body::from(serde_json::to_vec(
-                    &json!({"name": name})
-                ).unwrap())).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/projects")
+                    .header("content-type", "application/json")
+                    .header("cookie", cookie)
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({"name": name})).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
         let bytes = resp.into_body().collect().await.unwrap().to_bytes();
         let v: Value = serde_json::from_slice(&bytes).unwrap();
@@ -418,28 +453,49 @@ mod tests {
 
         let proj_id = create_project(&app, &owner_cookie, "Test Project").await;
 
-        let editor_id = sqlx::query_scalar!("SELECT id FROM users WHERE email = 'editor1@test.com'")
-            .fetch_one(&pool).await.unwrap();
+        let editor_id =
+            sqlx::query_scalar!("SELECT id FROM users WHERE email = 'editor1@test.com'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         let proj_uuid: uuid::Uuid = proj_id.parse().unwrap();
         sqlx::query!(
             "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'editor')",
-            proj_uuid, editor_id
-        ).execute(&pool).await.unwrap();
+            proj_uuid,
+            editor_id
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("GET").uri("/projects")
-                .header("cookie", &owner_cookie)
-                .body(Body::empty()).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/projects")
+                    .header("cookie", &owner_cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 200);
         let body = json_body(resp).await;
         assert_eq!(body[0]["user_role"], "owner");
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("GET").uri("/projects")
-                .header("cookie", &editor_cookie)
-                .body(Body::empty()).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/projects")
+                    .header("cookie", &editor_cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 200);
         let body = json_body(resp).await;
         assert_eq!(body[0]["user_role"], "editor");
@@ -455,11 +511,15 @@ mod tests {
         let owner_id = sqlx::query_scalar!(
             "SELECT owner_id FROM ranking_projects WHERE id = $1",
             proj_uuid
-        ).fetch_one(&pool).await.unwrap();
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
 
-        let user_id = sqlx::query_scalar!(
-            "SELECT id FROM users WHERE email = 'owner2@test.com'"
-        ).fetch_one(&pool).await.unwrap();
+        let user_id = sqlx::query_scalar!("SELECT id FROM users WHERE email = 'owner2@test.com'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
 
         assert_eq!(owner_id, user_id);
     }
@@ -471,11 +531,18 @@ mod tests {
         let other_cookie = register(&app, "other3").await;
         let proj_id = create_project(&app, &owner_cookie, "Private Project").await;
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("GET").uri(&format!("/projects/{proj_id}"))
-                .header("cookie", &other_cookie)
-                .body(Body::empty()).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(&format!("/projects/{proj_id}"))
+                    .header("cookie", &other_cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 404);
     }
 
@@ -485,17 +552,32 @@ mod tests {
         let cookie = register(&app, "owner4").await;
         let proj_id = create_project(&app, &cookie, "Public Project").await;
 
-        app.clone().oneshot(
-            Request::builder().method("PATCH").uri(&format!("/projects/{proj_id}"))
-                .header("content-type", "application/json")
-                .header("cookie", &cookie)
-                .body(Body::from(serde_json::to_vec(&json!({"published": true})).unwrap())).unwrap()
-        ).await.unwrap();
+        app.clone()
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri(&format!("/projects/{proj_id}"))
+                    .header("content-type", "application/json")
+                    .header("cookie", &cookie)
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({"published": true})).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("GET").uri(&format!("/projects/{proj_id}"))
-                .body(Body::empty()).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(&format!("/projects/{proj_id}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 200);
         let body = json_body(resp).await;
         assert_eq!(body["published"], true);
@@ -508,10 +590,17 @@ mod tests {
         let cookie = register(&app, "owner5").await;
         let proj_id = create_project(&app, &cookie, "Private Project").await;
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("GET").uri(&format!("/projects/{proj_id}"))
-                .body(Body::empty()).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(&format!("/projects/{proj_id}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 404);
     }
 
@@ -522,25 +611,47 @@ mod tests {
         let proj_id = create_project(&app, &cookie, "Stats Project").await;
 
         // Unpublished: unauthenticated stats returns 404
-        let resp = app.clone().oneshot(
-            Request::builder().method("GET").uri(&format!("/projects/{proj_id}/stats"))
-                .body(Body::empty()).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(&format!("/projects/{proj_id}/stats"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 404);
 
         // Publish
-        app.clone().oneshot(
-            Request::builder().method("PATCH").uri(&format!("/projects/{proj_id}"))
-                .header("content-type", "application/json")
-                .header("cookie", &cookie)
-                .body(Body::from(serde_json::to_vec(&json!({"published": true})).unwrap())).unwrap()
-        ).await.unwrap();
+        app.clone()
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri(&format!("/projects/{proj_id}"))
+                    .header("content-type", "application/json")
+                    .header("cookie", &cookie)
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({"published": true})).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
 
         // Published: unauthenticated stats returns 200 (empty, but 200)
-        let resp = app.clone().oneshot(
-            Request::builder().method("GET").uri(&format!("/projects/{proj_id}/stats"))
-                .body(Body::empty()).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(&format!("/projects/{proj_id}/stats"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 200);
     }
 
@@ -551,26 +662,47 @@ mod tests {
         let editor_cookie = register(&app, "editor6").await;
         let proj_id = create_project(&app, &owner_cookie, "Project").await;
 
-        let editor_id = sqlx::query_scalar!("SELECT id FROM users WHERE email = 'editor6@test.com'")
-            .fetch_one(&pool).await.unwrap();
+        let editor_id =
+            sqlx::query_scalar!("SELECT id FROM users WHERE email = 'editor6@test.com'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         let proj_uuid: uuid::Uuid = proj_id.parse().unwrap();
         sqlx::query!(
             "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'editor')",
-            proj_uuid, editor_id
-        ).execute(&pool).await.unwrap();
+            proj_uuid,
+            editor_id
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("DELETE").uri(&format!("/projects/{proj_id}"))
-                .header("cookie", &editor_cookie)
-                .body(Body::empty()).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(&format!("/projects/{proj_id}"))
+                    .header("cookie", &editor_cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 403);
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("DELETE").uri(&format!("/projects/{proj_id}"))
-                .header("cookie", &owner_cookie)
-                .body(Body::empty()).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(&format!("/projects/{proj_id}"))
+                    .header("cookie", &owner_cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 204);
     }
 
@@ -581,20 +713,36 @@ mod tests {
         let viewer_cookie = register(&app, "viewer_pl").await;
         let proj_id = create_project(&app, &owner_cookie, "Player Project").await;
 
-        let viewer_id = sqlx::query_scalar!("SELECT id FROM users WHERE email = 'viewer_pl@test.com'")
-            .fetch_one(&pool).await.unwrap();
+        let viewer_id =
+            sqlx::query_scalar!("SELECT id FROM users WHERE email = 'viewer_pl@test.com'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         let proj_uuid: uuid::Uuid = proj_id.parse().unwrap();
         sqlx::query!(
             "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'viewer')",
-            proj_uuid, viewer_id
-        ).execute(&pool).await.unwrap();
+            proj_uuid,
+            viewer_id
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("POST").uri(&format!("/projects/{proj_id}/players"))
-                .header("content-type", "application/json")
-                .header("cookie", &viewer_cookie)
-                .body(Body::from(serde_json::to_vec(&json!({"name": "Alice"})).unwrap())).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(&format!("/projects/{proj_id}/players"))
+                    .header("content-type", "application/json")
+                    .header("cookie", &viewer_cookie)
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({"name": "Alice"})).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 403);
     }
 }

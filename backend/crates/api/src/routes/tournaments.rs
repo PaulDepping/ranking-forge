@@ -14,7 +14,7 @@ use crate::{
     routes::projects::{require_project_access, require_project_read_access},
     state::AppState,
 };
-use common::models::ProjectMemberRole;
+use common::models::UserRole;
 use common::upset::set_upset_factor;
 
 // ── Response types ────────────────────────────────────────────────────────────
@@ -291,7 +291,7 @@ pub async fn patch_event(
     Path(path): Path<ProjectEventPath>,
     Json(body): Json<PatchEventBody>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, path.id, user.id, ProjectMemberRole::Editor).await?;
+    require_project_access(&state.db, path.id, user.id, UserRole::Editor).await?;
 
     // Verify the event belongs to this project.
     sqlx::query!(
@@ -525,12 +525,14 @@ pub async fn get_stats(
     let resp: Vec<PlayerStatsResponse> = player_order
         .iter()
         .filter_map(|&id| {
-            stats.remove(&id).map(|(name, wins, losses)| PlayerStatsResponse {
-                player_id: id,
-                name,
-                wins,
-                losses,
-            })
+            stats
+                .remove(&id)
+                .map(|(name, wins, losses)| PlayerStatsResponse {
+                    player_id: id,
+                    name,
+                    wins,
+                    losses,
+                })
         })
         .collect();
 

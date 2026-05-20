@@ -14,7 +14,10 @@ use crate::{
     routes::projects::{require_project_access, require_project_read_access},
     state::AppState,
 };
-use common::{jobs::ImportParams, models::{Job, UserRole}};
+use common::{
+    jobs::ImportParams,
+    models::{Job, UserRole},
+};
 
 #[derive(Serialize, Deserialize)]
 pub struct ImportProgress {

@@ -202,15 +202,14 @@ mod tests {
             .await
             .unwrap();
 
-        update_progress(&pool, job.id, "scanning", 2, 5).await.unwrap();
+        update_progress(&pool, job.id, "scanning", 2, 5)
+            .await
+            .unwrap();
 
-        let row = sqlx::query!(
-            "SELECT progress FROM jobs WHERE id = $1",
-            job.id
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let row = sqlx::query!("SELECT progress FROM jobs WHERE id = $1", job.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
 
         let progress = row.progress.unwrap();
         assert_eq!(progress["phase"], "scanning");
@@ -225,16 +224,17 @@ mod tests {
             .await
             .unwrap();
 
-        update_progress(&pool, job.id, "scanning", 1, 3).await.unwrap();
-        update_progress(&pool, job.id, "importing", 2, 7).await.unwrap();
+        update_progress(&pool, job.id, "scanning", 1, 3)
+            .await
+            .unwrap();
+        update_progress(&pool, job.id, "importing", 2, 7)
+            .await
+            .unwrap();
 
-        let row = sqlx::query!(
-            "SELECT progress FROM jobs WHERE id = $1",
-            job.id
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let row = sqlx::query!("SELECT progress FROM jobs WHERE id = $1", job.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
 
         let progress = row.progress.unwrap();
         assert_eq!(progress["phase"], "importing");

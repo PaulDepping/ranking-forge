@@ -61,7 +61,8 @@ async fn add_member(
     Path(project_id): Path<Uuid>,
     Json(body): Json<AddMemberRequest>,
 ) -> Result<impl IntoResponse> {
-    let (project, _) = require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
+    let (project, _) =
+        require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
 
     let target = sqlx::query!(
         "SELECT id FROM users WHERE email = $1",
@@ -97,7 +98,8 @@ async fn change_member_role(
     Path((project_id, target_user_id)): Path<(Uuid, Uuid)>,
     Json(body): Json<ChangeMemberRoleRequest>,
 ) -> Result<impl IntoResponse> {
-    let (project, _) = require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
+    let (project, _) =
+        require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
 
     if target_user_id == project.owner_id {
         return Err(AppError::UnprocessableEntity(
@@ -127,7 +129,8 @@ async fn remove_member(
     AuthUser(user): AuthUser,
     Path((project_id, target_user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse> {
-    let (project, _) = require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
+    let (project, _) =
+        require_project_access(&state.db, project_id, user.id, UserRole::Owner).await?;
 
     if target_user_id == project.owner_id {
         return Err(AppError::UnprocessableEntity(
@@ -223,17 +226,25 @@ pub fn router() -> Router<AppState> {
 
 #[cfg(test)]
 mod tests {
-    use axum::{Router, body::Body, http::{Request, StatusCode}};
+    use crate::{routes, state::AppState};
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use common::startgg::StartggClient;
     use http_body_util::BodyExt;
     use serde_json::{Value, json};
     use sqlx::PgPool;
     use tower::ServiceExt;
-    use crate::{routes, state::AppState};
-    use common::startgg::StartggClient;
 
     fn make_app(pool: PgPool) -> Router {
         let startgg = StartggClient::new_with_base_url("test".into(), "http://localhost:1".into());
-        let state = AppState { db: pool, startgg, cors_origin: "http://localhost".into() };
+        let state = AppState {
+            db: pool,
+            startgg,
+            cors_origin: "http://localhost".into(),
+        };
         routes::router().with_state(state)
     }
 
@@ -246,17 +257,33 @@ mod tests {
                 ).unwrap())).unwrap()
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
-        resp.headers().get("set-cookie").unwrap().to_str().unwrap()
-            .split(';').next().unwrap().to_string()
+        resp.headers()
+            .get("set-cookie")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .split(';')
+            .next()
+            .unwrap()
+            .to_string()
     }
 
     async fn create_project(app: &Router, cookie: &str, name: &str) -> String {
-        let resp = app.clone().oneshot(
-            Request::builder().method("POST").uri("/projects")
-                .header("content-type", "application/json")
-                .header("cookie", cookie)
-                .body(Body::from(serde_json::to_vec(&json!({"name": name})).unwrap())).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/projects")
+                    .header("content-type", "application/json")
+                    .header("cookie", cookie)
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({"name": name})).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
         let bytes = resp.into_body().collect().await.unwrap().to_bytes();
         let v: Value = serde_json::from_slice(&bytes).unwrap();
@@ -270,21 +297,38 @@ mod tests {
         let _ = register(&app, "mem_user").await;
         let proj_id = create_project(&app, &owner_cookie, "Collab Project").await;
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("POST").uri(&format!("/projects/{proj_id}/members"))
-                .header("content-type", "application/json")
-                .header("cookie", &owner_cookie)
-                .body(Body::from(serde_json::to_vec(
-                    &json!({"email": "mem_user@test.com", "role": "editor"})
-                ).unwrap())).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(&format!("/projects/{proj_id}/members"))
+                    .header("content-type", "application/json")
+                    .header("cookie", &owner_cookie)
+                    .body(Body::from(
+                        serde_json::to_vec(
+                            &json!({"email": "mem_user@test.com", "role": "editor"}),
+                        )
+                        .unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 204);
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("GET").uri(&format!("/projects/{proj_id}/members"))
-                .header("cookie", &owner_cookie)
-                .body(Body::empty()).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(&format!("/projects/{proj_id}/members"))
+                    .header("cookie", &owner_cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 200);
         let bytes = resp.into_body().collect().await.unwrap().to_bytes();
         let members: Value = serde_json::from_slice(&bytes).unwrap();
@@ -304,28 +348,43 @@ mod tests {
 
         // Add member via SQL
         let user_id = sqlx::query_scalar!("SELECT id FROM users WHERE email = 'rem_user@test.com'")
-            .fetch_one(&pool).await.unwrap();
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         let proj_uuid: uuid::Uuid = proj_id.parse().unwrap();
         sqlx::query!(
             "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'editor')",
-            proj_uuid, user_id
-        ).execute(&pool).await.unwrap();
+            proj_uuid,
+            user_id
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
 
         // Remove the member
-        let resp = app.clone().oneshot(
-            Request::builder()
-                .method("DELETE")
-                .uri(&format!("/projects/{proj_id}/members/{user_id}"))
-                .header("cookie", &owner_cookie)
-                .body(Body::empty()).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(&format!("/projects/{proj_id}/members/{user_id}"))
+                    .header("cookie", &owner_cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 204);
 
         // Verify removed from DB
         let count = sqlx::query_scalar!(
             "SELECT COUNT(*) FROM project_members WHERE project_id = $1 AND user_id = $2",
-            proj_uuid, user_id
-        ).fetch_one(&pool).await.unwrap();
+            proj_uuid,
+            user_id
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
         assert_eq!(count, Some(0));
     }
 
@@ -336,23 +395,36 @@ mod tests {
         let _ = register(&app, "new_owner").await;
         let proj_id = create_project(&app, &old_owner_cookie, "Transfer Project").await;
 
-        let new_owner_id = sqlx::query_scalar!("SELECT id FROM users WHERE email = 'new_owner@test.com'")
-            .fetch_one(&pool).await.unwrap();
+        let new_owner_id =
+            sqlx::query_scalar!("SELECT id FROM users WHERE email = 'new_owner@test.com'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         let proj_uuid: uuid::Uuid = proj_id.parse().unwrap();
         sqlx::query!(
             "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'editor')",
-            proj_uuid, new_owner_id
-        ).execute(&pool).await.unwrap();
+            proj_uuid,
+            new_owner_id
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("POST")
-                .uri(&format!("/projects/{proj_id}/members/transfer-ownership"))
-                .header("content-type", "application/json")
-                .header("cookie", &old_owner_cookie)
-                .body(Body::from(serde_json::to_vec(
-                    &json!({"user_id": new_owner_id})
-                ).unwrap())).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(&format!("/projects/{proj_id}/members/transfer-ownership"))
+                    .header("content-type", "application/json")
+                    .header("cookie", &old_owner_cookie)
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({"user_id": new_owner_id})).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 204);
 
         // After transfer: old owner becomes an editor member
@@ -367,7 +439,10 @@ mod tests {
         let new_owner_id_check = sqlx::query_scalar!(
             "SELECT owner_id FROM ranking_projects WHERE id = $1",
             proj_uuid
-        ).fetch_one(&pool).await.unwrap();
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
         assert_eq!(new_owner_id_check, new_owner_id);
     }
 }

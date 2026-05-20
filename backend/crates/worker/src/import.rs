@@ -141,7 +141,9 @@ async fn collect_user_tournaments(
             {
                 Err(StartggError::ComplexityTooHigh { actual, limit }) if per_page > 1 => {
                     tracing::warn!(
-                        per_page, actual, limit,
+                        per_page,
+                        actual,
+                        limit,
                         "complexity too high, halving perPage"
                     );
                     per_page /= 2;
@@ -338,8 +340,15 @@ async fn import_event(
     let entrant_count = entrant_map.len();
 
     // Import sets
-    let set_count =
-        import_sets(pool, startgg, event_db_id, event.id, &entrant_map, &phase_group_map).await?;
+    let set_count = import_sets(
+        pool,
+        startgg,
+        event_db_id,
+        event.id,
+        &entrant_map,
+        &phase_group_map,
+    )
+    .await?;
 
     tracing::info!(entrant_count, set_count, "event imported");
     Ok(())
@@ -359,18 +368,22 @@ async fn import_entrants(
     'pages: loop {
         let mut page = 1i32;
         loop {
-            let entrant_page =
-                match startgg.event_entrants(event_startgg_id, page, per_page).await {
-                    Err(StartggError::ComplexityTooHigh { actual, limit }) if per_page > 1 => {
-                        tracing::warn!(
-                            per_page, actual, limit,
-                            "complexity too high, halving perPage"
-                        );
-                        per_page /= 2;
-                        continue 'pages;
-                    }
-                    other => other?,
-                };
+            let entrant_page = match startgg
+                .event_entrants(event_startgg_id, page, per_page)
+                .await
+            {
+                Err(StartggError::ComplexityTooHigh { actual, limit }) if per_page > 1 => {
+                    tracing::warn!(
+                        per_page,
+                        actual,
+                        limit,
+                        "complexity too high, halving perPage"
+                    );
+                    per_page /= 2;
+                    continue 'pages;
+                }
+                other => other?,
+            };
 
             for entrant in &entrant_page.nodes {
                 let player_id: Option<Uuid> = entrant
@@ -501,7 +514,10 @@ async fn upsert_phases(
     Ok(phase_group_map)
 }
 
-#[instrument(skip(pool, startgg, entrant_map, phase_group_map), fields(event_startgg_id))]
+#[instrument(
+    skip(pool, startgg, entrant_map, phase_group_map),
+    fields(event_startgg_id)
+)]
 async fn import_sets(
     pool: &PgPool,
     startgg: &StartggClient,
@@ -520,7 +536,9 @@ async fn import_sets(
                 Ok(p) => p,
                 Err(StartggError::ComplexityTooHigh { actual, limit }) if per_page > 1 => {
                     tracing::warn!(
-                        per_page, actual, limit,
+                        per_page,
+                        actual,
+                        limit,
                         "complexity too high, halving perPage"
                     );
                     per_page /= 2;

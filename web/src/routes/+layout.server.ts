@@ -1,5 +1,5 @@
-import type { LayoutServerLoad } from './$types';
+import type { LayoutServerLoad } from "./$types";
 
 export const load: LayoutServerLoad = ({ locals }) => {
-	return { user: locals.user };
+  return { user: locals.user };
 };

@@ -44,7 +44,9 @@ async fn update_profile(
 
     if let Some(ref name) = body.display_name {
         if name.chars().count() < 1 {
-            return Err(AppError::UnprocessableEntity("display name must not be empty".into()));
+            return Err(AppError::UnprocessableEntity(
+                "display name must not be empty".into(),
+            ));
         }
         if name.chars().count() > 50 {
             return Err(AppError::UnprocessableEntity(
@@ -55,7 +57,9 @@ async fn update_profile(
 
     if let Some(ref email) = body.email {
         if !is_valid_email(email) {
-            return Err(AppError::UnprocessableEntity("invalid email address".into()));
+            return Err(AppError::UnprocessableEntity(
+                "invalid email address".into(),
+            ));
         }
         if email.chars().count() > 255 {
             return Err(AppError::UnprocessableEntity(
@@ -141,17 +145,25 @@ pub fn router() -> Router<AppState> {
 
 #[cfg(test)]
 mod tests {
-    use axum::{Router, body::Body, http::{Request, StatusCode}};
+    use crate::{routes, state::AppState};
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use common::startgg::StartggClient;
     use http_body_util::BodyExt;
     use serde_json::{Value, json};
     use sqlx::PgPool;
     use tower::ServiceExt;
-    use crate::{routes, state::AppState};
-    use common::startgg::StartggClient;
 
     fn make_app(pool: PgPool) -> Router {
         let startgg = StartggClient::new_with_base_url("test".into(), "http://localhost:1".into());
-        let state = AppState { db: pool, startgg, cors_origin: "http://localhost".into() };
+        let state = AppState {
+            db: pool,
+            startgg,
+            cors_origin: "http://localhost".into(),
+        };
         routes::router().with_state(state)
     }
 
@@ -164,8 +176,15 @@ mod tests {
                 ).unwrap())).unwrap()
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
-        resp.headers().get("set-cookie").unwrap().to_str().unwrap()
-            .split(';').next().unwrap().to_string()
+        resp.headers()
+            .get("set-cookie")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .split(';')
+            .next()
+            .unwrap()
+            .to_string()
     }
 
     async fn json_body(resp: axum::response::Response) -> Value {
@@ -178,19 +197,28 @@ mod tests {
         let app = make_app(pool.clone());
         let cookie = register(&app, "profuser").await;
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("PATCH").uri("/account/profile")
-                .header("content-type", "application/json")
-                .header("cookie", &cookie)
-                .body(Body::from(serde_json::to_vec(
-                    &json!({"display_name": "New Name"})
-                ).unwrap())).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/account/profile")
+                    .header("content-type", "application/json")
+                    .header("cookie", &cookie)
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({"display_name": "New Name"})).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 204);
 
-        let name = sqlx::query_scalar!(
-            "SELECT display_name FROM users WHERE email = 'profuser@test.com'"
-        ).fetch_one(&pool).await.unwrap();
+        let name =
+            sqlx::query_scalar!("SELECT display_name FROM users WHERE email = 'profuser@test.com'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(name, "New Name");
     }
 
@@ -200,14 +228,21 @@ mod tests {
         let _c1 = register(&app, "dupuser1").await;
         let c2 = register(&app, "dupuser2").await;
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("PATCH").uri("/account/profile")
-                .header("content-type", "application/json")
-                .header("cookie", &c2)
-                .body(Body::from(serde_json::to_vec(
-                    &json!({"email": "dupuser1@test.com"})
-                ).unwrap())).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PATCH")
+                    .uri("/account/profile")
+                    .header("content-type", "application/json")
+                    .header("cookie", &c2)
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({"email": "dupuser1@test.com"})).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 422);
     }
 
@@ -242,13 +277,23 @@ mod tests {
         ).await.unwrap();
         assert_eq!(resp.status(), 204);
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("POST").uri("/auth/login")
-                .header("content-type", "application/json")
-                .body(Body::from(serde_json::to_vec(
-                    &json!({"email": "pwuser2@test.com", "password": "newpassword456"})
-                ).unwrap())).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/auth/login")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::to_vec(
+                            &json!({"email": "pwuser2@test.com", "password": "newpassword456"}),
+                        )
+                        .unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 200);
     }
 
@@ -257,27 +302,46 @@ mod tests {
         let app = make_app(pool.clone());
         let cookie = register(&app, "deluser").await;
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("POST").uri("/projects")
-                .header("content-type", "application/json")
-                .header("cookie", &cookie)
-                .body(Body::from(serde_json::to_vec(&json!({"name": "My Project"})).unwrap())).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/projects")
+                    .header("content-type", "application/json")
+                    .header("cookie", &cookie)
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({"name": "My Project"})).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 201);
         let body: Value = json_body(resp).await;
         let project_id: uuid::Uuid = body["id"].as_str().unwrap().parse().unwrap();
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("DELETE").uri("/account")
-                .header("cookie", &cookie)
-                .body(Body::empty()).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/account")
+                    .header("cookie", &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 204);
 
         let count = sqlx::query_scalar!(
             "SELECT COUNT(*) FROM ranking_projects WHERE id = $1",
             project_id
-        ).fetch_one(&pool).await.unwrap();
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
         assert_eq!(count, Some(0));
     }
 
@@ -286,17 +350,30 @@ mod tests {
         let app = make_app(pool.clone());
         let cookie = register(&app, "sessuser").await;
 
-        app.clone().oneshot(
-            Request::builder().method("DELETE").uri("/account")
-                .header("cookie", &cookie)
-                .body(Body::empty()).unwrap()
-        ).await.unwrap();
+        app.clone()
+            .oneshot(
+                Request::builder()
+                    .method("DELETE")
+                    .uri("/account")
+                    .header("cookie", &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
 
-        let resp = app.clone().oneshot(
-            Request::builder().method("GET").uri("/auth/me")
-                .header("cookie", &cookie)
-                .body(Body::empty()).unwrap()
-        ).await.unwrap();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/auth/me")
+                    .header("cookie", &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(resp.status(), 401);
     }
 }

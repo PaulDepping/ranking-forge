@@ -15,8 +15,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::sync::LazyLock;
-use tower_governor::{GovernorLayer, GovernorError, governor::GovernorConfigBuilder};
 use tower_governor::key_extractor::KeyExtractor;
+use tower_governor::{GovernorError, GovernorLayer, governor::GovernorConfigBuilder};
 use uuid::Uuid;
 
 use crate::{
@@ -35,7 +35,10 @@ struct ClientIpExtractor;
 impl KeyExtractor for ClientIpExtractor {
     type Key = std::net::IpAddr;
 
-    fn extract<T>(&self, req: &axum::http::Request<T>) -> std::result::Result<Self::Key, GovernorError> {
+    fn extract<T>(
+        &self,
+        req: &axum::http::Request<T>,
+    ) -> std::result::Result<Self::Key, GovernorError> {
         let forwarded = req
             .headers()
             .get("x-forwarded-for")
@@ -244,22 +247,34 @@ async fn register(
     Json(body): Json<RegisterRequest>,
 ) -> Result<impl IntoResponse> {
     if !is_valid_email(&body.email) {
-        return Err(AppError::UnprocessableEntity("invalid email address".into()));
+        return Err(AppError::UnprocessableEntity(
+            "invalid email address".into(),
+        ));
     }
     if body.email.chars().count() > 255 {
-        return Err(AppError::UnprocessableEntity("email must be at most 255 characters".into()));
+        return Err(AppError::UnprocessableEntity(
+            "email must be at most 255 characters".into(),
+        ));
     }
     if body.display_name.chars().count() < 1 {
-        return Err(AppError::UnprocessableEntity("display name must not be empty".into()));
+        return Err(AppError::UnprocessableEntity(
+            "display name must not be empty".into(),
+        ));
     }
     if body.display_name.chars().count() > 50 {
-        return Err(AppError::UnprocessableEntity("display name must be at most 50 characters".into()));
+        return Err(AppError::UnprocessableEntity(
+            "display name must be at most 50 characters".into(),
+        ));
     }
     if body.password.chars().count() < 8 {
-        return Err(AppError::UnprocessableEntity("password must be at least 8 characters".into()));
+        return Err(AppError::UnprocessableEntity(
+            "password must be at least 8 characters".into(),
+        ));
     }
     if body.password.chars().count() > 128 {
-        return Err(AppError::UnprocessableEntity("password must be at most 128 characters".into()));
+        return Err(AppError::UnprocessableEntity(
+            "password must be at most 128 characters".into(),
+        ));
     }
 
     let password_hash = hash_password(body.password).await?;

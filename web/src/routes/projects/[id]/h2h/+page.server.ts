@@ -1,15 +1,15 @@
-import type { PageServerLoad } from './$types';
-import { makeApi } from '$lib/api';
-import type { HeadToHeadEntry, Player } from '$lib/types';
-import { env } from '$env/dynamic/private';
+import type { PageServerLoad } from "./$types";
+import { makeApi } from "$lib/api";
+import type { HeadToHeadEntry, Player } from "$lib/types";
+import { env } from "$env/dynamic/private";
 
 export const load: PageServerLoad = async ({ fetch, params, cookies }) => {
-	const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get('session_id'));
-	const [h2hRes, playersRes] = await Promise.all([
-		api.get(`/projects/${params.id}/head-to-head`),
-		api.get(`/projects/${params.id}/players`)
-	]);
-	const h2h: HeadToHeadEntry[] = h2hRes.ok ? await h2hRes.json() : [];
-	const players: Player[] = playersRes.ok ? await playersRes.json() : [];
-	return { h2h, players };
+  const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+  const [h2hRes, playersRes] = await Promise.all([
+    api.get(`/projects/${params.id}/head-to-head`),
+    api.get(`/projects/${params.id}/players`),
+  ]);
+  const h2h: HeadToHeadEntry[] = h2hRes.ok ? await h2hRes.json() : [];
+  const players: Player[] = playersRes.ok ? await playersRes.json() : [];
+  return { h2h, players };
 };
