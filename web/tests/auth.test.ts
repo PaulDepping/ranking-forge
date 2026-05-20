@@ -99,3 +99,11 @@ test('successful login redirects to the preserved destination', async ({ page })
 	await page.getByRole('button', { name: 'Sign in' }).click();
 	await expect(page).toHaveURL('/projects/proj-viewer/ranking');
 });
+
+test('login with protocol-relative redirect falls back to /projects', async ({ page }) => {
+	await page.goto('/login?redirect=//evil.com');
+	await page.getByLabel('Email').fill('testuser@test.com');
+	await page.getByLabel('Password').fill('testpass');
+	await page.getByRole('button', { name: 'Sign in' }).click();
+	await expect(page).toHaveURL('/projects');
+});

@@ -37,7 +37,7 @@ export const actions: Actions = {
 			});
 		}
 
-		const safe = redirectTo.startsWith('/') ? redirectTo : '/projects';
+		const safe = redirectTo.startsWith('/') && !redirectTo.startsWith('//') ? redirectTo : '/projects';
 		redirect(303, safe);
 	}
 };
