@@ -53,6 +53,7 @@ Frontend-specific guidance for the SvelteKit app in this directory.
 | Skeleton | `$lib/components/ui/skeleton` |
 | Tooltip | `$lib/components/ui/tooltip` |
 | Navigation Menu | `$lib/components/ui/navigation-menu` |
+| Toggle | `$lib/components/ui/toggle` |
 | Toggle Group | `$lib/components/ui/toggle-group` |
 
 Update this list when adding new components.

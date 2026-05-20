@@ -473,25 +473,25 @@
 					<Card.Content class="p-0">
 						<div class="divide-y divide-border border-t border-border">
 							{#each tournament.events as event (event.id)}
-							<Label
-								class="flex items-center justify-between px-4 py-2
-									{canEdit ? 'cursor-pointer hover:bg-accent/50' : ''}"
-							>
-								<div>
-									<span class="text-sm">{event.name}</span>
-									{#if event.num_entrants}
-										<span class="ml-2 text-xs text-muted-foreground">{event.num_entrants} entrants</span>
+								<Label
+									class="flex items-center justify-between px-4 py-2
+										{canEdit ? 'cursor-pointer hover:bg-accent/50' : ''}"
+								>
+									<div>
+										<span class="text-sm">{event.name}</span>
+										{#if event.num_entrants}
+											<span class="ml-2 text-xs text-muted-foreground">{event.num_entrants} entrants</span>
+										{/if}
+									</div>
+									{#if canEdit}
+										<Checkbox
+											checked={event.included}
+											onCheckedChange={() => handleToggle(data.project.id, event)}
+										/>
 									{/if}
-								</div>
-								{#if canEdit}
-									<Checkbox
-										checked={event.included}
-										onCheckedChange={() => handleToggle(data.project.id, event)}
-									/>
-								{/if}
-							</Label>
-						{/each}
-					</div>
+								</Label>
+							{/each}
+						</div>
 					</Card.Content>
 				</Card.Root>
 			{/each}
