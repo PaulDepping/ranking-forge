@@ -49,14 +49,6 @@ async fn main() {
         .await
         .expect("failed to run migrations");
 
-    // TODO(task-3+): fetch per-user API key from DB at job-claim time.
-    // For now read from env so the binary still functions during the migration.
-    let startgg_api_key = std::env::var("STARTGG_API_KEY").unwrap_or_else(|_| {
-        tracing::warn!("STARTGG_API_KEY not set; imports will fail until per-job key lookup is implemented (Task 6)");
-        String::new()
-    });
-    let startgg = common::startgg::StartggClient::new(startgg_api_key);
-
     let mut listener = PgListener::connect(&config.database_url)
         .await
         .expect("failed to create PgListener");
@@ -81,15 +73,41 @@ async fn main() {
             match common::jobs::claim(&pool).await {
                 Ok(Some(job)) => {
                     let pool2 = pool.clone();
-                    let startgg2 = startgg.clone();
                     let project_id = job.project_id;
                     let job_id = job.id;
                     let import_params = common::jobs::ImportParams::from_job(&job);
+
+                    let api_key = match sqlx::query_scalar!(
+                        "SELECT u.startgg_api_key FROM ranking_projects rp
+                         JOIN users u ON u.id = rp.owner_id
+                         WHERE rp.id = $1",
+                        project_id,
+                    )
+                    .fetch_optional(&pool)
+                    .await
+                    {
+                        Ok(Some(Some(key))) => key,
+                        Ok(_) => {
+                            tracing::error!(%job_id, %project_id, "project owner has no start.gg API key");
+                            let _ = common::jobs::mark_failed(
+                                &pool,
+                                job_id,
+                                "Project owner has no start.gg API key configured",
+                            )
+                            .await;
+                            continue;
+                        }
+                        Err(e) => {
+                            tracing::error!(%e, %job_id, "failed to look up owner API key");
+                            let _ = common::jobs::mark_failed(&pool, job_id, &e.to_string()).await;
+                            continue;
+                        }
+                    };
+
+                    let startgg = common::startgg::StartggClient::new(api_key);
                     tracing::info!(%job_id, %project_id, "starting import");
                     let handle = tokio::spawn(async move {
-                        match import::run(&pool2, &startgg2, project_id, job_id, import_params)
-                            .await
-                        {
+                        match import::run(&pool2, &startgg, project_id, job_id, import_params).await {
                             Ok(()) => {
                                 tracing::info!(%job_id, "import complete");
                                 if let Err(e) = common::jobs::mark_done(&pool2, job_id).await {
