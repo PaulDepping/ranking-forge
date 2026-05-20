@@ -66,6 +66,26 @@ The app is available at `http://localhost:5173`.
 docker compose up
 ```
 
+## Docker images
+
+Pre-built images are published to the GitHub Container Registry on every push to `main` and on version tags:
+
+| Image | Pull |
+|---|---|
+| API server | `ghcr.io/pauldepping/ranking-forge/api` |
+| Background worker | `ghcr.io/pauldepping/ranking-forge/worker` |
+| Frontend (SvelteKit) | `ghcr.io/pauldepping/ranking-forge/web` |
+
+Tags follow semver (`v1.2.3`, `1.2`, `1`) for version tags, and `latest` tracks the `main` branch.
+
+```bash
+docker pull ghcr.io/pauldepping/ranking-forge/api:latest
+docker pull ghcr.io/pauldepping/ranking-forge/worker:latest
+docker pull ghcr.io/pauldepping/ranking-forge/web:latest
+```
+
+The `docker-compose.prod.yml` file references these images and is the recommended way to run a production deployment.
+
 ## Testing
 
 ```bash

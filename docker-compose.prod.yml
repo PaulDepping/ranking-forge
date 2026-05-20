@@ -15,9 +15,7 @@ services:
     restart: unless-stopped
 
   api:
-    build:
-      context: ./backend
-      target: api
+    image: ghcr.io/pauldepping/ranking-forge/api:latest
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-rankingforge}
       PORT: 3000
@@ -33,9 +31,7 @@ services:
     restart: unless-stopped
 
   worker:
-    build:
-      context: ./backend
-      target: worker
+    image: ghcr.io/pauldepping/ranking-forge/worker:latest
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-rankingforge}
       STARTGG_API_KEY: ${STARTGG_API_KEY}
@@ -46,8 +42,7 @@ services:
     restart: unless-stopped
 
   web:
-    build:
-      context: ./web
+    image: ghcr.io/pauldepping/ranking-forge/web:latest
     environment:
       ORIGIN: ${ORIGIN:-https://rankingforge.example.com}
       PUBLIC_API_URL: ${PUBLIC_API_URL:-https://rankingforge.example.com}
