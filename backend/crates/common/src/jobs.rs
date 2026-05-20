@@ -109,6 +109,28 @@ pub async fn mark_failed(pool: &PgPool, id: Uuid, error: &str) -> Result<(), sql
     Ok(())
 }
 
+pub async fn update_progress(
+    pool: &PgPool,
+    id: Uuid,
+    phase: &str,
+    step: usize,
+    total: usize,
+) -> Result<(), sqlx::Error> {
+    let progress = serde_json::json!({
+        "phase": phase,
+        "step": step,
+        "total": total,
+    });
+    sqlx::query!(
+        "UPDATE jobs SET progress = $2, updated_at = NOW() WHERE id = $1",
+        id,
+        progress,
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn mark_shutdown(pool: &PgPool, ids: &[Uuid]) -> Result<(), sqlx::Error> {
     if ids.is_empty() {
         return Ok(());
@@ -171,5 +193,52 @@ mod tests {
     #[sqlx::test(migrations = "../../migrations")]
     async fn mark_shutdown_with_no_ids_is_noop(pool: PgPool) {
         mark_shutdown(&pool, &[]).await.unwrap();
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn update_progress_stores_phase_step_total(pool: PgPool) {
+        let project_id = setup_project(&pool).await;
+        let job = enqueue(&pool, project_id, ImportParams::default())
+            .await
+            .unwrap();
+
+        update_progress(&pool, job.id, "scanning", 2, 5).await.unwrap();
+
+        let row = sqlx::query!(
+            "SELECT progress FROM jobs WHERE id = $1",
+            job.id
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        let progress = row.progress.unwrap();
+        assert_eq!(progress["phase"], "scanning");
+        assert_eq!(progress["step"], 2);
+        assert_eq!(progress["total"], 5);
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn update_progress_overwrites_previous(pool: PgPool) {
+        let project_id = setup_project(&pool).await;
+        let job = enqueue(&pool, project_id, ImportParams::default())
+            .await
+            .unwrap();
+
+        update_progress(&pool, job.id, "scanning", 1, 3).await.unwrap();
+        update_progress(&pool, job.id, "importing", 2, 7).await.unwrap();
+
+        let row = sqlx::query!(
+            "SELECT progress FROM jobs WHERE id = $1",
+            job.id
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        let progress = row.progress.unwrap();
+        assert_eq!(progress["phase"], "importing");
+        assert_eq!(progress["step"], 2);
+        assert_eq!(progress["total"], 7);
     }
 }
