@@ -67,7 +67,7 @@ describe('H2H page', () => {
 		expect(screen.getByRole('button', { name: '3–1' })).toBeInTheDocument();
 	});
 
-	it('does not show side panel before any cell is clicked', () => {
+	it('does not show popover content before any cell is clicked', () => {
 		render(Page, { data: { user, project, players, h2h } });
 		expect(screen.queryByText(/wins ·/i)).not.toBeInTheDocument();
 	});
