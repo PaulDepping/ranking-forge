@@ -156,10 +156,10 @@
 													{:else if selectedPair}
 														<div class="p-3">
 															<div class="mb-3 flex items-start justify-between gap-2 border-b border-border pb-2">
-																<div>
-																	<p class="font-semibold text-sm">{selectedPair.rowPlayer.name} vs {selectedPair.colPlayer.name}</p>
-																	<p class="text-xs text-muted-foreground">{selectedPair.wins} wins · {selectedPair.losses} losses</p>
-																</div>
+																<Popover.Header>
+																	<Popover.Title class="text-sm font-semibold">{selectedPair.rowPlayer.name} vs {selectedPair.colPlayer.name}</Popover.Title>
+																	<Popover.Description class="text-xs">{selectedPair.wins} wins · {selectedPair.losses} losses</Popover.Description>
+																</Popover.Header>
 																<Button
 																	variant="ghost"
 																	size="icon"
