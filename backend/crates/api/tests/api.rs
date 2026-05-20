@@ -975,6 +975,36 @@ async fn import_enqueue_returns_202(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
+async fn test_start_import_returns_422_when_owner_has_no_key(pool: PgPool) {
+    let app = make_app(pool, "");
+    let cookie = register(&app, "importowner", "password123").await;
+    let proj_id = create_project(&app, &cookie).await;
+
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/projects/{proj_id}/import"))
+                .header("cookie", &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let body = read_json(resp).await;
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap()
+            .contains("start.gg API key"),
+        "expected message about API key, got: {}",
+        body
+    );
+}
+
+#[sqlx::test(migrations = "../../migrations")]
 async fn import_status_no_job_returns_404(pool: PgPool) {
     let app = make_app(pool, "");
     let cookie = register(&app, "alice", "password123").await;
@@ -986,8 +1016,9 @@ async fn import_status_no_job_returns_404(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn import_status_after_enqueue(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
+    set_startgg_api_key(&pool, &cookie, "dummy-key").await;
     let pid = create_project(&app, &cookie).await;
 
     post_json(&app, &format!("/projects/{pid}/import"), &cookie, json!({})).await;
@@ -1047,8 +1078,9 @@ async fn import_enforces_ownership(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn import_status_returns_latest_job(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
+    set_startgg_api_key(&pool, &cookie, "dummy-key").await;
     let pid = create_project(&app, &cookie).await;
 
     post_json(&app, &format!("/projects/{pid}/import"), &cookie, json!({})).await;
@@ -1064,8 +1096,9 @@ async fn import_status_returns_latest_job(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn import_response_includes_date_params(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
+    set_startgg_api_key(&pool, &cookie, "dummy-key").await;
     let pid = create_project(&app, &cookie).await;
 
     let resp = post_json(
@@ -1083,8 +1116,9 @@ async fn import_response_includes_date_params(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn import_response_date_params_null_when_unset(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
+    set_startgg_api_key(&pool, &cookie, "dummy-key").await;
     let pid = create_project(&app, &cookie).await;
 
     let resp = post_json(&app, &format!("/projects/{pid}/import"), &cookie, json!({})).await;
@@ -1096,8 +1130,9 @@ async fn import_response_date_params_null_when_unset(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn import_enqueue_no_body_returns_202(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
+    set_startgg_api_key(&pool, &cookie, "dummy-key").await;
     let pid = create_project(&app, &cookie).await;
 
     let resp = app

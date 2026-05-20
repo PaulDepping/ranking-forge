@@ -73,6 +73,23 @@ pub async fn start_import(
     body: Option<Json<ImportRequest>>,
 ) -> Result<impl IntoResponse> {
     require_project_access(&state.db, project_id, user.id, UserRole::Editor).await?;
+
+    let owner_key: Option<String> = sqlx::query_scalar!(
+        "SELECT u.startgg_api_key FROM ranking_projects rp
+         JOIN users u ON u.id = rp.owner_id
+         WHERE rp.id = $1",
+        project_id,
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .flatten();
+
+    if owner_key.is_none() {
+        return Err(AppError::UnprocessableEntity(
+            "Project owner has not configured a start.gg API key".into(),
+        ));
+    }
+
     let req = body.map(|b| b.0).unwrap_or_default();
     let params = ImportParams {
         after_date: req.after_date.map(date_to_timestamp),
