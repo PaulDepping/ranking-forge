@@ -51,12 +51,12 @@ export const actions: Actions = {
 
 	addMember: async ({ fetch, params, cookies, request }) => {
 		const data = await request.formData();
-		const username = ((data.get('username') as string) ?? '').trim();
+		const email = ((data.get('email') as string) ?? '').trim();
 		const role = data.get('role') as string;
-		if (!username) return fail(400, { memberError: 'Username is required' });
+		if (!email) return fail(400, { memberError: 'Email is required' });
 		if (!['editor', 'viewer'].includes(role)) return fail(400, { memberError: 'Invalid role' });
 		const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get('session_id'));
-		const res = await api.post(`/projects/${params.id}/members`, { username, role });
+		const res = await api.post(`/projects/${params.id}/members`, { email, role });
 		if (!res.ok) {
 			const body = await res.json().catch(() => ({ message: 'Failed to add member' }));
 			return fail(res.status, { memberError: body.message });
