@@ -71,3 +71,13 @@ test('registration succeeds when passwords match', async ({ page }) => {
 	await page.getByRole('button', { name: 'Create account' }).click();
 	await expect(page.getByText('Passwords do not match')).not.toBeVisible();
 });
+
+test('viewer visiting /players is redirected to login with return URL', async ({ page }) => {
+	await page.goto('/projects/proj-viewer/players');
+	await expect(page).toHaveURL('/login?redirect=%2Fprojects%2Fproj-viewer%2Fplayers');
+});
+
+test('viewer visiting /import is redirected to login with return URL', async ({ page }) => {
+	await page.goto('/projects/proj-viewer/import');
+	await expect(page).toHaveURL('/login?redirect=%2Fprojects%2Fproj-viewer%2Fimport');
+});
