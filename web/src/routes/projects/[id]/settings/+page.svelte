@@ -94,10 +94,10 @@
 			<Table.Body>
 				{#each data.members as member}
 					<Table.Row>
-						<Table.Cell>{member.username}</Table.Cell>
+						<Table.Cell>{member.display_name}</Table.Cell>
 						<Table.Cell class="capitalize">{member.role}</Table.Cell>
 						<Table.Cell class="text-right">
-							{#if member.role !== 'owner'}
+							{#if member.role !== 'viewer' && member.role !== 'editor'}
 								<form method="POST" action="?/removeMember" use:enhance class="inline">
 									<input type="hidden" name="user_id" value={member.user_id} />
 									<Button type="submit" variant="ghost" size="sm">Remove</Button>
@@ -114,16 +114,17 @@
 				<Label for="member-username">Add by username</Label>
 				<Input id="member-username" name="username" placeholder="username" />
 			</div>
-			<Select.Root name="role" bind:value={addMemberRole}>
+			<Select.Root type="single" value={addMemberRole} onValueChange={(v) => addMemberRole = v as 'editor' | 'viewer'}>
 				<Select.Trigger class="w-32">{roleLabel(addMemberRole)}</Select.Trigger>
 				<Select.Content>
 					<Select.Item value="editor">Editor</Select.Item>
 					<Select.Item value="viewer">Viewer</Select.Item>
 				</Select.Content>
 			</Select.Root>
+			<input type="hidden" name="role" value={addMemberRole} />
 			<Button type="submit">Add</Button>
 		</form>
-		{#if form?.memberError}
+		{#if form && 'memberError' in form && form.memberError}
 			<p class="text-sm text-destructive">{form.memberError}</p>
 		{/if}
 	</div>
@@ -162,16 +163,17 @@
 		{/each}
 
 		<form method="POST" action="?/createInviteLink" use:enhance class="flex gap-2 items-end">
-			<Select.Root name="role" bind:value={createLinkRole}>
+			<Select.Root type="single" value={createLinkRole} onValueChange={(v) => createLinkRole = v as 'editor' | 'viewer'}>
 				<Select.Trigger class="w-32">{roleLabel(createLinkRole)}</Select.Trigger>
 				<Select.Content>
 					<Select.Item value="editor">Editor</Select.Item>
 					<Select.Item value="viewer">Viewer</Select.Item>
 				</Select.Content>
 			</Select.Root>
+			<input type="hidden" name="role" value={createLinkRole} />
 			<Button type="submit">Create invite link</Button>
 		</form>
-		{#if form?.linkError}
+		{#if form && 'linkError' in form && form.linkError}
 			<p class="text-sm text-destructive">{form.linkError}</p>
 		{/if}
 	</div>

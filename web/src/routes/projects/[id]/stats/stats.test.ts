@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/svelte';
 import Page from './+page.svelte';
-import type { SetRecord } from '$lib/types';
+import type { SetRecord, Project } from '$lib/types';
 
-const user = { id: 'u1', username: 'testuser', created_at: '2026-01-01T00:00:00Z' };
-const project = { id: 'proj-1', name: 'Test Project', game_id: null, game_name: null, created_at: '2026-01-01T00:00:00Z' };
+const user = { id: 'u1', email: 'testuser@test.com', display_name: 'testuser', created_at: '2026-01-01T00:00:00Z' };
+const project: Project = { id: 'proj-1', name: 'Test Project', game_id: null, game_name: null, created_at: '2026-01-01T00:00:00Z', published: false, user_role: 'owner' };
 
 function makeSet(opponentName: string, uf: number): SetRecord {
 	return {

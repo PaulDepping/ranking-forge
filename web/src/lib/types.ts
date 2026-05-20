@@ -165,6 +165,7 @@ export interface ProjectMember {
 	project_id: string;
 	user_id: string;
 	display_name: string;
+	email: string;
 	role: 'editor' | 'viewer';
 	joined_at: string;
 }

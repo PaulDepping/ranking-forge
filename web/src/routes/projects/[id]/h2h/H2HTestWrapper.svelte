@@ -4,7 +4,7 @@
 	import type { HeadToHeadEntry, Player, Project } from '$lib/types';
 
 	interface WrapperData {
-		user: { id: string; username: string } | null;
+		user: { id: string; email: string; display_name: string; created_at: string } | null;
 		project: Project;
 		h2h: HeadToHeadEntry[];
 		players: Player[];

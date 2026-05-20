@@ -104,9 +104,10 @@ const MOCK_H2H = [
 ];
 
 const MOCK_MEMBERS = [
-	{ project_id: 'proj-1', user_id: 'user-2', display_name: 'editor_user', role: 'editor', joined_at: '2026-01-01T00:00:00Z' }
+	{ project_id: 'proj-1', user_id: 'user-2', display_name: 'editor_user', email: 'editor@test.com', role: 'editor', joined_at: '2026-01-01T00:00:00Z' }
 ];
 
+/** @type {Array<{id: string, project_id: string, role: string, created_by: string, expires_at: string | null, revoked_at: string | null, created_at: string}>} */
 const MOCK_INVITE_LINKS = [];
 
 const MOCK_SET_BASE = {
