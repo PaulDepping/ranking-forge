@@ -29,8 +29,8 @@
 
 	const isActiveJob = $derived(job?.status === 'pending' || job?.status === 'running');
 
-	const progressLabel = $derived.by((): string | null => {
-		if (!job?.progress) return null;
+	const progressLabel = $derived.by((): string => {
+		if (!job?.progress) return '';
 		const { phase, step, total } = job.progress;
 		return phase === 'scanning'
 			? `Scanning players (${step} / ${total})`
