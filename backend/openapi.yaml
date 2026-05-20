@@ -163,10 +163,28 @@ components:
             type: string
           description: "Bracket types ordered by phase_order (e.g. ROUND_ROBIN, DOUBLE_ELIMINATION)"
 
+    ImportProgress:
+      type: object
+      required: [phase, step, total]
+      properties:
+        phase:
+          type: string
+          enum: [scanning, importing]
+          description: Current phase of the import job
+        step:
+          type: integer
+          description: How many units have been completed in this phase
+        total:
+          type: integer
+          description: How many units total in this phase
+
     ImportStatus:
       type: object
-      required: [status]
+      required: [id, status, created_at, updated_at]
       properties:
+        id:
+          type: string
+          format: uuid
         status:
           type: string
           enum: [pending, running, done, failed]
@@ -183,9 +201,17 @@ components:
           format: date
           nullable: true
           description: Upper bound of the import date filter (inclusive), if set.
+        created_at:
+          type: string
+          format: date-time
         updated_at:
           type: string
           format: date-time
+        progress:
+          allOf:
+            - $ref: '#/components/schemas/ImportProgress'
+          nullable: true
+          description: Current progress of the import job; null if pending or no progress written yet
 
     SetRecord:
       type: object
