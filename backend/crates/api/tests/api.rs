@@ -1027,7 +1027,6 @@ async fn import_status_no_job_returns_404(pool: PgPool) {
 async fn import_status_after_enqueue(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    set_startgg_api_key(&pool, &cookie, "dummy-key").await;
     let pid = create_project(&app, &pool, &cookie).await;
 
     post_json(&app, &format!("/projects/{pid}/import"), &cookie, json!({})).await;
@@ -1089,7 +1088,6 @@ async fn import_enforces_ownership(pool: PgPool) {
 async fn import_status_returns_latest_job(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    set_startgg_api_key(&pool, &cookie, "dummy-key").await;
     let pid = create_project(&app, &pool, &cookie).await;
 
     post_json(&app, &format!("/projects/{pid}/import"), &cookie, json!({})).await;
@@ -1107,7 +1105,6 @@ async fn import_status_returns_latest_job(pool: PgPool) {
 async fn import_response_includes_date_params(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    set_startgg_api_key(&pool, &cookie, "dummy-key").await;
     let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = post_json(
@@ -1127,7 +1124,6 @@ async fn import_response_includes_date_params(pool: PgPool) {
 async fn import_response_date_params_null_when_unset(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    set_startgg_api_key(&pool, &cookie, "dummy-key").await;
     let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = post_json(&app, &format!("/projects/{pid}/import"), &cookie, json!({})).await;
@@ -1141,7 +1137,6 @@ async fn import_response_date_params_null_when_unset(pool: PgPool) {
 async fn import_enqueue_no_body_returns_202(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    set_startgg_api_key(&pool, &cookie, "dummy-key").await;
     let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = app
