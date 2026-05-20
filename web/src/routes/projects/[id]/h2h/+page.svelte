@@ -164,7 +164,7 @@
 																	variant="ghost"
 																	size="icon"
 																	onclick={() => (selectedPair = null)}
-																	aria-label="Close panel"
+																	aria-label="Close"
 																>×</Button>
 															</div>
 															{#if selectedPair.sets.length === 0}
