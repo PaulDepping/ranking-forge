@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT startgg_api_key FROM users WHERE email = 'keyuser@test.com'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "startgg_api_key",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "4bcbe14583997bf362ad3cf76c8ea4fc427a04f6bfedd24c0a4650f2f39f53d0"
+}
