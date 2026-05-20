@@ -14,7 +14,14 @@ use crate::{
     routes::projects::{require_project_access, require_project_read_access},
     state::AppState,
 };
-use common::{jobs::ImportParams, models::{Job, ProjectMemberRole}};
+use common::{jobs::ImportParams, models::{Job, UserRole}};
+
+#[derive(Serialize, Deserialize)]
+pub struct ImportProgress {
+    pub phase: String,
+    pub step: u32,
+    pub total: u32,
+}
 
 #[derive(Serialize)]
 pub struct JobResponse {
@@ -25,6 +32,7 @@ pub struct JobResponse {
     pub before_date: Option<NaiveDate>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub progress: Option<ImportProgress>,
 }
 
 impl From<Job> for JobResponse {
@@ -39,6 +47,7 @@ impl From<Job> for JobResponse {
             before_date: params.before_date.and_then(to_date),
             created_at: j.created_at,
             updated_at: j.updated_at,
+            progress: j.progress.and_then(|v| serde_json::from_value(v).ok()),
         }
     }
 }
@@ -60,7 +69,7 @@ pub async fn start_import(
     Path(project_id): Path<Uuid>,
     body: Option<Json<ImportRequest>>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, ProjectMemberRole::Editor).await?;
+    require_project_access(&state.db, project_id, user.id, UserRole::Editor).await?;
     let req = body.map(|b| b.0).unwrap_or_default();
     let params = ImportParams {
         after_date: req.after_date.map(date_to_timestamp),
