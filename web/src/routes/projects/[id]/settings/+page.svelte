@@ -86,7 +86,7 @@
 		<Table.Root>
 			<Table.Header>
 				<Table.Row>
-					<Table.Head>Username</Table.Head>
+					<Table.Head>Member</Table.Head>
 					<Table.Head>Role</Table.Head>
 					<Table.Head></Table.Head>
 				</Table.Row>
@@ -94,7 +94,10 @@
 			<Table.Body>
 				{#each data.members as member}
 					<Table.Row>
-						<Table.Cell>{member.display_name}</Table.Cell>
+						<Table.Cell>
+							<div class="font-medium">{member.display_name}</div>
+							<div class="text-xs text-muted-foreground">{member.email}</div>
+						</Table.Cell>
 						<Table.Cell class="capitalize">{member.role}</Table.Cell>
 						<Table.Cell class="text-right">
 							<form method="POST" action="?/removeMember" use:enhance class="inline">
@@ -109,8 +112,8 @@
 
 		<form method="POST" action="?/addMember" use:enhance class="flex gap-2 items-end">
 			<div class="flex-1 space-y-1">
-				<Label for="member-username">Add by username</Label>
-				<Input id="member-username" name="username" placeholder="username" />
+				<Label for="member-email">Add by email</Label>
+				<Input id="member-email" name="email" type="email" placeholder="player@example.com" />
 			</div>
 			<Select.Root type="single" value={addMemberRole} onValueChange={(v) => addMemberRole = v as 'editor' | 'viewer'}>
 				<Select.Trigger class="w-32">{roleLabel(addMemberRole)}</Select.Trigger>
