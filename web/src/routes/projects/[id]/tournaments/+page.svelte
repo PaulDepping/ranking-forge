@@ -14,6 +14,7 @@
 	import { env } from '$env/dynamic/public';
 	import { makeApi } from '$lib/api';
 	import type { Tournament, TournamentEvent } from '$lib/types';
+	import * as Card from '$lib/components/ui/card';
 	import * as Empty from '$lib/components/ui/empty';
 	import { formatDate } from '$lib/utils';
 
@@ -453,24 +454,25 @@
 		{/if}
 		<div class="space-y-3">
 			{#each visibleTournaments as tournament (tournament.id)}
-				<div class="rounded-md border border-border">
-					<div class="flex items-start justify-between p-3">
-						<div>
-							<p class="font-medium">{tournament.name}</p>
-							<p class="text-xs text-muted-foreground">
-								{[tournament.city, tournament.addr_state, tournament.country_code]
-									.filter(Boolean)
-									.join(', ')}
-								{tournament.online ? '(Online)' : ''}
-								{tournament.start_at ? '· ' + formatDate(tournament.start_at) : ''}
-							</p>
-						</div>
-						<Badge variant="outline">
-							{tournament.events.length} event{tournament.events.length !== 1 ? 's' : ''}
-						</Badge>
-					</div>
-					<div class="divide-y divide-border border-t border-border">
-						{#each tournament.events as event (event.id)}
+				<Card.Root class="py-0 gap-0">
+					<Card.Header class="p-3">
+						<Card.Title class="text-sm font-medium">{tournament.name}</Card.Title>
+						<Card.Description class="text-xs">
+							{[tournament.city, tournament.addr_state, tournament.country_code]
+								.filter(Boolean)
+								.join(', ')}
+							{tournament.online ? '(Online)' : ''}
+							{tournament.start_at ? '· ' + formatDate(tournament.start_at) : ''}
+						</Card.Description>
+						<Card.Action>
+							<Badge variant="outline">
+								{tournament.events.length} event{tournament.events.length !== 1 ? 's' : ''}
+							</Badge>
+						</Card.Action>
+					</Card.Header>
+					<Card.Content class="p-0">
+						<div class="divide-y divide-border border-t border-border">
+							{#each tournament.events as event (event.id)}
 							<Label
 								class="flex items-center justify-between px-4 py-2
 									{canEdit ? 'cursor-pointer hover:bg-accent/50' : ''}"
@@ -490,7 +492,8 @@
 							</Label>
 						{/each}
 					</div>
-				</div>
+					</Card.Content>
+				</Card.Root>
 			{/each}
 		</div>
 	{/if}
