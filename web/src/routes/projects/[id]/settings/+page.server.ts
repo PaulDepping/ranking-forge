@@ -4,6 +4,16 @@ import { makeApi } from '$lib/api';
 import type { ProjectMember, InviteLink } from '$lib/types';
 import { env } from '$env/dynamic/private';
 
+export type FormData = {
+	renameError?: string;
+	publishError?: string;
+	memberError?: string;
+	linkError?: string;
+	deleteError?: string;
+	project?: any;
+	newLink?: any;
+};
+
 export const load: PageServerLoad = async ({ fetch, params, cookies, parent }) => {
 	const { project } = await parent();
 	if (project.user_role !== 'owner') {

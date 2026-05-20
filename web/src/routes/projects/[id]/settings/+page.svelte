@@ -9,8 +9,9 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as Table from '$lib/components/ui/table';
 	import * as Select from '$lib/components/ui/select';
+	import type { FormData } from './+page.server';
 
-	let { data, form } = $props();
+	let { data, form } = $props<{ data: any; form: FormData | null }>();
 
 	let name = $state(untrack(() => data.project.name));
 	$effect(() => {
@@ -125,7 +126,7 @@
 			<input type="hidden" name="role" value={addMemberRole} />
 			<Button type="submit">Add</Button>
 		</form>
-		{#if form && 'memberError' in form && form.memberError}
+		{#if form?.memberError}
 			<p class="text-sm text-destructive">{form.memberError}</p>
 		{/if}
 	</div>
@@ -174,7 +175,7 @@
 			<input type="hidden" name="role" value={createLinkRole} />
 			<Button type="submit">Create invite link</Button>
 		</form>
-		{#if form && 'linkError' in form && form.linkError}
+		{#if form?.linkError}
 			<p class="text-sm text-destructive">{form.linkError}</p>
 		{/if}
 	</div>
