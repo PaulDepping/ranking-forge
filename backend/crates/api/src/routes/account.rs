@@ -8,7 +8,7 @@ use axum::{
 use axum_extra::extract::CookieJar;
 use serde::Deserialize;
 
-use common::startgg::StartggClient;
+use common::startgg::{StartggClient, StartggError};
 
 use crate::{
     error::{AppError, Result},
@@ -150,8 +150,10 @@ async fn set_startgg_key(
 ) -> Result<impl IntoResponse> {
     let client =
         StartggClient::new_with_base_url(body.api_key.clone(), state.startgg_base_url.clone());
-    client.search_games("smash").await.map_err(|_| {
-        AppError::UnprocessableEntity("Invalid start.gg API key".into())
+    client.search_games("smash").await.map_err(|e| match e {
+        StartggError::Http(re) => AppError::ExternalApi(re),
+        StartggError::ComplexityTooHigh { .. } => AppError::ExternalApiError,
+        _ => AppError::UnprocessableEntity("Invalid start.gg API key".into()),
     })?;
 
     sqlx::query!(
