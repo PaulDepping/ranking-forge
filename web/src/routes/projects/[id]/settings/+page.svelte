@@ -97,12 +97,10 @@
 						<Table.Cell>{member.display_name}</Table.Cell>
 						<Table.Cell class="capitalize">{member.role}</Table.Cell>
 						<Table.Cell class="text-right">
-							{#if member.role !== 'viewer' && member.role !== 'editor'}
-								<form method="POST" action="?/removeMember" use:enhance class="inline">
-									<input type="hidden" name="user_id" value={member.user_id} />
-									<Button type="submit" variant="ghost" size="sm">Remove</Button>
-								</form>
-							{/if}
+							<form method="POST" action="?/removeMember" use:enhance class="inline">
+								<input type="hidden" name="user_id" value={member.user_id} />
+								<Button type="submit" variant="ghost" size="sm">Remove</Button>
+							</form>
 						</Table.Cell>
 					</Table.Row>
 				{/each}
