@@ -690,8 +690,10 @@ async fn full_import_flow(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn test_rename_project(pool: PgPool) {
-    let app = make_app(pool, "http://unused");
+    let app = make_app(pool.clone(), "http://unused");
     let cookie = register(&app, "alice", "password123").await;
+
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
 
     // Create a project
     let resp = post_json(&app, "/projects", &cookie, json!({"name": "Original"})).await;

@@ -185,7 +185,10 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/profile", patch(update_profile))
         .route("/password", patch(update_password))
-        .route("/startgg-key", put(set_startgg_key).delete(delete_startgg_key))
+        .route(
+            "/startgg-key",
+            put(set_startgg_key).delete(delete_startgg_key),
+        )
         .route("/", delete(delete_account))
 }
 
@@ -356,6 +359,12 @@ mod tests {
         let app = make_app(pool.clone());
         let cookie = register(&app, "deluser").await;
 
+        // Set key so project creation succeeds
+        sqlx::query!("UPDATE users SET startgg_api_key = 'k' WHERE email = 'deluser@test.com'")
+            .execute(&pool)
+            .await
+            .unwrap();
+
         let resp = app
             .clone()
             .oneshot(
@@ -435,9 +444,10 @@ mod tests {
     async fn test_set_startgg_key_valid_stores_key(pool: PgPool) {
         let mock = MockServer::start().await;
         Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(
-                json!({"data": {"videogames": {"nodes": []}}}),
-            ))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"data": {"videogames": {"nodes": []}}})),
+            )
             .mount(&mock)
             .await;
 
@@ -461,11 +471,12 @@ mod tests {
             .unwrap();
         assert_eq!(resp.status(), 204);
 
-        let key =
-            sqlx::query_scalar!("SELECT startgg_api_key FROM users WHERE email = 'keyuser@test.com'")
-                .fetch_one(&pool)
-                .await
-                .unwrap();
+        let key = sqlx::query_scalar!(
+            "SELECT startgg_api_key FROM users WHERE email = 'keyuser@test.com'"
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
         assert_eq!(key, Some("my-valid-key".to_string()));
     }
 
@@ -473,9 +484,11 @@ mod tests {
     async fn test_set_startgg_key_invalid_returns_422(pool: PgPool) {
         let mock = MockServer::start().await;
         Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(
-                json!({"data": null, "errors": [{"message": "not authorized"}]}),
-            ))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(
+                    json!({"data": null, "errors": [{"message": "not authorized"}]}),
+                ),
+            )
             .mount(&mock)
             .await;
 

@@ -290,7 +290,9 @@ async fn set_startgg_api_key(pool: &PgPool, cookie: &str, api_key: &str) {
 }
 
 /// Create a project for the given user and return its UUID string.
-async fn create_project(app: &Router, cookie: &str) -> String {
+/// Sets a test start.gg API key for the user (required by the create-project guard).
+async fn create_project(app: &Router, pool: &PgPool, cookie: &str) -> String {
+    set_startgg_api_key(pool, cookie, "test-key").await;
     let resp = post_json(app, "/projects", cookie, json!({"name": "Test Project"})).await;
     assert_eq!(resp.status(), StatusCode::CREATED);
     read_json(resp).await["id"].as_str().unwrap().to_string()
@@ -334,7 +336,7 @@ fn startgg_games_ok() -> Value {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn auth_register_and_me(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
 
     let resp = get_req(&app, "/auth/me", &cookie).await;
@@ -344,7 +346,7 @@ async fn auth_register_and_me(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn auth_me_unauthenticated(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let resp = app
         .oneshot(
             Request::builder()
@@ -359,7 +361,7 @@ async fn auth_me_unauthenticated(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn auth_logout_invalidates_session(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "bob", "password123").await;
 
     let resp = app
@@ -382,7 +384,7 @@ async fn auth_logout_invalidates_session(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn auth_login(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     register(&app, "alice", "password123").await;
 
     let req = Request::builder()
@@ -422,7 +424,7 @@ async fn auth_login(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn auth_login_wrong_password(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     register(&app, "alice", "password123").await;
 
     let req = Request::builder()
@@ -440,7 +442,7 @@ async fn auth_login_wrong_password(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn auth_login_unknown_user(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
 
     let req = Request::builder()
         .method("POST")
@@ -457,7 +459,7 @@ async fn auth_login_unknown_user(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn auth_register_empty_display_name(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let req = Request::builder()
         .method("POST")
         .uri("/auth/register")
@@ -475,7 +477,7 @@ async fn auth_register_empty_display_name(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn auth_register_short_password(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let req = Request::builder()
         .method("POST")
         .uri("/auth/register")
@@ -493,7 +495,7 @@ async fn auth_register_short_password(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn auth_register_duplicate_username(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     register(&app, "alice", "password123").await;
 
     let req = Request::builder()
@@ -512,7 +514,7 @@ async fn auth_register_duplicate_username(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn projects_list_empty(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
 
     let resp = get_req(&app, "/projects", &cookie).await;
@@ -522,8 +524,9 @@ async fn projects_list_empty(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn projects_create_and_get(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
 
     let resp = post_json(
         &app,
@@ -549,13 +552,13 @@ async fn projects_create_and_get(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn projects_list_shows_only_own(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
 
-    create_project(&app, &alice).await;
-    create_project(&app, &alice).await;
-    create_project(&app, &bob).await;
+    create_project(&app, &pool, &alice).await;
+    create_project(&app, &pool, &alice).await;
+    create_project(&app, &pool, &bob).await;
 
     let resp = get_req(&app, "/projects", &alice).await;
     let projects = read_json(resp).await;
@@ -568,11 +571,11 @@ async fn projects_list_shows_only_own(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn projects_get_enforces_ownership(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
 
-    let id = create_project(&app, &alice).await;
+    let id = create_project(&app, &pool, &alice).await;
 
     let resp = get_req(&app, &format!("/projects/{id}"), &alice).await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -583,7 +586,7 @@ async fn projects_get_enforces_ownership(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn projects_create_requires_auth(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let resp = app
         .oneshot(
             Request::builder()
@@ -602,7 +605,7 @@ async fn projects_create_requires_auth(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn projects_create_empty_name(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
 
     let resp = post_json(&app, "/projects", &cookie, json!({"name": "   "})).await;
@@ -611,8 +614,9 @@ async fn projects_create_empty_name(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn projects_create_without_game(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
 
     let resp = post_json(&app, "/projects", &cookie, json!({"name": "No Game Yet"})).await;
     assert_eq!(resp.status(), StatusCode::CREATED);
@@ -625,9 +629,9 @@ async fn projects_create_without_game(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn projects_delete(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let id = create_project(&app, &cookie).await;
+    let id = create_project(&app, &pool, &cookie).await;
 
     let resp = delete_req(&app, &format!("/projects/{id}"), &cookie).await;
     assert_eq!(resp.status(), StatusCode::NO_CONTENT);
@@ -638,11 +642,11 @@ async fn projects_delete(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn projects_delete_enforces_ownership(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
 
-    let id = create_project(&app, &alice).await;
+    let id = create_project(&app, &pool, &alice).await;
 
     let resp = delete_req(&app, &format!("/projects/{id}"), &bob).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -656,9 +660,9 @@ async fn projects_delete_enforces_ownership(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn players_add_and_list(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = get_req(&app, &format!("/projects/{pid}/players"), &cookie).await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -686,11 +690,11 @@ async fn players_add_and_list(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn players_list_requires_project_ownership(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
 
-    let pid = create_project(&app, &alice).await;
+    let pid = create_project(&app, &pool, &alice).await;
 
     let resp = get_req(&app, &format!("/projects/{pid}/players"), &bob).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -698,9 +702,9 @@ async fn players_list_requires_project_ownership(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn players_add_empty_name(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = post_json(
         &app,
@@ -714,9 +718,9 @@ async fn players_add_empty_name(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn players_delete(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
     let player_id = create_player(&app, &cookie, &pid, "Mango").await;
 
     let resp = delete_req(
@@ -733,9 +737,9 @@ async fn players_delete(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn players_delete_nonexistent(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = delete_req(
         &app,
@@ -761,7 +765,7 @@ async fn accounts_link_and_unlink(pool: PgPool) {
     let app = make_app(pool.clone(), &mock.uri());
     let cookie = register(&app, "alice", "password123").await;
     set_startgg_api_key(&pool, &cookie, "test-key").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
     let player_id = create_player(&app, &cookie, &pid, "Mango").await;
 
     let resp = post_json(
@@ -818,7 +822,7 @@ async fn accounts_link_user_not_found_on_startgg(pool: PgPool) {
     let app = make_app(pool.clone(), &mock.uri());
     let cookie = register(&app, "alice", "password123").await;
     set_startgg_api_key(&pool, &cookie, "test-key").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
     let player_id = create_player(&app, &cookie, &pid, "Ghost").await;
 
     let resp = post_json(
@@ -850,7 +854,7 @@ async fn accounts_link_duplicate(pool: PgPool) {
     let app = make_app(pool.clone(), &mock.uri());
     let cookie = register(&app, "alice", "password123").await;
     set_startgg_api_key(&pool, &cookie, "test-key").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
     let player_id = create_player(&app, &cookie, &pid, "Mango").await;
 
     let first = post_json(
@@ -918,7 +922,7 @@ async fn games_search(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn games_empty_query(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
 
     let resp = app
@@ -939,7 +943,7 @@ async fn games_empty_query(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn games_requires_auth(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let resp = app
         .oneshot(
             Request::builder()
@@ -959,7 +963,7 @@ async fn games_requires_auth(pool: PgPool) {
 async fn import_enqueue_returns_202(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     // Set a key so the import guard (Task 4) will be satisfied
     set_startgg_api_key(&pool, &cookie, "dummy-key").await;
@@ -976,9 +980,14 @@ async fn import_enqueue_returns_202(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn test_start_import_returns_422_when_owner_has_no_key(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "importowner", "password123").await;
-    let proj_id = create_project(&app, &cookie).await;
+    // create_project sets a key; remove it afterwards to test the import guard
+    let proj_id = create_project(&app, &pool, &cookie).await;
+    sqlx::query!("UPDATE users SET startgg_api_key = NULL WHERE email = 'importowner@test.com'")
+        .execute(&pool)
+        .await
+        .unwrap();
 
     let resp = app
         .clone()
@@ -1006,9 +1015,9 @@ async fn test_start_import_returns_422_when_owner_has_no_key(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn import_status_no_job_returns_404(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = get_req(&app, &format!("/projects/{pid}/import"), &cookie).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -1019,7 +1028,7 @@ async fn import_status_after_enqueue(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     set_startgg_api_key(&pool, &cookie, "dummy-key").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     post_json(&app, &format!("/projects/{pid}/import"), &cookie, json!({})).await;
 
@@ -1030,9 +1039,9 @@ async fn import_status_after_enqueue(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn import_requires_auth(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     // POST /import still requires auth (Editor role)
     let resp = app
@@ -1064,10 +1073,10 @@ async fn import_requires_auth(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn import_enforces_ownership(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
-    let pid = create_project(&app, &alice).await;
+    let pid = create_project(&app, &pool, &alice).await;
 
     let resp = post_json(&app, &format!("/projects/{pid}/import"), &bob, json!({})).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -1081,7 +1090,7 @@ async fn import_status_returns_latest_job(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     set_startgg_api_key(&pool, &cookie, "dummy-key").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     post_json(&app, &format!("/projects/{pid}/import"), &cookie, json!({})).await;
     let second =
@@ -1099,7 +1108,7 @@ async fn import_response_includes_date_params(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     set_startgg_api_key(&pool, &cookie, "dummy-key").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = post_json(
         &app,
@@ -1119,7 +1128,7 @@ async fn import_response_date_params_null_when_unset(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     set_startgg_api_key(&pool, &cookie, "dummy-key").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = post_json(&app, &format!("/projects/{pid}/import"), &cookie, json!({})).await;
     assert_eq!(resp.status(), StatusCode::ACCEPTED);
@@ -1133,7 +1142,7 @@ async fn import_enqueue_no_body_returns_202(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     set_startgg_api_key(&pool, &cookie, "dummy-key").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = app
         .clone()
@@ -1159,9 +1168,9 @@ async fn import_enqueue_no_body_returns_202(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn tournaments_list_empty(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = get_req(&app, &format!("/projects/{pid}/tournaments"), &cookie).await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -1172,7 +1181,7 @@ async fn tournaments_list_empty(pool: PgPool) {
 async fn tournaments_list_with_data(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &cookie).await;
+    let pid_str = create_project(&app, &pool, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
     seed_tournament_event(&pool, pid, 1001, 2001).await;
@@ -1192,9 +1201,9 @@ async fn tournaments_list_with_data(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn tournaments_list_requires_auth(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     // Unauthenticated request to a private project returns 404 (not 401)
     let resp = app
@@ -1212,10 +1221,10 @@ async fn tournaments_list_requires_auth(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn tournaments_list_enforces_ownership(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
-    let pid = create_project(&app, &alice).await;
+    let pid = create_project(&app, &pool, &alice).await;
 
     let resp = get_req(&app, &format!("/projects/{pid}/tournaments"), &bob).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -1227,7 +1236,7 @@ async fn tournaments_list_enforces_ownership(pool: PgPool) {
 async fn patch_event_toggle_included(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &cookie).await;
+    let pid_str = create_project(&app, &pool, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
     let (_, event_id) = seed_tournament_event(&pool, pid, 1002, 2002).await;
@@ -1257,9 +1266,9 @@ async fn patch_event_toggle_included(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn patch_event_unknown_returns_404(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = patch_json(
         &app,
@@ -1276,7 +1285,7 @@ async fn patch_event_enforces_ownership(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
-    let alice_pid_str = create_project(&app, &alice).await;
+    let alice_pid_str = create_project(&app, &pool, &alice).await;
     let alice_pid = Uuid::parse_str(&alice_pid_str).unwrap();
 
     let (_, event_id) = seed_tournament_event(&pool, alice_pid, 1003, 2003).await;
@@ -1295,9 +1304,9 @@ async fn patch_event_enforces_ownership(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn stats_empty_project(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = get_req(&app, &format!("/projects/{pid}/stats"), &cookie).await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -1308,7 +1317,7 @@ async fn stats_empty_project(pool: PgPool) {
 async fn stats_upset_factor_computed(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &cookie).await;
+    let pid_str = create_project(&app, &pool, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
     let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
@@ -1349,7 +1358,7 @@ async fn stats_upset_factor_computed(pool: PgPool) {
 async fn stats_excluded_events_not_counted(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &cookie).await;
+    let pid_str = create_project(&app, &pool, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
     let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
@@ -1380,9 +1389,9 @@ async fn stats_excluded_events_not_counted(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn stats_requires_auth(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     // Unauthenticated request to a private project returns 404 (not 401)
     let resp = app
@@ -1400,10 +1409,10 @@ async fn stats_requires_auth(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn stats_enforces_ownership(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
-    let pid = create_project(&app, &alice).await;
+    let pid = create_project(&app, &pool, &alice).await;
 
     let resp = get_req(&app, &format!("/projects/{pid}/stats"), &bob).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -1413,7 +1422,7 @@ async fn stats_enforces_ownership(pool: PgPool) {
 async fn stats_includes_non_project_opponent(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &cookie).await;
+    let pid_str = create_project(&app, &pool, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
     let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
@@ -1446,7 +1455,7 @@ async fn stats_includes_non_project_opponent(pool: PgPool) {
 async fn stats_returns_game_scores(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &cookie).await;
+    let pid_str = create_project(&app, &pool, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
     let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
@@ -1550,7 +1559,7 @@ async fn test_list_tournament_entrants(pool: PgPool) {
     set_startgg_api_key(&pool, &cookie, "test-key").await;
 
     // Project without game_id — endpoint must work without one
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = get_req(
         &app,
@@ -1605,7 +1614,7 @@ async fn test_list_tournament_entrants_normalizes_url(pool: PgPool) {
     let app = make_app(pool.clone(), &mock.uri());
     let cookie = register(&app, "alice", "password123").await;
     set_startgg_api_key(&pool, &cookie, "test-key").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = get_req(
         &app,
@@ -1627,9 +1636,9 @@ async fn test_list_tournament_entrants_normalizes_url(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn test_rename_player(pool: PgPool) {
-    let app = make_app(pool, "http://unused");
+    let app = make_app(pool.clone(), "http://unused");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
     let player_id = create_player(&app, &cookie, &pid, "OldName").await;
 
     let resp = patch_json(
@@ -1648,9 +1657,9 @@ async fn test_rename_player(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn test_rename_player_empty_name_returns_422(pool: PgPool) {
-    let app = make_app(pool, "http://unused");
+    let app = make_app(pool.clone(), "http://unused");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
     let player_id = create_player(&app, &cookie, &pid, "OldName").await;
 
     let resp = patch_json(
@@ -1668,9 +1677,9 @@ async fn test_rename_player_empty_name_returns_422(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn test_bulk_add_players(pool: PgPool) {
-    let app = make_app(pool, "http://unused");
+    let app = make_app(pool.clone(), "http://unused");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = post_json(
         &app,
@@ -1699,9 +1708,9 @@ async fn test_bulk_add_players(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn test_bulk_add_players_skips_duplicates(pool: PgPool) {
-    let app = make_app(pool, "http://unused");
+    let app = make_app(pool.clone(), "http://unused");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     // Add first batch
     let resp = post_json(
@@ -1767,7 +1776,7 @@ async fn test_add_players_by_handles(pool: PgPool) {
     let app = make_app(pool.clone(), &mock.uri());
     let cookie = register(&app, "alice", "password123").await;
     set_startgg_api_key(&pool, &cookie, "test-key").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = post_json(
         &app,
@@ -1804,7 +1813,7 @@ async fn test_add_players_by_handles_skips_existing(pool: PgPool) {
     let app = make_app(pool.clone(), &mock.uri());
     let cookie = register(&app, "alice", "password123").await;
     set_startgg_api_key(&pool, &cookie, "test-key").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     // First add
     let resp = post_json(
@@ -1837,7 +1846,7 @@ async fn test_add_players_by_handles_skips_existing(pool: PgPool) {
 async fn list_tournaments_includes_event_type_and_bracket_types(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "usr1", "pass1234").await;
-    let pid_str = create_project(&app, &cookie).await;
+    let pid_str = create_project(&app, &pool, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
     // Insert a tournament with an event that has event_type=1 and two phases
@@ -1897,9 +1906,9 @@ async fn list_tournaments_includes_event_type_and_bracket_types(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn h2h_empty(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let resp = get_req(&app, &format!("/projects/{pid}/head-to-head"), &cookie).await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -1910,7 +1919,7 @@ async fn h2h_empty(pool: PgPool) {
 async fn h2h_with_sets(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &cookie).await;
+    let pid_str = create_project(&app, &pool, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
     let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
@@ -1949,9 +1958,9 @@ async fn h2h_with_sets(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn h2h_requires_auth(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     // Unauthenticated request to a private project returns 404 (not 401)
     let resp = app
@@ -1969,10 +1978,10 @@ async fn h2h_requires_auth(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn h2h_enforces_ownership(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
-    let pid = create_project(&app, &alice).await;
+    let pid = create_project(&app, &pool, &alice).await;
 
     let resp = get_req(&app, &format!("/projects/{pid}/head-to-head"), &bob).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -1982,7 +1991,7 @@ async fn h2h_enforces_ownership(pool: PgPool) {
 async fn stats_returns_enriched_set_fields(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &cookie).await;
+    let pid_str = create_project(&app, &pool, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
     let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
@@ -2099,7 +2108,7 @@ async fn stats_returns_enriched_set_fields(pool: PgPool) {
 async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &cookie).await;
+    let pid_str = create_project(&app, &pool, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
     let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
@@ -2210,7 +2219,7 @@ async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn auth_register_cookie_is_secure(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let req = Request::builder()
         .method("POST")
         .uri("/auth/register")
@@ -2230,7 +2239,7 @@ async fn auth_register_cookie_is_secure(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn auth_login_cookie_is_secure(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     register(&app, "alice", "password123").await;
 
     let req = Request::builder()
@@ -2253,7 +2262,7 @@ async fn auth_login_cookie_is_secure(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn auth_logout_cookie_is_secure(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
 
     let resp = app
@@ -2277,7 +2286,7 @@ async fn auth_logout_cookie_is_secure(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn auth_register_long_display_name(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let req = Request::builder()
         .method("POST")
         .uri("/auth/register")
@@ -2297,7 +2306,7 @@ async fn auth_register_long_display_name(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn auth_register_long_password(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let req = Request::builder()
         .method("POST")
         .uri("/auth/register")
@@ -2317,7 +2326,7 @@ async fn auth_register_long_password(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn projects_create_long_name(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let resp = post_json(&app, "/projects", &cookie, json!({"name": "x".repeat(101)})).await;
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
@@ -2325,7 +2334,7 @@ async fn projects_create_long_name(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn auth_rate_limit_after_burst(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
 
     // burst_size=5: first 5 requests must go through (returned as 422 — short password
     // fails validation before any expensive work, making the test fast)
@@ -2367,9 +2376,9 @@ async fn auth_rate_limit_after_burst(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn players_auto_rank_position(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     create_player(&app, &cookie, &pid, "Alpha").await;
     create_player(&app, &cookie, &pid, "Beta").await;
@@ -2389,9 +2398,9 @@ async fn players_auto_rank_position(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn ranking_reorder_persists(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let a = create_player(&app, &cookie, &pid, "Alpha").await;
     let b = create_player(&app, &cookie, &pid, "Beta").await;
@@ -2419,9 +2428,9 @@ async fn ranking_reorder_persists(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn ranking_reorder_rejects_incomplete_list(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let a = create_player(&app, &cookie, &pid, "Alpha").await;
     create_player(&app, &cookie, &pid, "Beta").await;
@@ -2438,9 +2447,9 @@ async fn ranking_reorder_rejects_incomplete_list(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn ranking_reorder_rejects_unknown_id(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     create_player(&app, &cookie, &pid, "Alpha").await;
 
@@ -2456,9 +2465,9 @@ async fn ranking_reorder_rejects_unknown_id(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn ranking_reorder_rejects_duplicate_ids(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
 
     let a = create_player(&app, &cookie, &pid, "Alpha").await;
     create_player(&app, &cookie, &pid, "Beta").await;
@@ -2479,7 +2488,7 @@ async fn ranking_reorder_rejects_duplicate_ids(pool: PgPool) {
 async fn player_stats_returns_single_player_data(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice_ps", "password123").await;
-    let pid_str = create_project(&app, &cookie).await;
+    let pid_str = create_project(&app, &pool, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
     let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
@@ -2512,7 +2521,7 @@ async fn player_stats_returns_single_player_data(pool: PgPool) {
 async fn player_stats_returns_404_for_unknown_player(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice_ps2", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
     let fake_id = Uuid::new_v4();
 
     let resp = get_req(&app, &format!("/projects/{pid}/stats/{fake_id}"), &cookie).await;
@@ -2523,7 +2532,7 @@ async fn player_stats_returns_404_for_unknown_player(pool: PgPool) {
 async fn player_stats_returns_losses_correctly(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "bob_ps", "password123").await;
-    let pid_str = create_project(&app, &cookie).await;
+    let pid_str = create_project(&app, &pool, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
     let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
@@ -2550,7 +2559,7 @@ async fn player_stats_returns_losses_correctly(pool: PgPool) {
 async fn player_tournaments_returns_attendance_history(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice_pt", "password123").await;
-    let pid_str = create_project(&app, &cookie).await;
+    let pid_str = create_project(&app, &pool, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
     let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
@@ -2650,7 +2659,7 @@ async fn player_tournaments_returns_attendance_history(pool: PgPool) {
 async fn player_tournaments_returns_404_for_unknown_player(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice_pt2", "password123").await;
-    let pid = create_project(&app, &cookie).await;
+    let pid = create_project(&app, &pool, &cookie).await;
     let fake_id = Uuid::new_v4();
 
     let resp = get_req(

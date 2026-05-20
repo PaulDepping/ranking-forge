@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users SET startgg_api_key = NULL WHERE email = 'importowner@test.com'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "04a9ed500d54524cf508653d834c23d91bdb8f71f8966eb86c7d2aa734d6a542"
+}
