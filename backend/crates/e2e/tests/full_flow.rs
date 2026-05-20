@@ -510,6 +510,7 @@ async fn full_import_flow(pool: PgPool) {
         &pool,
         &startgg_worker,
         project_uuid,
+        Uuid::nil(),
         common::jobs::ImportParams::default(),
     )
     .await
@@ -799,6 +800,7 @@ async fn import_seeds_rank_by_winrate(pool: PgPool) {
         &pool,
         &startgg,
         Uuid::parse_str(&project_id).unwrap(),
+        Uuid::nil(),
         common::jobs::ImportParams::default(),
     )
     .await
@@ -886,6 +888,7 @@ async fn import_skips_sort_if_already_ranked(pool: PgPool) {
         &pool,
         &startgg,
         project_uuid,
+        Uuid::nil(),
         common::jobs::ImportParams::default(),
     )
     .await
@@ -907,6 +910,7 @@ async fn import_skips_sort_if_already_ranked(pool: PgPool) {
         &pool,
         &startgg2,
         project_uuid,
+        Uuid::nil(),
         common::jobs::ImportParams::default(),
     )
     .await

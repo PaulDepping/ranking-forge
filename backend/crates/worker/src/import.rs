@@ -5,7 +5,7 @@ use sqlx::PgPool;
 use tracing::instrument;
 use uuid::Uuid;
 
-use common::jobs::ImportParams;
+use common::jobs::{ImportParams, update_progress};
 use common::startgg::{EventNode, PhaseNode, StartggClient, StartggError, TournamentNode};
 
 fn ts_to_dt(ts: i64) -> DateTime<Utc> {
@@ -27,6 +27,7 @@ pub async fn run(
     pool: &PgPool,
     startgg: &StartggClient,
     project_id: Uuid,
+    job_id: Uuid,
     params: ImportParams,
 ) -> anyhow::Result<()> {
     let project = sqlx::query!(
@@ -67,16 +68,18 @@ pub async fn run(
 
     // Phase 1: discover all unique tournaments across all players
     let mut seen: HashMap<i64, TournamentNode> = HashMap::new();
-    for user_id in user_ids {
+    let total_players = user_ids.len();
+    for (i, user_id) in user_ids.iter().enumerate() {
         collect_user_tournaments(
             startgg,
-            user_id,
+            *user_id,
             game_id,
             params.after_date,
             params.before_date,
             &mut seen,
         )
         .await?;
+        update_progress(pool, job_id, "scanning", i + 1, total_players).await?;
     }
     tracing::info!(
         unique_tournament_count = seen.len(),
@@ -93,7 +96,8 @@ pub async fn run(
     .unwrap_or(true);
 
     // Phase 2: import each unique tournament exactly once
-    for (_, tournament) in &seen {
+    let total_tournaments = seen.len();
+    for (i, (_, tournament)) in seen.iter().enumerate() {
         import_tournament(
             pool,
             startgg,
@@ -104,6 +108,7 @@ pub async fn run(
             &account_map,
         )
         .await?;
+        update_progress(pool, job_id, "importing", i + 1, total_tournaments).await?;
     }
 
     if is_first_import {
