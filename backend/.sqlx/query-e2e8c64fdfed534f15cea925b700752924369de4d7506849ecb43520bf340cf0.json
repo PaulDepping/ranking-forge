@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT pm.project_id, pm.user_id, u.display_name,\n                  pm.role as \"role: MemberRole\", pm.joined_at\n           FROM project_members pm\n           JOIN users u ON u.id = pm.user_id\n           WHERE pm.project_id = $1\n           ORDER BY pm.joined_at ASC",
+  "query": "SELECT pm.project_id, pm.user_id, u.display_name, u.email,\n                  pm.role as \"role: MemberRole\", pm.joined_at\n           FROM project_members pm\n           JOIN users u ON u.id = pm.user_id\n           WHERE pm.project_id = $1\n           ORDER BY pm.joined_at ASC",
   "describe": {
     "columns": [
       {
@@ -20,6 +20,11 @@
       },
       {
         "ordinal": 3,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
         "name": "role: MemberRole",
         "type_info": {
           "Custom": {
@@ -34,7 +39,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "joined_at",
         "type_info": "Timestamptz"
       }
@@ -49,8 +54,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "2105e1aa4b994b8f3417b5a98aa6a485403d25b46eb271ff86f661e648652a6f"
+  "hash": "e2e8c64fdfed534f15cea925b700752924369de4d7506849ecb43520bf340cf0"
 }

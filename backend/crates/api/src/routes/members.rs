@@ -41,7 +41,7 @@ async fn list_members(
 
     let members = sqlx::query_as!(
         ProjectMember,
-        r#"SELECT pm.project_id, pm.user_id, u.display_name,
+        r#"SELECT pm.project_id, pm.user_id, u.display_name, u.email,
                   pm.role as "role: MemberRole", pm.joined_at
            FROM project_members pm
            JOIN users u ON u.id = pm.user_id
@@ -291,6 +291,8 @@ mod tests {
         // Owner is identified by ranking_projects.owner_id and is not in project_members,
         // so the list only contains the added editor member.
         assert_eq!(members.as_array().unwrap().len(), 1);
+        assert_eq!(members[0]["email"], "mem_user@test.com");
+        assert_eq!(members[0]["display_name"], "mem_user");
     }
 
     #[sqlx::test(migrations = "../../migrations")]

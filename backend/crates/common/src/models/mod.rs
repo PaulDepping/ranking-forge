@@ -89,6 +89,7 @@ pub struct ProjectMember {
     pub project_id: Uuid,
     pub user_id: Uuid,
     pub display_name: String,
+    pub email: String,
     pub role: MemberRole,
     pub joined_at: DateTime<Utc>,
 }
