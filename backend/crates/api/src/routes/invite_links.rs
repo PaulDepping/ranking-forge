@@ -174,18 +174,16 @@ mod tests {
         body::Body,
         http::{Request, StatusCode},
     };
-    use common::startgg::StartggClient;
     use http_body_util::BodyExt;
     use serde_json::{Value, json};
     use sqlx::PgPool;
     use tower::ServiceExt;
 
     fn make_app(pool: PgPool) -> Router {
-        let startgg = StartggClient::new_with_base_url("test".into(), "http://localhost:1".into());
         let state = AppState {
             db: pool,
-            startgg,
             cors_origin: "http://localhost".into(),
+            startgg_base_url: "http://localhost:1".into(),
         };
         routes::router().with_state(state)
     }

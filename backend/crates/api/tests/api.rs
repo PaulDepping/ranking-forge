@@ -2,7 +2,7 @@
 // Requires a running PostgreSQL server:
 //   DATABASE_URL=postgres://rankingforge:rankingforge@localhost:5432/rankingforge cargo test
 
-use api::{StartggClient, routes, state::AppState};
+use api::{routes, state::AppState};
 use axum::{Router, body::Body, http::Request, http::StatusCode};
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
@@ -13,15 +13,14 @@ use uuid::Uuid;
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 fn make_app(pool: PgPool, startgg_base_url: &str) -> Router {
-    let startgg = if startgg_base_url.is_empty() {
-        StartggClient::new("test-key".into())
-    } else {
-        StartggClient::new_with_base_url("test-key".into(), startgg_base_url.into())
-    };
     let state = AppState {
         db: pool,
-        startgg,
         cors_origin: "http://localhost".to_string(),
+        startgg_base_url: if startgg_base_url.is_empty() {
+            "https://api.start.gg/gql/alpha".to_string()
+        } else {
+            startgg_base_url.to_string()
+        },
     };
     routes::router().with_state(state)
 }
@@ -267,6 +266,27 @@ async fn seed_set_with_scores(
     .execute(pool)
     .await
     .unwrap();
+}
+
+/// Set the startgg_api_key for the user identified by the session cookie.
+/// Uses the DB directly since there is no API endpoint for this yet.
+async fn set_startgg_api_key(pool: &PgPool, cookie: &str, api_key: &str) {
+    // Extract the session_id value from the cookie string "session_id=<uuid>"
+    let session_id: uuid::Uuid = cookie
+        .split('=')
+        .nth(1)
+        .unwrap()
+        .parse()
+        .expect("invalid session UUID in cookie");
+    sqlx::query!(
+        "UPDATE users SET startgg_api_key = $1
+         WHERE id = (SELECT user_id FROM sessions WHERE id = $2)",
+        api_key,
+        session_id,
+    )
+    .execute(pool)
+    .await
+    .expect("failed to set startgg_api_key");
 }
 
 /// Create a project for the given user and return its UUID string.
@@ -738,8 +758,9 @@ async fn accounts_link_and_unlink(pool: PgPool) {
         .mount(&mock)
         .await;
 
-    let app = make_app(pool, &mock.uri());
+    let app = make_app(pool.clone(), &mock.uri());
     let cookie = register(&app, "alice", "password123").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
     let pid = create_project(&app, &cookie).await;
     let player_id = create_player(&app, &cookie, &pid, "Mango").await;
 
@@ -794,8 +815,9 @@ async fn accounts_link_user_not_found_on_startgg(pool: PgPool) {
         .mount(&mock)
         .await;
 
-    let app = make_app(pool, &mock.uri());
+    let app = make_app(pool.clone(), &mock.uri());
     let cookie = register(&app, "alice", "password123").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
     let pid = create_project(&app, &cookie).await;
     let player_id = create_player(&app, &cookie, &pid, "Ghost").await;
 
@@ -825,8 +847,9 @@ async fn accounts_link_duplicate(pool: PgPool) {
         .mount(&mock)
         .await;
 
-    let app = make_app(pool, &mock.uri());
+    let app = make_app(pool.clone(), &mock.uri());
     let cookie = register(&app, "alice", "password123").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
     let pid = create_project(&app, &cookie).await;
     let player_id = create_player(&app, &cookie, &pid, "Mango").await;
 
@@ -865,8 +888,9 @@ async fn games_search(pool: PgPool) {
         .mount(&mock)
         .await;
 
-    let app = make_app(pool, &mock.uri());
+    let app = make_app(pool.clone(), &mock.uri());
     let cookie = register(&app, "alice", "password123").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
 
     let resp = app
         .clone()
@@ -1483,8 +1507,9 @@ async fn test_list_tournament_entrants(pool: PgPool) {
         .mount(&mock)
         .await;
 
-    let app = make_app(pool, &mock.uri());
+    let app = make_app(pool.clone(), &mock.uri());
     let cookie = register(&app, "alice", "password123").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
 
     // Project without game_id — endpoint must work without one
     let pid = create_project(&app, &cookie).await;
@@ -1539,8 +1564,9 @@ async fn test_list_tournament_entrants_normalizes_url(pool: PgPool) {
         .mount(&mock)
         .await;
 
-    let app = make_app(pool, &mock.uri());
+    let app = make_app(pool.clone(), &mock.uri());
     let cookie = register(&app, "alice", "password123").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
     let pid = create_project(&app, &cookie).await;
 
     let resp = get_req(
@@ -1700,8 +1726,9 @@ async fn test_add_players_by_handles(pool: PgPool) {
         .mount(&mock)
         .await;
 
-    let app = make_app(pool, &mock.uri());
+    let app = make_app(pool.clone(), &mock.uri());
     let cookie = register(&app, "alice", "password123").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
     let pid = create_project(&app, &cookie).await;
 
     let resp = post_json(
@@ -1736,8 +1763,9 @@ async fn test_add_players_by_handles_skips_existing(pool: PgPool) {
         .mount(&mock)
         .await;
 
-    let app = make_app(pool, &mock.uri());
+    let app = make_app(pool.clone(), &mock.uri());
     let cookie = register(&app, "alice", "password123").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
     let pid = create_project(&app, &cookie).await;
 
     // First add

@@ -18,6 +18,7 @@ use crate::{
     state::AppState,
 };
 use common::models::{Player, StartggAccount, UserRole};
+use common::startgg::StartggClient;
 
 // ── Request / response types ──────────────────────────────────────────────────
 
@@ -216,8 +217,14 @@ async fn link_account(
 
     let handle = normalize_handle(&body.handle);
 
-    let sg_user = state
-        .startgg
+    let api_key = user.startgg_api_key.ok_or_else(|| {
+        AppError::UnprocessableEntity(
+            "Configure a start.gg API key in account settings before linking accounts".into(),
+        )
+    })?;
+    let startgg = StartggClient::new_with_base_url(api_key, state.startgg_base_url.clone());
+
+    let sg_user = startgg
         .user_by_slug(&handle)
         .await?
         .ok_or_else(|| AppError::UnprocessableEntity("user not found on start.gg".into()))?;
@@ -398,13 +405,20 @@ pub async fn add_players_by_handles(
 ) -> Result<impl IntoResponse> {
     require_project_access(&state.db, id, user.id, UserRole::Editor).await?;
 
+    let api_key = user.startgg_api_key.ok_or_else(|| {
+        AppError::UnprocessableEntity(
+            "Configure a start.gg API key in account settings before adding players".into(),
+        )
+    })?;
+    let startgg = StartggClient::new_with_base_url(api_key, state.startgg_base_url.clone());
+
     let mut results = Vec::new();
 
     for raw_handle in body.handles {
         let handle = normalize_handle(&raw_handle);
 
         // Resolve on start.gg
-        let sg_user = match state.startgg.user_by_slug(&handle).await {
+        let sg_user = match startgg.user_by_slug(&handle).await {
             Ok(Some(u)) => u,
             Ok(None) => {
                 results.push(ByHandlesResult {
@@ -503,16 +517,22 @@ pub async fn list_tournament_entrants(
 ) -> Result<impl IntoResponse> {
     require_project_access(&state.db, id, user.id, UserRole::Editor).await?;
 
+    let api_key = user.startgg_api_key.ok_or_else(|| {
+        AppError::UnprocessableEntity(
+            "Configure a start.gg API key in account settings before fetching tournament data"
+                .into(),
+        )
+    })?;
+    let startgg = StartggClient::new_with_base_url(api_key, state.startgg_base_url.clone());
+
     let handle = normalize_tournament_handle(&q.tournament);
 
-    let participants = state
-        .startgg
+    let participants = startgg
         .tournament_participants(&handle)
         .await
         .map_err(AppError::from)?;
 
-    let events = state
-        .startgg
+    let events = startgg
         .tournament_events_with_entrants(&handle)
         .await
         .map_err(AppError::from)?;

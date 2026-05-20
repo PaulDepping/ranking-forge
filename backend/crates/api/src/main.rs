@@ -8,7 +8,6 @@ use tower_http::trace::{MakeSpan, TraceLayer};
 
 use api::config::Config;
 use api::state::AppState;
-use common::startgg::StartggClient;
 
 static X_REQUEST_ID: HeaderName = HeaderName::from_static("x-request-id");
 
@@ -60,8 +59,8 @@ async fn main() {
 
     let state = AppState {
         db: pool,
-        startgg: StartggClient::new(config.startgg_api_key),
         cors_origin: config.cors_origin,
+        startgg_base_url: "https://api.start.gg/gql/alpha".to_string(),
     };
 
     let cors = CorsLayer::new()

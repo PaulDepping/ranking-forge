@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users SET startgg_api_key = $1\n         WHERE id = (SELECT user_id FROM sessions WHERE id = $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1e706e8179a413c9b06f148b20da9f0b4d647df26f9efd3db571b1da3e04f46a"
+}

@@ -49,7 +49,10 @@ async fn main() {
         .await
         .expect("failed to run migrations");
 
-    let startgg = common::startgg::StartggClient::new(config.startgg_api_key.into());
+    // TODO(task-3+): fetch per-user API key from DB at job-claim time.
+    // For now read from env so the binary still functions during the migration.
+    let startgg_api_key = std::env::var("STARTGG_API_KEY").unwrap_or_default();
+    let startgg = common::startgg::StartggClient::new(startgg_api_key);
 
     let mut listener = PgListener::connect(&config.database_url)
         .await

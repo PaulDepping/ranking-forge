@@ -2,8 +2,9 @@
 // Calls the real Axum router and the real import pipeline against a wiremock start.gg.
 // Run with: DATABASE_URL=postgres://... cargo test -p e2e
 
-use api::{StartggClient, routes, state::AppState};
+use api::{routes, state::AppState};
 use axum::{Router, body::Body, http::Request, http::StatusCode};
+use common::startgg::StartggClient;
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use sqlx::PgPool;
@@ -15,11 +16,10 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 fn make_app(pool: PgPool, startgg_base_url: &str) -> Router {
-    let startgg = StartggClient::new_with_base_url("test-key".into(), startgg_base_url.into());
     let state = AppState {
         db: pool,
-        startgg,
         cors_origin: "http://localhost".to_string(),
+        startgg_base_url: startgg_base_url.to_string(),
     };
     routes::router().with_state(state)
 }
@@ -113,6 +113,24 @@ async fn put_json(app: &Router, uri: &str, cookie: &str, body: Value) -> axum::r
         )
         .await
         .unwrap()
+}
+
+async fn set_startgg_api_key(pool: &PgPool, cookie: &str, api_key: &str) {
+    let session_id: uuid::Uuid = cookie
+        .split('=')
+        .nth(1)
+        .unwrap()
+        .parse()
+        .expect("invalid session UUID in cookie");
+    sqlx::query!(
+        "UPDATE users SET startgg_api_key = $1
+         WHERE id = (SELECT user_id FROM sessions WHERE id = $2)",
+        api_key,
+        session_id,
+    )
+    .execute(pool)
+    .await
+    .expect("failed to set startgg_api_key");
 }
 
 fn mount_import_mocks(mock: &wiremock::MockServer) -> impl std::future::Future<Output = ()> + '_ {
@@ -443,6 +461,7 @@ async fn full_import_flow(pool: PgPool) {
     // ── Setup ─────────────────────────────────────────────────────────────────
 
     let cookie = register(&app, "testuser", "pass1234").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
 
     let resp = post_json(
         &app,
@@ -742,6 +761,7 @@ async fn import_seeds_rank_by_winrate(pool: PgPool) {
     let base_url = mock.uri();
     let app = make_app(pool.clone(), &base_url);
     let cookie = register(&app, "testuser", "pass1234").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
 
     let resp = post_json(
         &app,
@@ -830,6 +850,7 @@ async fn import_skips_sort_if_already_ranked(pool: PgPool) {
     let base_url = mock.uri();
     let app = make_app(pool.clone(), &base_url);
     let cookie = register(&app, "testuser", "pass1234").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
 
     let resp = post_json(
         &app,
