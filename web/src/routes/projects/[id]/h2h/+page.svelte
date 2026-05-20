@@ -37,7 +37,7 @@
 			return;
 		}
 		loading = true;
-		selectedPair = null;
+		selectedPair = { rowPlayer, colPlayer, sets: [], wins: 0, losses: 0 };
 		try {
 			const api = makeApi(fetch, env.PUBLIC_API_URL);
 			const res = await api.get(
