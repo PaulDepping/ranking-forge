@@ -2,8 +2,10 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { env } from '$env/dynamic/private';
 
-export const load: PageServerLoad = ({ locals }) => {
+export const load: PageServerLoad = ({ locals, url }) => {
 	if (locals.user) redirect(303, '/projects');
+	const redirectTo = url.searchParams.get('redirect') ?? '/projects';
+	return { redirectTo };
 };
 
 export const actions: Actions = {
@@ -11,6 +13,7 @@ export const actions: Actions = {
 		const data = await request.formData();
 		const email = data.get('email') as string;
 		const password = data.get('password') as string;
+		const redirectTo = (data.get('redirect') as string) ?? '/projects';
 
 		const res = await fetch(`${env.INTERNAL_API_URL}/auth/login`, {
 			method: 'POST',
@@ -34,6 +37,7 @@ export const actions: Actions = {
 			});
 		}
 
-		redirect(303, '/projects');
+		const safe = redirectTo.startsWith('/') ? redirectTo : '/projects';
+		redirect(303, safe);
 	}
 };

@@ -5,7 +5,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Alert } from '$lib/components/ui/alert';
 
-	let { form } = $props();
+	let { form, data } = $props();
 </script>
 
 <div class="flex min-h-[60vh] items-center justify-center">
@@ -19,6 +19,7 @@
 		{/if}
 
 		<form method="POST" use:enhance class="space-y-4">
+			<input type="hidden" name="redirect" value={data.redirectTo} />
 			<div class="space-y-2">
 				<Label for="email">Email</Label>
 				<Input id="email" name="email" type="email" required autocomplete="email" />
