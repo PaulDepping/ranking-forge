@@ -110,6 +110,60 @@
     </form>
   </Card.Root>
 
+  <!-- start.gg API Key card -->
+  <Card.Root>
+    <Card.Header>
+      <Card.Title>start.gg API Key</Card.Title>
+      <Card.Description>
+        Required to search for games and run tournament imports. Get your key at
+        <a
+          href="https://start.gg/admin/profile/developer"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="underline"
+        >start.gg/admin/profile/developer</a>.
+      </Card.Description>
+    </Card.Header>
+
+    {#if data.user.has_startgg_key}
+      <Card.Content>
+        {#if form?.startggKeyRemoved}
+          <p class="text-sm text-green-600">API key removed.</p>
+        {/if}
+        <p class="text-sm text-muted-foreground">A start.gg API key is configured.</p>
+      </Card.Content>
+      <Card.Footer>
+        <form method="POST" action="?/removeStartggKey" use:enhance>
+          <Button type="submit" variant="outline">Remove key</Button>
+        </form>
+      </Card.Footer>
+    {:else}
+      <form method="POST" action="?/setStartggKey" use:enhance>
+        <Card.Content class="space-y-4">
+          {#if form?.startggKeyError}
+            <p class="text-sm text-destructive">{form.startggKeyError}</p>
+          {/if}
+          {#if form?.startggKeySuccess}
+            <p class="text-sm text-green-600">API key saved.</p>
+          {/if}
+          <div class="space-y-2">
+            <Label for="api_key">API key</Label>
+            <Input
+              id="api_key"
+              name="api_key"
+              type="password"
+              placeholder="Paste your start.gg API key"
+              autocomplete="off"
+            />
+          </div>
+        </Card.Content>
+        <Card.Footer class="flex justify-end">
+          <Button type="submit">Save key</Button>
+        </Card.Footer>
+      </form>
+    {/if}
+  </Card.Root>
+
   <!-- Delete account card -->
   <Card.Root class="border-destructive">
     <Card.Header>
