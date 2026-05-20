@@ -9,7 +9,8 @@
 	import type { DateRange } from 'bits-ui';
 	import { env } from '$env/dynamic/public';
 	import { makeApi } from '$lib/api';
-	import type { Job } from '$lib/types';
+	import type { Job, ImportProgress } from '$lib/types';
+	import { Progress } from '$lib/components/ui/progress';
 	import { formatDateTime } from '$lib/utils';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 
@@ -28,6 +29,19 @@
 
 	const isActiveJob = $derived(job?.status === 'pending' || job?.status === 'running');
 
+	const progressLabel = $derived.by((): string | null => {
+		if (!job?.progress) return null;
+		const { phase, step, total } = job.progress;
+		return phase === 'scanning'
+			? `Scanning players (${step} / ${total})`
+			: `Importing tournaments (${step} / ${total})`;
+	});
+
+	const progressPercent = $derived.by((): number => {
+		if (!job?.progress || job.progress.total === 0) return 0;
+		return (job.progress.step / job.progress.total) * 100;
+	});
+
 	const statusColors: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
 		pending: 'secondary',
 		running: 'default',
@@ -43,7 +57,7 @@
 			if (res.ok) {
 				job = await res.json() as Job;
 			}
-		}, 3000);
+		}, 1000);
 		return () => clearInterval(interval);
 	});
 </script>
@@ -68,6 +82,15 @@
 						<span class="text-xs text-muted-foreground animate-pulse">updating…</span>
 					{/if}
 				</div>
+				{#if job.status === 'pending'}
+					<p class="text-sm text-muted-foreground">Waiting to start…</p>
+				{/if}
+				{#if job.status === 'running' && job.progress}
+					<div class="space-y-1">
+						<p class="text-sm text-muted-foreground">{progressLabel}</p>
+						<Progress value={progressPercent} class="h-2" />
+					</div>
+				{/if}
 				{#if job.error}
 					<p class="text-sm text-destructive">{job.error}</p>
 				{/if}
