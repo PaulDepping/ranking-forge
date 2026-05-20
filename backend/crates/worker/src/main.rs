@@ -51,7 +51,10 @@ async fn main() {
 
     // TODO(task-3+): fetch per-user API key from DB at job-claim time.
     // For now read from env so the binary still functions during the migration.
-    let startgg_api_key = std::env::var("STARTGG_API_KEY").unwrap_or_default();
+    let startgg_api_key = std::env::var("STARTGG_API_KEY").unwrap_or_else(|_| {
+        tracing::warn!("STARTGG_API_KEY not set; imports will fail until per-job key lookup is implemented (Task 6)");
+        String::new()
+    });
     let startgg = common::startgg::StartggClient::new(startgg_api_key);
 
     let mut listener = PgListener::connect(&config.database_url)

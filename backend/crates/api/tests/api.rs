@@ -957,9 +957,12 @@ async fn games_requires_auth(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn import_enqueue_returns_202(pool: PgPool) {
-    let app = make_app(pool, "");
+    let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid = create_project(&app, &cookie).await;
+
+    // Set a key so the import guard (Task 4) will be satisfied
+    set_startgg_api_key(&pool, &cookie, "dummy-key").await;
 
     let resp = post_json(&app, &format!("/projects/{pid}/import"), &cookie, json!({})).await;
     assert_eq!(resp.status(), StatusCode::ACCEPTED);
