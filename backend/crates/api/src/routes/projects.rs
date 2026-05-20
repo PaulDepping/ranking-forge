@@ -41,10 +41,11 @@ pub struct ProjectResponse {
     pub published: bool,
     pub created_at: DateTime<Utc>,
     pub user_role: Option<UserRole>,
+    pub owner_has_startgg_key: bool,
 }
 
 impl ProjectResponse {
-    fn from_project(p: Project, user_role: Option<UserRole>) -> Self {
+    fn from_project(p: Project, user_role: Option<UserRole>, owner_has_startgg_key: bool) -> Self {
         ProjectResponse {
             id: p.id,
             name: p.name,
@@ -53,6 +54,7 @@ impl ProjectResponse {
             published: p.published,
             created_at: p.created_at,
             user_role,
+            owner_has_startgg_key,
         }
     }
 }
@@ -187,6 +189,7 @@ async fn list_projects(
 ) -> Result<impl IntoResponse> {
     struct Row {
         id: Uuid,
+        owner_id: Uuid,
         name: String,
         game_id: Option<i64>,
         game_name: Option<String>,
@@ -194,13 +197,15 @@ async fn list_projects(
         created_at: DateTime<Utc>,
         is_owner: Option<bool>,
         member_role: Option<MemberRole>,
+        owner_has_startgg_key: bool,
     }
 
     let rows = sqlx::query_as!(
         Row,
-        r#"SELECT p.id, p.name, p.game_id, p.game_name, p.published, p.created_at,
+        r#"SELECT p.id, p.owner_id, p.name, p.game_id, p.game_name, p.published, p.created_at,
                   (p.owner_id = $1) AS is_owner,
-                  CASE WHEN pm.user_id IS NOT NULL THEN pm.role END AS "member_role: MemberRole"
+                  CASE WHEN pm.user_id IS NOT NULL THEN pm.role END AS "member_role: MemberRole",
+                  (SELECT startgg_api_key IS NOT NULL FROM users WHERE id = p.owner_id) AS "owner_has_startgg_key!"
            FROM ranking_projects p
            LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1
            WHERE p.owner_id = $1 OR pm.user_id = $1
@@ -220,15 +225,19 @@ async fn list_projects(
                     .map(UserRole::from)
                     .unwrap_or(UserRole::Viewer)
             };
-            ProjectResponse {
-                id: r.id,
-                name: r.name,
-                game_id: r.game_id,
-                game_name: r.game_name,
-                published: r.published,
-                created_at: r.created_at,
-                user_role: Some(role),
-            }
+            ProjectResponse::from_project(
+                Project {
+                    id: r.id,
+                    owner_id: r.owner_id,
+                    name: r.name,
+                    game_id: r.game_id,
+                    game_name: r.game_name,
+                    published: r.published,
+                    created_at: r.created_at,
+                },
+                Some(role),
+                r.owner_has_startgg_key,
+            )
         })
         .collect();
     Ok(Json(resp))
@@ -268,6 +277,7 @@ async fn create_project(
         Json(ProjectResponse::from_project(
             project,
             Some(UserRole::Owner),
+            user.startgg_api_key.is_some(),
         )),
     ))
 }
@@ -279,7 +289,20 @@ async fn get_project(
 ) -> Result<impl IntoResponse> {
     let (project, role) =
         require_project_read_access(&state.db, project_id, user.map(|u| u.id)).await?;
-    Ok(Json(ProjectResponse::from_project(project, role)))
+
+    let owner_has_startgg_key: bool = sqlx::query_scalar!(
+        "SELECT startgg_api_key IS NOT NULL FROM users WHERE id = $1",
+        project.owner_id,
+    )
+    .fetch_one(&state.db)
+    .await?
+    .unwrap_or(false);
+
+    Ok(Json(ProjectResponse::from_project(
+        project,
+        role,
+        owner_has_startgg_key,
+    )))
 }
 
 async fn patch_project(
@@ -322,7 +345,11 @@ async fn patch_project(
     .fetch_one(&state.db)
     .await?;
 
-    Ok(Json(ProjectResponse::from_project(updated, Some(role))))
+    Ok(Json(ProjectResponse::from_project(
+        updated,
+        Some(role),
+        user.startgg_api_key.is_some(),
+    )))
 }
 
 async fn delete_project(
@@ -702,6 +729,51 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), 204);
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn test_get_project_includes_owner_has_startgg_key(pool: PgPool) {
+        let app = make_app(pool.clone());
+        let cookie = register(&app, "keyowner").await;
+        let proj_id = create_project(&app, &cookie, "Key Project").await;
+
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(&format!("/projects/{proj_id}"))
+                    .header("cookie", &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200);
+        let body = json_body(resp).await;
+        assert_eq!(body["owner_has_startgg_key"], false);
+
+        sqlx::query!(
+            "UPDATE users SET startgg_api_key = 'k' WHERE email = 'keyowner@test.com'"
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(&format!("/projects/{proj_id}"))
+                    .header("cookie", &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let body = json_body(resp).await;
+        assert_eq!(body["owner_has_startgg_key"], true);
     }
 
     #[sqlx::test(migrations = "../../migrations")]
