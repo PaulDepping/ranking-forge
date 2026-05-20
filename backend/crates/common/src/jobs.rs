@@ -26,7 +26,7 @@ pub async fn enqueue(
         Job,
         r#"INSERT INTO jobs (kind, project_id, params, status)
            VALUES ('import_tournaments', $1, $2, 'pending')
-           RETURNING id, kind::text AS "kind!", project_id, params, result,
+           RETURNING id, kind::text AS "kind!", project_id, params, result, progress,
                      status::text AS "status!", error, created_at, updated_at"#,
         project_id,
         params_json,
@@ -47,7 +47,7 @@ pub async fn latest_for_project(
 ) -> Result<Option<Job>, sqlx::Error> {
     sqlx::query_as!(
         Job,
-        r#"SELECT id, kind::text AS "kind!", project_id, params, result,
+        r#"SELECT id, kind::text AS "kind!", project_id, params, result, progress,
                   status::text AS "status!", error, created_at, updated_at
            FROM jobs
            WHERE project_id = $1
@@ -64,7 +64,7 @@ pub async fn claim(pool: &PgPool) -> Result<Option<Job>, sqlx::Error> {
 
     let job = sqlx::query_as!(
         Job,
-        r#"SELECT id, kind::text AS "kind!", project_id, params, result,
+        r#"SELECT id, kind::text AS "kind!", project_id, params, result, progress,
                   status::text AS "status!", error, created_at, updated_at
            FROM jobs
            WHERE status = 'pending'
@@ -130,25 +130,17 @@ mod tests {
 
     async fn setup_project(pool: &PgPool) -> Uuid {
         let user_id: Uuid = sqlx::query_scalar!(
-            "INSERT INTO users (username, password_hash) VALUES ('alice', 'hash') RETURNING id"
+            "INSERT INTO users (email, display_name, password_hash) VALUES ('alice@test.com', 'Alice', 'hash') RETURNING id"
         )
         .fetch_one(pool)
         .await
         .unwrap();
 
         let project_id: Uuid = sqlx::query_scalar!(
-            "INSERT INTO ranking_projects (name) VALUES ('Test') RETURNING id"
-        )
-        .fetch_one(pool)
-        .await
-        .unwrap();
-
-        sqlx::query!(
-            "INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'owner')",
-            project_id,
+            "INSERT INTO ranking_projects (owner_id, name) VALUES ($1, 'Test') RETURNING id",
             user_id,
         )
-        .execute(pool)
+        .fetch_one(pool)
         .await
         .unwrap();
 
