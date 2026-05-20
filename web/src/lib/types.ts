@@ -95,6 +95,12 @@ export interface Tournament {
 	events: TournamentEvent[];
 }
 
+export interface ImportProgress {
+	phase: 'scanning' | 'importing';
+	step: number;
+	total: number;
+}
+
 export interface Job {
 	id: string;
 	status: 'pending' | 'running' | 'done' | 'failed';
@@ -103,6 +109,7 @@ export interface Job {
 	before_date: string | null;
 	created_at: string;
 	updated_at: string;
+	progress: ImportProgress | null;
 }
 
 export interface SetRecord {
