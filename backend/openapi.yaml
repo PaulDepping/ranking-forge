@@ -20,7 +20,7 @@ components:
 
     User:
       type: object
-      required: [id, email, display_name, created_at]
+      required: [id, email, display_name, has_startgg_key, created_at]
       properties:
         id:
           type: string
@@ -30,13 +30,16 @@ components:
           format: email
         display_name:
           type: string
+        has_startgg_key:
+          type: boolean
+          description: True if the user has a start.gg API key configured
         created_at:
           type: string
           format: date-time
 
     Project:
       type: object
-      required: [id, name, created_at]
+      required: [id, name, created_at, owner_has_startgg_key]
       properties:
         id:
           type: string
@@ -52,6 +55,9 @@ components:
         created_at:
           type: string
           format: date-time
+        owner_has_startgg_key:
+          type: boolean
+          description: True if the project owner has a start.gg API key configured
 
     Player:
       type: object
@@ -480,6 +486,22 @@ paths:
       responses:
         '204':
           description: Logged out
+
+  /auth/me:
+    get:
+      summary: Get the currently authenticated user
+      tags: [Auth]
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   # ── Projects ────────────────────────────────────────────────────────────────
 
@@ -1029,6 +1051,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '422':
+          description: Project owner has not configured a start.gg API key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
     get:
       summary: Get the status of the most recent import job for this project
@@ -1256,7 +1284,13 @@ paths:
   /games:
     get:
       summary: Search start.gg video games by name
+      description: |
+        Proxies a game name search to start.gg using the authenticated user's API key.
+        Requires the user to have a start.gg API key configured.
+        Returns 422 if no key is set.
       tags: [Games]
+      security:
+        - cookieAuth: []
       parameters:
         - name: q
           in: query
@@ -1275,6 +1309,8 @@ paths:
                   $ref: '#/components/schemas/Game'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
 
   # ── Account ─────────────────────────────────────────────────────────────────
 
@@ -1332,6 +1368,44 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
+
+  /account/startgg-key:
+    put:
+      summary: Save or replace the user's start.gg API key
+      description: |
+        Validates the key against start.gg before storing it.
+        Returns 422 if the key is rejected by start.gg, or 502 if start.gg is unreachable.
+      tags: [Account]
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [api_key]
+              properties:
+                api_key:
+                  type: string
+                  description: Bearer token from https://start.gg/admin/profile/developer
+      responses:
+        '204':
+          description: Key saved
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+    delete:
+      summary: Remove the user's start.gg API key
+      tags: [Account]
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Key removed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /account:
     delete:
