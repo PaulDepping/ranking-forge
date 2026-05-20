@@ -66,6 +66,16 @@ Update this list when adding new components.
 
 `ModeWatcher` (from mode-watcher) is mounted once in `+layout.svelte`. Use Tailwind's `dark:` variant for any colors not covered by CSS variables. Toggle is in `ThemeToggle.svelte`.
 
+## Formatting
+
+Run before every commit:
+
+```bash
+npm run format
+```
+
+Config: `.prettierrc` (uses `prettier-plugin-svelte`).
+
 ## Testing
 
 ```bash

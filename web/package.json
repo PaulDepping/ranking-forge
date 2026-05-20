@@ -13,7 +13,8 @@
 		"test:unit": "vitest run",
 		"test:unit:watch": "vitest",
 		"test:e2e": "playwright test",
-		"test": "npm run test:unit && npm run test:e2e"
+		"test": "npm run test:unit && npm run test:e2e",
+		"format": "prettier --write 'src/**/*.{ts,svelte,js,css,html}'"
 	},
 	"devDependencies": {
 		"@fontsource-variable/inter": "^5.2.8",

@@ -121,6 +121,18 @@ Protected routes receive an `AuthUser` via `impl FromRequestParts`. It reads the
 
 `common::jobs` provides `enqueue`, `claim`, `mark_running/done/failed`. The worker listens via `PgListener` and claims jobs with `SELECT ... FOR UPDATE SKIP LOCKED` — safe for concurrent workers.
 
+## Formatting
+
+Run formatters before every commit:
+
+```bash
+# Rust
+cd backend && cargo fmt --all
+
+# Frontend
+cd web && npm run format
+```
+
 ## Dependency management
 
 Use `cargo add` to add Rust dependencies. Never edit version numbers in `Cargo.toml` manually.
