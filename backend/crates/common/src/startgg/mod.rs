@@ -71,16 +71,16 @@ impl StartggClient {
         self
     }
 
-    async fn gql<V, T>(&self, query: &'static str, variables: V) -> Result<T, StartggError>
+    async fn gql_once<T>(
+        &self,
+        query: &'static str,
+        vars: &serde_json::Value,
+    ) -> Result<T, StartggError>
     where
-        V: Serialize,
         T: serde::de::DeserializeOwned,
     {
         use backon::{ExponentialBuilder, Retryable};
         use queries::{GqlRequest, GqlResponse};
-
-        let vars =
-            serde_json::to_value(variables).map_err(|e| StartggError::GraphQL(e.to_string()))?;
 
         (|| async {
             let body = self
@@ -89,7 +89,7 @@ impl StartggClient {
                 .bearer_auth(&self.api_key)
                 .json(&GqlRequest {
                     query,
-                    variables: &vars,
+                    variables: vars,
                 })
                 .send()
                 .await?
@@ -140,6 +140,35 @@ impl StartggClient {
             tracing::debug!(?dur, "start.gg rate limited; retrying");
         })
         .await
+    }
+
+    async fn gql<V, T>(&self, query: &'static str, variables: V) -> Result<T, StartggError>
+    where
+        V: Serialize,
+        T: serde::de::DeserializeOwned,
+    {
+        use backon::{ExponentialBuilder, Retryable};
+
+        let vars =
+            serde_json::to_value(variables).map_err(|e| StartggError::GraphQL(e.to_string()))?;
+
+        (|| self.gql_once(query, &vars))
+            .retry(
+                ExponentialBuilder::default()
+                    .with_min_delay(self.retry_min_delay)
+                    .with_max_delay(Duration::from_secs(30))
+                    .with_max_times(5)
+                    .with_jitter(),
+            )
+            .when(|e| {
+                matches!(e, StartggError::Http(re) if re.status()
+                    .map(|s| s.is_server_error())
+                    .unwrap_or(false))
+            })
+            .notify(|_err, dur| {
+                tracing::warn!(?dur, "start.gg server error; retrying");
+            })
+            .await
     }
 }
 
@@ -1066,5 +1095,76 @@ mod tests {
         );
         assert_eq!(groups.nodes[0].id, 100);
         assert_eq!(groups.nodes[1].id, 101);
+    }
+
+    // ── 5xx server error retry ────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn server_error_once_then_succeeds() {
+        let mock = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(520))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": { "videogames": { "nodes": [
+                    {"id": 1, "name": "Melee", "displayName": null}
+                ] } }
+            })))
+            .mount(&mock)
+            .await;
+
+        let games = client(&mock.uri()).search_games("melee").await.unwrap();
+        assert_eq!(games.len(), 1);
+        assert_eq!(games[0].id, 1);
+    }
+
+    #[tokio::test]
+    async fn server_error_exhausts_retries() {
+        let mock = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(503))
+            .mount(&mock)
+            .await;
+
+        let err = client(&mock.uri()).search_games("melee").await.unwrap_err();
+        let request_count = mock.received_requests().await.unwrap().len();
+        assert!(
+            request_count > 1,
+            "expected retries, got {request_count} request(s)"
+        );
+        assert!(matches!(err, StartggError::Http(_)));
+    }
+
+    #[tokio::test]
+    async fn rate_limited_during_server_error_retry() {
+        let mock = MockServer::start().await;
+        // Request 1 → 503 (5xx error; implementation will retry)
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(503))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+        // Request 2 → 429 (rate-limited during the retry; implementation will retry again)
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(429))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+        // Request 3 → 200 success
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": { "videogames": { "nodes": [
+                    {"id": 1, "name": "Melee", "displayName": null}
+                ] } }
+            })))
+            .mount(&mock)
+            .await;
+
+        let games = client(&mock.uri()).search_games("melee").await.unwrap();
+        assert_eq!(games.len(), 1);
+        assert_eq!(games[0].id, 1);
     }
 }
