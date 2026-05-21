@@ -86,6 +86,7 @@
     </Empty.Root>
   {:else}
     <div class="overflow-x-auto">
+      <div class="w-fit mx-auto">
       <Table.Root class="border-collapse">
         <Table.Header>
           <Table.Row>
@@ -271,6 +272,7 @@
       <p class="mt-1 text-xs text-muted-foreground">
         Row player's record vs. column player
       </p>
+      </div>
     </div>
   {/if}
 </div>
