@@ -276,3 +276,18 @@ base('new project page shows callout when user has no start.gg API key', async (
 	await expect(page.getByRole('link', { name: 'account settings' })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Create' })).not.toBeVisible();
 });
+
+test('h2h page uses full-width layout', async ({ page }) => {
+	await page.goto('/projects/proj-1/h2h');
+	await expect(page.locator('main')).not.toHaveClass(/max-w-5xl/);
+});
+
+test('stats page uses full-width layout', async ({ page }) => {
+	await page.goto('/projects/proj-1/stats');
+	await expect(page.locator('main')).not.toHaveClass(/max-w-5xl/);
+});
+
+test('non-wide pages keep centered max-w-5xl layout', async ({ page }) => {
+	await page.goto('/projects/proj-1/ranking');
+	await expect(page.locator('main')).toHaveClass(/max-w-5xl/);
+});

@@ -9,6 +9,7 @@
   import * as NavigationMenu from "$lib/components/ui/navigation-menu";
   import { navigationMenuTriggerStyle } from "$lib/components/ui/navigation-menu/navigation-menu-trigger.svelte";
   import { previousPage } from "$lib/stores/navigation";
+  import { page } from "$app/state";
 
   let { children, data } = $props();
 
@@ -81,7 +82,7 @@
     </div>
   </header>
 
-  <main class="mx-auto max-w-5xl px-4 py-8">
+  <main class={page.data.wide ? 'px-4 py-8' : 'mx-auto max-w-5xl px-4 py-8'}>
     {@render children()}
   </main>
 </Tooltip.Provider>

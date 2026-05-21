@@ -9,5 +9,5 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   ]);
   const h2h: HeadToHeadEntry[] = h2hRes.ok ? await h2hRes.json() : [];
   const players: Player[] = playersRes.ok ? await playersRes.json() : [];
-  return { h2h, players };
+  return { h2h, players, wide: true };
 };
