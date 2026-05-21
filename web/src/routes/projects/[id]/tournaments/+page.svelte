@@ -11,7 +11,6 @@
   import * as Select from "$lib/components/ui/select";
   import DateRangePicker from "$lib/components/DateRangePicker.svelte";
   import type { DateRange } from "bits-ui";
-  import { env } from "$env/dynamic/public";
   import { makeApi } from "$lib/api";
   import type { Tournament, TournamentEvent } from "$lib/types";
   import * as Card from "$lib/components/ui/card";
@@ -134,7 +133,7 @@
     eventId: string,
     included: boolean,
   ) {
-    const api = makeApi(fetch, env.PUBLIC_API_URL);
+    const api = makeApi(fetch);
     const res = await api.patch(`/projects/${projectId}/events/${eventId}`, {
       included,
     });

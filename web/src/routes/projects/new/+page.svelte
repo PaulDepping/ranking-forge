@@ -7,7 +7,7 @@
   import * as Popover from "$lib/components/ui/popover";
   import * as Command from "$lib/components/ui/command";
   import * as Card from "$lib/components/ui/card";
-  import { env } from "$env/dynamic/public";
+  import { makeApi } from "$lib/api";
   import type { Game } from "$lib/types";
 
   let { form, data } = $props();
@@ -29,10 +29,8 @@
     }
     searching = true;
     searchTimeout = setTimeout(async () => {
-      const res = await fetch(
-        `${env.PUBLIC_API_URL}/games?q=${encodeURIComponent(value)}`,
-        { credentials: "include" },
-      );
+      const api = makeApi(fetch);
+      const res = await api.get(`/games?q=${encodeURIComponent(value)}`);
       gameResults = res.ok ? await res.json() : [];
       searching = false;
     }, 300);

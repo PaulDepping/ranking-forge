@@ -2,7 +2,6 @@
   import { untrack } from "svelte";
   import { dragHandleZone, dragHandle } from "svelte-dnd-action";
   import type { DndEvent } from "svelte-dnd-action";
-  import { env } from "$env/dynamic/public";
   import { makeApi } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
@@ -87,7 +86,7 @@
 
   async function save() {
     saveStatus = "saving";
-    const api = makeApi(fetch, env.PUBLIC_API_URL);
+    const api = makeApi(fetch);
     const res = await api.putRanking(
       data.project.id,
       items.map((i) => i.id),

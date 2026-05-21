@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { env } from "$env/dynamic/public";
   import { makeApi } from "$lib/api";
   import type { HeadToHeadEntry, H2HSet } from "$lib/types";
   import SetDetailModal from "$lib/components/SetDetailModal.svelte";
@@ -39,7 +38,7 @@
     loading = true;
     selectedPair = { rowPlayer, colPlayer, sets: [], wins: 0, losses: 0 };
     try {
-      const api = makeApi(fetch, env.PUBLIC_API_URL);
+      const api = makeApi(fetch);
       const res = await api.get(
         `/projects/${data.project.id}/head-to-head/${rowPlayer.id}/${colPlayer.id}/sets`,
       );
