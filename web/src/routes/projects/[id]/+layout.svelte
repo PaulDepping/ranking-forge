@@ -37,7 +37,7 @@
 </script>
 
 <div class="space-y-4">
-  <div class={page.data.wide ? 'mx-auto max-w-5xl' : ''}>
+  <div class="space-y-4 {page.data.wide ? 'mx-auto max-w-5xl' : ''}">
     <div>
       <a
         href="/projects"
