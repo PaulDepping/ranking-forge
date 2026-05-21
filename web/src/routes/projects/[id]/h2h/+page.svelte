@@ -85,7 +85,7 @@
       </Empty.Header>
     </Empty.Root>
   {:else}
-    <div>
+    <div class="overflow-x-auto">
       <Table.Root class="border-collapse">
         <Table.Header>
           <Table.Row>
