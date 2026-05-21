@@ -1,7 +1,5 @@
 import { fail, redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
-import { makeApi } from "$lib/api";
-import { env } from "$env/dynamic/private";
 
 export const load: PageServerLoad = ({ locals }) => {
   if (!locals.user) redirect(303, "/login");
@@ -9,7 +7,7 @@ export const load: PageServerLoad = ({ locals }) => {
 };
 
 export const actions: Actions = {
-  updateProfile: async ({ fetch, request, locals, cookies }) => {
+  updateProfile: async ({ request, locals }) => {
     if (!locals.user) return fail(401, { error: "Unauthorized" });
     const data = await request.formData();
     const display_name = data.get("display_name") as string | null;
@@ -25,7 +23,7 @@ export const actions: Actions = {
       });
     }
 
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+    const { api } = locals;
     const res = await api.patch("/account/profile", body);
 
     if (!res.ok) {
@@ -38,7 +36,7 @@ export const actions: Actions = {
     return { profileSuccess: true };
   },
 
-  updatePassword: async ({ fetch, request, locals, cookies }) => {
+  updatePassword: async ({ request, locals }) => {
     if (!locals.user) return fail(401, { error: "Unauthorized" });
     const data = await request.formData();
     const current_password = data.get("current_password") as string;
@@ -49,8 +47,11 @@ export const actions: Actions = {
       return fail(400, { passwordError: "New passwords do not match." });
     }
 
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
-    const res = await api.patch("/account/password", { current_password, new_password });
+    const { api } = locals;
+    const res = await api.patch("/account/password", {
+      current_password,
+      new_password,
+    });
 
     if (!res.ok) {
       const json = await res
@@ -64,7 +65,7 @@ export const actions: Actions = {
     return { passwordSuccess: true };
   },
 
-  setStartggKey: async ({ fetch, request, locals, cookies }) => {
+  setStartggKey: async ({ request, locals }) => {
     if (!locals.user) return fail(401, { error: "Unauthorized" });
     const data = await request.formData();
     const api_key = data.get("api_key") as string | null;
@@ -72,8 +73,10 @@ export const actions: Actions = {
       return fail(422, { startggKeyError: "API key must not be empty." });
     }
 
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
-    const res = await api.put("/account/startgg-key", { api_key: api_key.trim() });
+    const { api } = locals;
+    const res = await api.put("/account/startgg-key", {
+      api_key: api_key.trim(),
+    });
 
     if (!res.ok) {
       const json = await res
@@ -87,10 +90,10 @@ export const actions: Actions = {
     return { startggKeySuccess: true };
   },
 
-  removeStartggKey: async ({ fetch, locals, cookies }) => {
+  removeStartggKey: async ({ locals }) => {
     if (!locals.user) return fail(401, { error: "Unauthorized" });
 
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+    const { api } = locals;
     const res = await api.delete("/account/startgg-key");
 
     if (!res.ok) {
@@ -100,10 +103,10 @@ export const actions: Actions = {
     return { startggKeyRemoved: true };
   },
 
-  deleteAccount: async ({ fetch, locals, cookies }) => {
+  deleteAccount: async ({ locals }) => {
     if (!locals.user) return fail(401, { error: "Unauthorized" });
 
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+    const { api } = locals;
     const res = await api.delete("/account");
 
     if (!res.ok) {

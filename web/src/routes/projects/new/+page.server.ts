@@ -1,14 +1,12 @@
 import { fail, redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
-import { makeApi } from "$lib/api";
-import { env } from "$env/dynamic/private";
 
 export const load: PageServerLoad = ({ locals }) => {
   return { hasStartggKey: locals.user?.has_startgg_key ?? false };
 };
 
 export const actions: Actions = {
-  default: async ({ fetch, request, cookies }) => {
+  default: async ({ request, locals }) => {
     const data = await request.formData();
     const name = (data.get("name") as string)?.trim();
     const game_id_raw = data.get("game_id") as string | null;
@@ -20,7 +18,7 @@ export const actions: Actions = {
     if (game_id_raw) body.game_id = parseInt(game_id_raw, 10);
     if (game_name) body.game_name = game_name;
 
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+    const { api } = locals;
     const res = await api.post("/projects", body);
 
     if (!res.ok) {

@@ -1,21 +1,14 @@
 import { fail, redirect, error } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
-import { makeApi } from "$lib/api";
 import type { ProjectMember, InviteLink } from "$lib/types";
-import { env } from "$env/dynamic/private";
 
-export const load: PageServerLoad = async ({
-  fetch,
-  params,
-  cookies,
-  parent,
-}) => {
+export const load: PageServerLoad = async ({ params, locals, parent }) => {
   const { project } = await parent();
   if (project.user_role !== "owner") {
     error(403, { message: "forbidden" });
   }
 
-  const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+  const { api } = locals;
   const [membersRes, linksRes] = await Promise.all([
     api.get(`/projects/${params.id}/members`),
     api.get(`/projects/${params.id}/invite-links`),
@@ -28,13 +21,13 @@ export const load: PageServerLoad = async ({
 };
 
 export const actions: Actions = {
-  rename: async ({ fetch, params, cookies, request }) => {
+  rename: async ({ params, locals, request }) => {
     const data = await request.formData();
     const name = ((data.get("name") as string) ?? "").trim();
     if (!name) return fail(400, { renameError: "Name is required" });
     if ([...name].length > 100)
       return fail(400, { renameError: "Name must be at most 100 characters" });
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+    const { api } = locals;
     const res = await api.patch(`/projects/${params.id}`, { name });
     if (!res.ok) {
       const body = await res.json().catch(() => ({ message: "Rename failed" }));
@@ -43,10 +36,10 @@ export const actions: Actions = {
     return { project: await res.json() };
   },
 
-  publish: async ({ fetch, params, cookies, request }) => {
+  publish: async ({ params, locals, request }) => {
     const data = await request.formData();
     const published = data.get("published") === "true";
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+    const { api } = locals;
     const res = await api.patch(`/projects/${params.id}`, { published });
     if (!res.ok) {
       const body = await res
@@ -57,14 +50,14 @@ export const actions: Actions = {
     return { project: await res.json() };
   },
 
-  addMember: async ({ fetch, params, cookies, request }) => {
+  addMember: async ({ params, locals, request }) => {
     const data = await request.formData();
     const email = ((data.get("email") as string) ?? "").trim();
     const role = data.get("role") as string;
     if (!email) return fail(400, { memberError: "Email is required" });
     if (!["editor", "viewer"].includes(role))
       return fail(400, { memberError: "Invalid role" });
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+    const { api } = locals;
     const res = await api.post(`/projects/${params.id}/members`, {
       email,
       role,
@@ -78,10 +71,10 @@ export const actions: Actions = {
     return {};
   },
 
-  removeMember: async ({ fetch, params, cookies, request }) => {
+  removeMember: async ({ params, locals, request }) => {
     const data = await request.formData();
     const userId = data.get("user_id") as string;
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+    const { api } = locals;
     const res = await api.delete(`/projects/${params.id}/members/${userId}`);
     if (!res.ok) {
       const body = await res
@@ -92,11 +85,11 @@ export const actions: Actions = {
     return {};
   },
 
-  changeMemberRole: async ({ fetch, params, cookies, request }) => {
+  changeMemberRole: async ({ params, locals, request }) => {
     const data = await request.formData();
     const userId = data.get("user_id") as string;
     const role = data.get("role") as string;
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+    const { api } = locals;
     const res = await api.patch(`/projects/${params.id}/members/${userId}`, {
       role,
     });
@@ -109,10 +102,10 @@ export const actions: Actions = {
     return {};
   },
 
-  transferOwnership: async ({ fetch, params, cookies, request }) => {
+  transferOwnership: async ({ params, locals, request }) => {
     const data = await request.formData();
     const userId = data.get("user_id") as string;
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+    const { api } = locals;
     const res = await api.post(
       `/projects/${params.id}/members/transfer-ownership`,
       {
@@ -128,7 +121,7 @@ export const actions: Actions = {
     return {};
   },
 
-  createInviteLink: async ({ fetch, params, cookies, request }) => {
+  createInviteLink: async ({ params, locals, request }) => {
     const data = await request.formData();
     const role = data.get("role") as string;
     const expiresAtRaw = data.get("expires_at") as string | null;
@@ -137,7 +130,7 @@ export const actions: Actions = {
       : undefined;
     if (!["editor", "viewer"].includes(role))
       return fail(400, { linkError: "Invalid role" });
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+    const { api } = locals;
     const res = await api.post(`/projects/${params.id}/invite-links`, {
       role,
       expires_at,
@@ -151,10 +144,10 @@ export const actions: Actions = {
     return { newLink: await res.json() };
   },
 
-  revokeInviteLink: async ({ fetch, params, cookies, request }) => {
+  revokeInviteLink: async ({ params, locals, request }) => {
     const data = await request.formData();
     const linkId = data.get("link_id") as string;
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+    const { api } = locals;
     const res = await api.delete(
       `/projects/${params.id}/invite-links/${linkId}`,
     );
@@ -167,8 +160,8 @@ export const actions: Actions = {
     return {};
   },
 
-  delete: async ({ fetch, params, cookies }) => {
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+  delete: async ({ params, locals }) => {
+    const { api } = locals;
     const res = await api.delete(`/projects/${params.id}`);
     if (!res.ok) {
       const body = await res.json().catch(() => ({ message: "Delete failed" }));

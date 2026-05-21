@@ -1,15 +1,13 @@
 import { redirect } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
-import { makeApi } from "$lib/api";
-import { env } from "$env/dynamic/private";
 
 export const load: PageServerLoad = async ({ params }) => {
   return { token: params.token };
 };
 
 export const actions: Actions = {
-  accept: async ({ fetch, params, cookies }) => {
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+  accept: async ({ params, locals }) => {
+    const { api } = locals;
     const res = await api.post(`/invite/${params.token}/accept`);
     if (!res.ok) {
       if (res.status === 401) {

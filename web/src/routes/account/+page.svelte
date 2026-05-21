@@ -120,8 +120,8 @@
           href="https://start.gg/admin/profile/developer"
           target="_blank"
           rel="noopener noreferrer"
-          class="underline"
-        >start.gg/admin/profile/developer</a>.
+          class="underline">start.gg/admin/profile/developer</a
+        >.
       </Card.Description>
     </Card.Header>
 
@@ -130,7 +130,9 @@
         {#if form?.startggKeyRemoved}
           <p class="text-sm text-green-600">API key removed.</p>
         {/if}
-        <p class="text-sm text-muted-foreground">A start.gg API key is configured.</p>
+        <p class="text-sm text-muted-foreground">
+          A start.gg API key is configured.
+        </p>
       </Card.Content>
       <Card.Footer>
         <form method="POST" action="?/removeStartggKey" use:enhance>

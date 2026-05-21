@@ -1,19 +1,17 @@
 import { fail } from "@sveltejs/kit";
 import type { Actions, PageServerLoad } from "./$types";
-import { makeApi } from "$lib/api";
 import type { Job } from "$lib/types";
-import { env } from "$env/dynamic/private";
 
-export const load: PageServerLoad = async ({ fetch, params, cookies }) => {
-  const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+export const load: PageServerLoad = async ({ params, locals }) => {
+  const { api } = locals;
   const res = await api.get(`/projects/${params.id}/import`);
   const job: Job | null = res.ok ? await res.json() : null;
   return { job };
 };
 
 export const actions: Actions = {
-  default: async ({ fetch, params, cookies, request }) => {
-    const api = makeApi(fetch, env.INTERNAL_API_URL, cookies.get("session_id"));
+  default: async ({ params, locals, request }) => {
+    const { api } = locals;
     const data = await request.formData();
     const afterDate = data.get("after_date") as string | null;
     const beforeDate = data.get("before_date") as string | null;

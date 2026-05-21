@@ -80,20 +80,24 @@
     <Card.Root>
       <Card.Content class="p-4 space-y-2">
         {#if data.project.user_role === "owner"}
-          <p class="text-sm font-medium">A start.gg API key is required to run imports.</p>
+          <p class="text-sm font-medium">
+            A start.gg API key is required to run imports.
+          </p>
           <p class="text-sm text-muted-foreground">
             Add your key in
-            <a href="/account" class="underline">account settings</a>, or get one at
+            <a href="/account" class="underline">account settings</a>, or get
+            one at
             <a
               href="https://start.gg/admin/profile/developer"
               target="_blank"
               rel="noopener noreferrer"
-              class="underline"
-            >start.gg/admin/profile/developer</a>.
+              class="underline">start.gg/admin/profile/developer</a
+            >.
           </p>
         {:else}
           <p class="text-sm text-muted-foreground">
-            The project owner needs to configure a start.gg API key before imports can run.
+            The project owner needs to configure a start.gg API key before
+            imports can run.
           </p>
         {/if}
       </Card.Content>
@@ -141,8 +145,16 @@
                 };
               }}
             >
-              <input type="hidden" name="after_date" value={job.after_date ?? ""} />
-              <input type="hidden" name="before_date" value={job.before_date ?? ""} />
+              <input
+                type="hidden"
+                name="after_date"
+                value={job.after_date ?? ""}
+              />
+              <input
+                type="hidden"
+                name="before_date"
+                value={job.before_date ?? ""}
+              />
               <Button type="submit" variant="outline" size="sm">Retry</Button>
             </form>
           {/if}
