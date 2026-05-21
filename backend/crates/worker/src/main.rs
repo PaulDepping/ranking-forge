@@ -107,7 +107,8 @@ async fn main() {
                     let startgg = common::startgg::StartggClient::new(api_key);
                     tracing::info!(%job_id, %project_id, "starting import");
                     let handle = tokio::spawn(async move {
-                        match import::run(&pool2, &startgg, project_id, job_id, import_params).await {
+                        match import::run(&pool2, &startgg, project_id, job_id, import_params).await
+                        {
                             Ok(()) => {
                                 tracing::info!(%job_id, "import complete");
                                 if let Err(e) = common::jobs::mark_done(&pool2, job_id).await {
