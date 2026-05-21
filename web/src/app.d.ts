@@ -11,6 +11,7 @@ declare global {
         has_startgg_key: boolean;
         created_at: string;
       } | null;
+      api: import("$lib/server/api").ServerApi;
     }
     // interface PageData {}
     // interface PageState {}

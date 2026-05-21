@@ -1,14 +1,14 @@
-import type { Handle } from "@sveltejs/kit";
+import { makeServerApi } from "$lib/server/api";
 import { redirect } from "@sveltejs/kit";
-import { env } from "$env/dynamic/private";
+import type { Handle } from "@sveltejs/kit";
 
 export const handle: Handle = async ({ event, resolve }) => {
   const { pathname } = event.url;
 
   const sessionId = event.cookies.get("session_id");
-  const res = await event.fetch(`${env.INTERNAL_API_URL}/auth/me`, {
-    headers: sessionId ? { Cookie: `session_id=${sessionId}` } : {},
-  });
+  event.locals.api = makeServerApi(event.fetch, sessionId);
+
+  const res = await event.locals.api.get("/auth/me");
   if (res.ok) {
     event.locals.user = await res.json();
   } else {
