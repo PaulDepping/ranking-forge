@@ -1,8 +1,7 @@
 <script lang="ts">
   import "../app.css";
   import favicon from "$lib/assets/favicon.svg";
-  import { env } from "$env/dynamic/public";
-  import { afterNavigate, goto } from "$app/navigation";
+  import { afterNavigate } from "$app/navigation";
   import { ModeWatcher } from "mode-watcher";
   import ThemeToggle from "$lib/components/ThemeToggle.svelte";
   import { Button, buttonVariants } from "$lib/components/ui/button";
@@ -20,14 +19,6 @@
         : null,
     );
   });
-
-  async function logout() {
-    await fetch(`${env.PUBLIC_API_URL}/auth/logout`, {
-      method: "POST",
-      credentials: "include",
-    });
-    await goto("/login");
-  }
 </script>
 
 <svelte:head>
@@ -71,7 +62,9 @@
             class="text-sm text-muted-foreground hover:text-foreground"
             >{data.user.display_name}</a
           >
-          <Button variant="ghost" size="sm" onclick={logout}>Logout</Button>
+          <form method="POST" action="/logout">
+            <Button type="submit" variant="ghost" size="sm">Logout</Button>
+          </form>
         {:else}
           <a
             href="/login"
