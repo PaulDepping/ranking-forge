@@ -85,6 +85,9 @@ cargo test -p common -- test_name
 | `DATABASE_URL` | api, worker | Postgres connection string |
 | `STARTGG_API_KEY` | api, worker | Shared start.gg API key |
 | `CORS_ORIGIN` | api | Required. Set to `http://localhost:5173` for local dev |
+| `PUBLIC_API_URL` | web (client) | Browser-facing API URL. Set to `http://localhost:8080` for local dev |
+| `INTERNAL_API_URL` | web (server) | Server-to-server API URL. Set to `http://localhost:8080` for local dev |
+| `COOKIE_DOMAIN` | web (server) | **Required in production.** Set to root domain (e.g. `rankingforge.com`) so the session cookie is sent to the API subdomain |
 
 ## start.gg API reference
 
