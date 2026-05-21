@@ -21,8 +21,6 @@ services:
       STARTGG_API_KEY: ${STARTGG_API_KEY}
       CORS_ORIGIN: ${CORS_ORIGIN:-https://rankingforge.com}
       RUST_LOG: ${RUST_LOG:-warn}
-    ports:
-      - "127.0.0.1:3000:3000"
     depends_on:
       db:
         condition: service_healthy
@@ -39,6 +37,19 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - api
+      - web
+    restart: unless-stopped
+
   web:
     image: ghcr.io/pauldepping/ranking-forge/web:latest
     environment:
@@ -46,11 +57,10 @@ services:
       PUBLIC_API_URL: ${PUBLIC_API_URL:-https://api.rankingforge.com}
       INTERNAL_API_URL: ${INTERNAL_API_URL:-http://api:3000}
       COOKIE_DOMAIN: ${COOKIE_DOMAIN}
-    ports:
-      - "127.0.0.1:5173:3000"
     depends_on:
       - api
     restart: unless-stopped
 
 volumes:
   postgres_data:
+  caddy_data:

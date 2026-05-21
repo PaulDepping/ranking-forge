@@ -1,0 +1,7 @@
+rankingforge.com {
+    reverse_proxy web:3000
+}
+
+api.rankingforge.com {
+    reverse_proxy api:3000
+}
