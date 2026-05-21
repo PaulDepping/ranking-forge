@@ -62,6 +62,7 @@ async fn main() {
 
     tracing::info!("Worker ready, listening for import jobs");
 
+    let mut cleanup_interval = tokio::time::interval(Duration::from_secs(3600));
     let mut in_flight: Vec<(Uuid, JoinHandle<()>)> = Vec::new();
 
     loop {
@@ -145,6 +146,14 @@ async fn main() {
             }
             _ = tokio::time::sleep(Duration::from_secs(30)) => {
                 tracing::debug!("polling for jobs");
+            }
+            _ = cleanup_interval.tick() => {
+                if let Err(e) = sqlx::query!("DELETE FROM sessions WHERE expires_at < NOW()")
+                    .execute(&pool)
+                    .await
+                {
+                    tracing::error!(%e, "failed to clean up expired sessions");
+                }
             }
             _ = sigterm.recv() => {
                 tracing::info!("received SIGTERM, shutting down");

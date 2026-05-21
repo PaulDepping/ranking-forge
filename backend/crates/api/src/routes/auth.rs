@@ -358,3 +358,96 @@ pub fn router() -> Router<AppState> {
         .route("/me", get(me))
         .layer(GovernorLayer::new(governor_conf))
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{routes, state::AppState};
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use http_body_util::BodyExt;
+    use serde_json::{Value, json};
+    use sqlx::PgPool;
+    use tower::ServiceExt;
+
+    fn make_app(pool: PgPool) -> Router {
+        let state = AppState {
+            db: pool,
+            cors_origin: "http://localhost".into(),
+            startgg_base_url: "http://localhost:1".into(),
+        };
+        routes::router().with_state(state)
+    }
+
+    async fn register(app: &Router, name: &str) -> String {
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/auth/register")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::to_vec(
+                            &json!({"email": format!("{name}@test.com"), "display_name": name, "password": "password123"}),
+                        )
+                        .unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        format!("session_id={}", body["session_id"].as_str().unwrap())
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn test_cleanup_deletes_expired_sessions_not_active(pool: PgPool) {
+        let app = make_app(pool.clone());
+
+        // Register creates one active session
+        let _cookie = register(&app, "cleanup_user").await;
+
+        let user_id = sqlx::query_scalar!(
+            "SELECT id FROM users WHERE email = 'cleanup_user@test.com'"
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        // Insert an already-expired session
+        sqlx::query!(
+            "INSERT INTO sessions (id, user_id, expires_at)
+             VALUES (gen_random_uuid(), $1, NOW() - INTERVAL '1 hour')",
+            user_id
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        // Two sessions now: one active, one expired
+        let before = sqlx::query_scalar!("SELECT COUNT(*) FROM sessions")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(before, Some(2));
+
+        // Run the cleanup
+        let deleted = sqlx::query!("DELETE FROM sessions WHERE expires_at < NOW()")
+            .execute(&pool)
+            .await
+            .unwrap();
+        assert_eq!(deleted.rows_affected(), 1);
+
+        // Only the active session remains
+        let after = sqlx::query_scalar!("SELECT COUNT(*) FROM sessions")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        assert_eq!(after, Some(1));
+    }
+}
