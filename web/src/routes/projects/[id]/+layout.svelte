@@ -37,24 +37,26 @@
 </script>
 
 <div class="space-y-4">
-  <div>
-    <a
-      href="/projects"
-      class="text-sm text-muted-foreground hover:text-foreground">← Projects</a
-    >
-    <h1 class="mt-1 text-2xl font-bold">{data.project.name}</h1>
-    {#if data.project.game_name}
-      <p class="text-sm text-muted-foreground">{data.project.game_name}</p>
-    {/if}
-  </div>
+  <div class={page.data.wide ? 'mx-auto max-w-5xl' : ''}>
+    <div>
+      <a
+        href="/projects"
+        class="text-sm text-muted-foreground hover:text-foreground">← Projects</a
+      >
+      <h1 class="mt-1 text-2xl font-bold">{data.project.name}</h1>
+      {#if data.project.game_name}
+        <p class="text-sm text-muted-foreground">{data.project.game_name}</p>
+      {/if}
+    </div>
 
-  <Tabs.Root value={currentTab} onValueChange={(v) => v && goto(tabHref(v))}>
-    <Tabs.List>
-      {#each tabs as tab (tab.href)}
-        <Tabs.Trigger value={tab.href}>{tab.label}</Tabs.Trigger>
-      {/each}
-    </Tabs.List>
-  </Tabs.Root>
+    <Tabs.Root value={currentTab} onValueChange={(v) => v && goto(tabHref(v))}>
+      <Tabs.List>
+        {#each tabs as tab (tab.href)}
+          <Tabs.Trigger value={tab.href}>{tab.label}</Tabs.Trigger>
+        {/each}
+      </Tabs.List>
+    </Tabs.Root>
+  </div>
 
   <Separator />
 
