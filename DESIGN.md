@@ -162,10 +162,10 @@ A positive result means the lower-seeded player performed better than expected (
 
 | Role | Public URL |
 |---|---|
-| Frontend | `https://rankingforge.example.com` |
-| API | `https://api.rankingforge.example.com` |
+| Frontend | `https://rankingforge.com` |
+| API | `https://api.rankingforge.com` |
 
-The frontend and API are on different subdomains (different origins). The API must configure CORS to allow `https://rankingforge.example.com` with `allow_credentials: true`. Client-side fetches from the browser must use `credentials: 'include'`. `SameSite=Strict` on the session cookie is safe — both hosts are under the same registrable domain (`example.com`).
+The frontend and API are on different subdomains (different origins). The API must configure CORS to allow `https://rankingforge.com` with `allow_credentials: true`. Client-side fetches from the browser must use `credentials: 'include'`. `SameSite=Strict` on the session cookie is safe — both hosts are under the same registrable domain (`rankingforge.com`).
 
 The SvelteKit server has two API base URL env vars: `PUBLIC_API_URL` (sent to the browser, used for client-side fetches) and `INTERNAL_API_URL` (Docker-internal address, used by server-side `load` functions to avoid the public network).
 
