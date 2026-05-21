@@ -39,6 +39,7 @@ export const actions: Actions = {
         httpOnly: true,
         sameSite: "strict",
         maxAge: 60 * 60 * 24 * 30,
+        ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
       });
     }
 
