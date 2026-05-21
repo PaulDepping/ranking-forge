@@ -76,7 +76,7 @@ pub struct LoginRequest {
     pub password: String,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct UserResponse {
     pub id: Uuid,
     pub email: String,
@@ -95,6 +95,12 @@ impl From<User> for UserResponse {
             created_at: u.created_at,
         }
     }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SessionResponse {
+    pub session_id: Uuid,
+    pub user: UserResponse,
 }
 
 // ── AuthUser extractor ────────────────────────────────────────────────────────
@@ -301,7 +307,14 @@ async fn register(
     let session_id = create_session(&state.db, user.id).await?;
     let jar = jar.add(session_cookie(session_id));
 
-    Ok((StatusCode::CREATED, jar, Json(UserResponse::from(user))))
+    Ok((
+        StatusCode::CREATED,
+        jar,
+        Json(SessionResponse {
+            session_id,
+            user: UserResponse::from(user),
+        }),
+    ))
 }
 
 async fn login(
@@ -330,7 +343,13 @@ async fn login(
     let session_id = create_session(&state.db, user.id).await?;
     let jar = jar.add(session_cookie(session_id));
 
-    Ok((jar, Json(UserResponse::from(user))))
+    Ok((
+        jar,
+        Json(SessionResponse {
+            session_id,
+            user: UserResponse::from(user),
+        }),
+    ))
 }
 
 async fn logout(State(state): State<AppState>, jar: CookieJar) -> Result<impl IntoResponse> {
