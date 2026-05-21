@@ -58,14 +58,14 @@ const h2h = [
 
 describe("H2H page", () => {
   it("renders player names in header row", () => {
-    render(Page, { data: { user, project, players, h2h } });
+    render(Page, { data: { user, project, players, h2h, wide: false } });
     expect(screen.getAllByText("Alice").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Bob").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Charlie").length).toBeGreaterThan(0);
   });
 
   it("renders win–loss records between players", () => {
-    render(Page, { data: { user, project, players, h2h } });
+    render(Page, { data: { user, project, players, h2h, wide: false } });
     // Alice vs Bob: 3–1 (and Bob vs Alice: 1–3)
     expect(screen.getByText("3–1")).toBeInTheDocument();
     expect(screen.getByText("1–3")).toBeInTheDocument();
@@ -76,7 +76,7 @@ describe("H2H page", () => {
 
   it("shows empty message when h2h data is absent", () => {
     render(Page, {
-      data: { user, project, players: players.slice(0, 1), h2h: [] },
+      data: { user, project, players: players.slice(0, 1), h2h: [], wide: false },
     });
     expect(screen.getByText("No head-to-head data yet")).toBeInTheDocument();
     expect(
@@ -86,27 +86,27 @@ describe("H2H page", () => {
   });
 
   it("shows table footer note when data is present", () => {
-    render(Page, { data: { user, project, players, h2h } });
+    render(Page, { data: { user, project, players, h2h, wide: false } });
     expect(
       screen.getByText("Row player's record vs. column player"),
     ).toBeInTheDocument();
   });
 
   it("renders a dash for same-player diagonal cells", () => {
-    render(Page, { data: { user, project, players, h2h } });
+    render(Page, { data: { user, project, players, h2h, wide: false } });
     const dashCells = screen.getAllByText("—");
     // One dash per player (3 players → 3 diagonal cells)
     expect(dashCells.length).toBe(players.length);
   });
 
   it("renders non-diagonal cells as clickable buttons", () => {
-    render(Page, { data: { user, project, players, h2h } });
+    render(Page, { data: { user, project, players, h2h, wide: false } });
     // Alice vs Bob cell shows "3–1" as a button
     expect(screen.getByRole("button", { name: "3–1" })).toBeInTheDocument();
   });
 
   it("does not show popover content before any cell is clicked", () => {
-    render(Page, { data: { user, project, players, h2h } });
+    render(Page, { data: { user, project, players, h2h, wide: false } });
     expect(screen.queryByText(/wins ·/i)).not.toBeInTheDocument();
   });
 });

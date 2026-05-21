@@ -13,6 +13,7 @@
     project: Project;
     h2h: HeadToHeadEntry[];
     players: Player[];
+    wide: boolean;
   }
 
   let { data }: { data: WrapperData } = $props();
