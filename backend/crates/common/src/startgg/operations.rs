@@ -3,13 +3,14 @@ use std::time::Instant;
 use tracing::instrument;
 
 use super::queries::{
-    EntrantPage, EventEntrantsData, EventEntrantsVars, EventPhasesData, EventPhasesVars,
-    EventSetsData, EventSetsVars, GameNode, GameSearchData, GameSearchVars, PhaseNode, SetPage,
-    TournamentAllEventNode, TournamentAllEventsData, TournamentAllEventsVars, TournamentEntrant,
-    TournamentEntrantListData, TournamentEntrantListVars, TournamentEntrantOrdered,
-    TournamentEventWithEntrants, TournamentEventsData, TournamentEventsVars, TournamentPage,
-    TournamentParticipant, TournamentParticipantsData, TournamentParticipantsVars,
-    TournamentsByUserData, TournamentsByUserVars, UserBySlugData, UserBySlugVars, UserNode,
+    CurrentUserData, EntrantPage, EventEntrantsData, EventEntrantsVars, EventPhasesData,
+    EventPhasesVars, EventSetsData, EventSetsVars, GameNode, GameSearchData, GameSearchVars,
+    NoVars, PhaseNode, SetPage, TournamentAllEventNode, TournamentAllEventsData,
+    TournamentAllEventsVars, TournamentEntrant, TournamentEntrantListData,
+    TournamentEntrantListVars, TournamentEntrantOrdered, TournamentEventWithEntrants,
+    TournamentEventsData, TournamentEventsVars, TournamentPage, TournamentParticipant,
+    TournamentParticipantsData, TournamentParticipantsVars, TournamentsByUserData,
+    TournamentsByUserVars, UserBySlugData, UserBySlugVars, UserNode,
 };
 use super::{StartggClient, StartggError};
 
@@ -147,7 +148,17 @@ const TOURNAMENT_ALL_EVENTS_QUERY: &str = r#"
         }
     }"#;
 
+const CURRENT_USER_QUERY: &str = "{ currentUser { id } }";
+
 impl StartggClient {
+    pub async fn validate_key(&self) -> Result<(), StartggError> {
+        let data: CurrentUserData = self.gql(CURRENT_USER_QUERY, NoVars {}).await?;
+        if data.current_user.is_none() {
+            return Err(StartggError::GraphQL("invalid API key".into()));
+        }
+        Ok(())
+    }
+
     #[instrument(skip(self))]
     pub async fn search_games(&self, name: &str) -> Result<Vec<GameNode>, StartggError> {
         let t = Instant::now();

@@ -56,6 +56,23 @@ pub struct GameNode {
     pub display_name: Option<String>,
 }
 
+// ── Key validation ────────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub(crate) struct NoVars {}
+
+#[derive(Deserialize)]
+pub(crate) struct CurrentUserData {
+    #[serde(rename = "currentUser")]
+    pub current_user: Option<CurrentUserNode>,
+}
+
+#[derive(Deserialize)]
+#[allow(dead_code)]
+pub(crate) struct CurrentUserNode {
+    pub(crate) id: i64,
+}
+
 // ── User by slug ──────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]

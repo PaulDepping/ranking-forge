@@ -150,7 +150,7 @@ async fn set_startgg_key(
 ) -> Result<impl IntoResponse> {
     let client =
         StartggClient::new_with_base_url(body.api_key.clone(), state.startgg_base_url.clone());
-    client.search_games("smash").await.map_err(|e| match e {
+    client.validate_key().await.map_err(|e| match e {
         StartggError::Http(re) => AppError::ExternalApi(re),
         StartggError::ComplexityTooHigh { .. } => AppError::ExternalApiError,
         _ => AppError::UnprocessableEntity("Invalid start.gg API key".into()),
@@ -446,7 +446,7 @@ mod tests {
         Mock::given(method("POST"))
             .respond_with(
                 ResponseTemplate::new(200)
-                    .set_body_json(json!({"data": {"videogames": {"nodes": []}}})),
+                    .set_body_json(json!({"data": {"currentUser": {"id": 1}}})),
             )
             .mount(&mock)
             .await;
