@@ -105,7 +105,9 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta-worker.outputs.tags }}
           labels: ${{ steps.meta-worker.outputs.labels }}
-          cache-from: type=gha,scope=backend-worker
+          cache-from: |
+            type=gha,scope=backend-api
+            type=gha,scope=backend-worker
           cache-to: type=gha,mode=max,scope=backend-worker
 
   build-web:

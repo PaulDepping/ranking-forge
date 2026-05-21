@@ -2,16 +2,32 @@
 
 ARG RUST_VERSION=1
 
-FROM rust:${RUST_VERSION}-slim-bookworm AS builder
-RUN apt-get update && apt-get install -y --no-install-recommends pkg-config libssl-dev cmake && rm -rf /var/lib/apt/lists/*
+FROM rust:${RUST_VERSION}-slim-bookworm AS chef
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config libssl-dev cmake \
+    && rm -rf /var/lib/apt/lists/* \
+    && cargo install cargo-chef
 WORKDIR /app
 
+FROM chef AS planner
+RUN --mount=type=bind,source=crates,target=crates \
+    --mount=type=bind,source=Cargo.toml,target=Cargo.toml \
+    --mount=type=bind,source=Cargo.lock,target=Cargo.lock \
+    cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+COPY --from=planner /app/recipe.json recipe.json
+# Compile dependencies only — this layer is cached until Cargo.lock changes
+RUN --mount=type=bind,source=Cargo.lock,target=Cargo.lock \
+    --mount=type=cache,target=/usr/local/cargo/git/db \
+    --mount=type=cache,target=/usr/local/cargo/registry/ \
+    cargo chef cook --release --locked --recipe-path recipe.json
+# Compile source — starts from pre-built deps above, so only our code is compiled
 RUN --mount=type=bind,source=crates,target=crates \
     --mount=type=bind,source=migrations,target=migrations \
     --mount=type=bind,source=Cargo.toml,target=Cargo.toml \
     --mount=type=bind,source=Cargo.lock,target=Cargo.lock \
     --mount=type=bind,source=.sqlx,target=.sqlx \
-    --mount=type=cache,target=/app/target/ \
     --mount=type=cache,target=/usr/local/cargo/git/db \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
     SQLX_OFFLINE=true cargo build --locked --release && \
