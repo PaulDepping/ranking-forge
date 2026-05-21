@@ -10,7 +10,6 @@ use axum::{
     routing::{get, post},
 };
 use axum_extra::extract::CookieJar;
-use axum_extra::extract::cookie::{Cookie, SameSite};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -222,26 +221,6 @@ async fn create_session(db: &sqlx::PgPool, user_id: Uuid) -> Result<Uuid> {
     Ok(session_id)
 }
 
-pub(super) fn session_cookie(id: Uuid) -> Cookie<'static> {
-    Cookie::build(("session_id", id.to_string()))
-        .http_only(true)
-        .same_site(SameSite::Strict)
-        .path("/")
-        .secure(true)
-        .max_age(cookie::time::Duration::seconds(2_592_000))
-        .build()
-}
-
-pub(super) fn clear_cookie() -> Cookie<'static> {
-    Cookie::build(("session_id", ""))
-        .http_only(true)
-        .same_site(SameSite::Strict)
-        .path("/")
-        .secure(true)
-        .max_age(cookie::time::Duration::seconds(0))
-        .build()
-}
-
 fn is_valid_email(s: &str) -> bool {
     let parts: Vec<&str> = s.splitn(2, '@').collect();
     parts.len() == 2 && !parts[0].is_empty() && parts[1].contains('.')
@@ -251,7 +230,6 @@ fn is_valid_email(s: &str) -> bool {
 
 async fn register(
     State(state): State<AppState>,
-    jar: CookieJar,
     Json(body): Json<RegisterRequest>,
 ) -> Result<impl IntoResponse> {
     if !is_valid_email(&body.email) {
@@ -305,11 +283,9 @@ async fn register(
     })?;
 
     let session_id = create_session(&state.db, user.id).await?;
-    let jar = jar.add(session_cookie(session_id));
 
     Ok((
         StatusCode::CREATED,
-        jar,
         Json(SessionResponse {
             session_id,
             user: UserResponse::from(user),
@@ -319,7 +295,6 @@ async fn register(
 
 async fn login(
     State(state): State<AppState>,
-    jar: CookieJar,
     Json(body): Json<LoginRequest>,
 ) -> Result<impl IntoResponse> {
     let user = sqlx::query_as!(
@@ -341,15 +316,11 @@ async fn login(
     verify_password(body.password, user.password_hash.clone()).await?;
 
     let session_id = create_session(&state.db, user.id).await?;
-    let jar = jar.add(session_cookie(session_id));
 
-    Ok((
-        jar,
-        Json(SessionResponse {
-            session_id,
-            user: UserResponse::from(user),
-        }),
-    ))
+    Ok(Json(SessionResponse {
+        session_id,
+        user: UserResponse::from(user),
+    }))
 }
 
 async fn logout(State(state): State<AppState>, jar: CookieJar) -> Result<impl IntoResponse> {
@@ -361,8 +332,7 @@ async fn logout(State(state): State<AppState>, jar: CookieJar) -> Result<impl In
         }
     }
 
-    let jar = jar.add(clear_cookie());
-    Ok((StatusCode::NO_CONTENT, jar))
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn me(auth: AuthUser) -> impl IntoResponse {

@@ -5,14 +5,13 @@ use axum::{
     response::IntoResponse,
     routing::{delete, patch, put},
 };
-use axum_extra::extract::CookieJar;
 use serde::Deserialize;
 
 use common::startgg::{StartggClient, StartggError};
 
 use crate::{
     error::{AppError, Result},
-    routes::auth::{AuthUser, clear_cookie, hash_password, verify_password},
+    routes::auth::{AuthUser, hash_password, verify_password},
     state::AppState,
 };
 
@@ -128,14 +127,12 @@ async fn update_password(
 async fn delete_account(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
-    jar: CookieJar,
 ) -> Result<impl IntoResponse> {
     sqlx::query!("DELETE FROM users WHERE id = $1", user.id)
         .execute(&state.db)
         .await?;
 
-    let jar = jar.add(clear_cookie());
-    Ok((StatusCode::NO_CONTENT, jar))
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Deserialize)]
@@ -233,15 +230,9 @@ mod tests {
                 ).unwrap())).unwrap()
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
-        resp.headers()
-            .get("set-cookie")
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .split(';')
-            .next()
-            .unwrap()
-            .to_string()
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        format!("session_id={}", body["session_id"].as_str().unwrap())
     }
 
     async fn json_body(resp: axum::response::Response) -> Value {

@@ -40,15 +40,9 @@ async fn register(app: &Router, username: &str, password: &str) -> String {
         .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::CREATED);
-    resp.headers()
-        .get("set-cookie")
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .split(';')
-        .next()
-        .unwrap()
-        .to_string()
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    format!("session_id={}", body["session_id"].as_str().unwrap())
 }
 
 async fn post_json(app: &Router, uri: &str, cookie: &str, body: Value) -> axum::response::Response {

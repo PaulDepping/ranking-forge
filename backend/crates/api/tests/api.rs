@@ -42,21 +42,10 @@ async fn register(app: &Router, username: &str, password: &str) -> String {
         .unwrap();
 
     let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(
-        resp.status(),
-        StatusCode::CREATED,
-        "register should return 201"
-    );
+    assert_eq!(resp.status(), StatusCode::CREATED, "register should return 201");
 
-    resp.headers()
-        .get("set-cookie")
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .split(';')
-        .next()
-        .unwrap()
-        .to_string()
+    let body = read_json(resp).await;
+    format!("session_id={}", body["session_id"].as_str().unwrap())
 }
 
 async fn post_json(app: &Router, uri: &str, cookie: &str, body: Value) -> axum::response::Response {
@@ -399,24 +388,16 @@ async fn auth_login(pool: PgPool) {
     let resp = app.clone().oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 
-    // Login must set a session cookie
+    // Login must NOT set a session cookie — SvelteKit sets it from the JSON body
     assert!(
-        resp.headers().contains_key("set-cookie"),
-        "login must set session cookie"
+        !resp.headers().contains_key("set-cookie"),
+        "login must not set a session cookie"
     );
 
-    let cookie = resp
-        .headers()
-        .get("set-cookie")
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .split(';')
-        .next()
-        .unwrap()
-        .to_string();
+    let body = read_json(resp).await;
+    let cookie = format!("session_id={}", body["session_id"].as_str().unwrap());
 
-    // Cookie from login must work for authenticated endpoints
+    // session_id from login body must work for authenticated endpoints
     let resp = get_req(&app, "/auth/me", &cookie).await;
     assert_eq!(resp.status(), StatusCode::OK);
     assert_eq!(read_json(resp).await["display_name"], "alice");
@@ -2213,7 +2194,7 @@ async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
-async fn auth_register_cookie_is_secure(pool: PgPool) {
+async fn auth_register_no_set_cookie(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let req = Request::builder()
         .method("POST")
@@ -2225,15 +2206,14 @@ async fn auth_register_cookie_is_secure(pool: PgPool) {
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::CREATED);
-    let cookie = resp.headers().get("set-cookie").unwrap().to_str().unwrap();
     assert!(
-        cookie.contains("Secure"),
-        "register cookie must have Secure flag; got: {cookie}"
+        !resp.headers().contains_key("set-cookie"),
+        "register must not set a cookie (SvelteKit owns browser cookies)"
     );
 }
 
 #[sqlx::test(migrations = "../../migrations")]
-async fn auth_login_cookie_is_secure(pool: PgPool) {
+async fn auth_login_no_set_cookie(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     register(&app, "alice", "password123").await;
 
@@ -2248,15 +2228,14 @@ async fn auth_login_cookie_is_secure(pool: PgPool) {
         .unwrap();
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    let cookie = resp.headers().get("set-cookie").unwrap().to_str().unwrap();
     assert!(
-        cookie.contains("Secure"),
-        "login cookie must have Secure flag; got: {cookie}"
+        !resp.headers().contains_key("set-cookie"),
+        "login must not set a cookie (SvelteKit owns browser cookies)"
     );
 }
 
 #[sqlx::test(migrations = "../../migrations")]
-async fn auth_logout_cookie_is_secure(pool: PgPool) {
+async fn auth_logout_no_set_cookie(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
 
@@ -2272,10 +2251,9 @@ async fn auth_logout_cookie_is_secure(pool: PgPool) {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::NO_CONTENT);
-    let set_cookie = resp.headers().get("set-cookie").unwrap().to_str().unwrap();
     assert!(
-        set_cookie.contains("Secure"),
-        "logout clear cookie must have Secure flag; got: {set_cookie}"
+        !resp.headers().contains_key("set-cookie"),
+        "logout must not set a cookie (SvelteKit owns browser cookies)"
     );
 }
 

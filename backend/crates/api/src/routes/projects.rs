@@ -438,15 +438,9 @@ mod tests {
                 ).unwrap())).unwrap()
         ).await.unwrap();
         assert_eq!(resp.status(), StatusCode::CREATED);
-        resp.headers()
-            .get("set-cookie")
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .split(';')
-            .next()
-            .unwrap()
-            .to_string()
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        format!("session_id={}", body["session_id"].as_str().unwrap())
     }
 
     async fn with_api_key(pool: &PgPool, email: &str) {
