@@ -1,15 +1,19 @@
 use axum::{
-    Json,
+    Json, Router,
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
+    routing::post,
 };
 use chrono::{DateTime, NaiveDate, NaiveTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
 use uuid::Uuid;
 
 use crate::{
     error::{AppError, Result},
+    extractors::ClientIpExtractor,
     routes::auth::{AuthUser, OptionalAuthUser},
     routes::projects::{require_project_access, require_project_read_access},
     state::AppState,
@@ -110,4 +114,140 @@ pub async fn get_import_status(
         .await?
         .ok_or(AppError::NotFound)?;
     Ok(Json(JobResponse::from(job)))
+}
+
+pub fn rate_limited_post_router() -> Router<AppState> {
+    let governor_conf = Arc::new(
+        GovernorConfigBuilder::default()
+            .key_extractor(ClientIpExtractor)
+            .per_second(20)
+            .burst_size(3)
+            .finish()
+            .expect("invalid rate-limit config"),
+    );
+    Router::new()
+        .route("/{id}/import", post(start_import))
+        .layer(GovernorLayer::new(governor_conf))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{routes, state::AppState};
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use http_body_util::BodyExt;
+    use serde_json::{Value, json};
+    use sqlx::PgPool;
+    use tower::ServiceExt;
+
+    fn make_app(pool: PgPool) -> Router {
+        let state = AppState {
+            db: pool,
+            cors_origin: "http://localhost".into(),
+            startgg_base_url: "http://localhost:1".into(),
+        };
+        routes::router().with_state(state)
+    }
+
+    async fn register(app: &Router, name: &str) -> String {
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/auth/register")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({
+                            "email": format!("{name}@test.com"),
+                            "display_name": name,
+                            "password": "password123"
+                        }))
+                        .unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        format!("session_id={}", body["session_id"].as_str().unwrap())
+    }
+
+    async fn create_project(app: &Router, cookie: &str) -> String {
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/projects")
+                    .header("content-type", "application/json")
+                    .header("cookie", cookie)
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({"name": "Test Project"})).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let v: Value = serde_json::from_slice(&bytes).unwrap();
+        v["id"].as_str().unwrap().to_string()
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn test_import_post_is_rate_limited(pool: PgPool) {
+        let app = make_app(pool.clone());
+        let cookie = register(&app, "rl_import").await;
+
+        sqlx::query!(
+            "UPDATE users SET startgg_api_key = 'test-key' WHERE email = 'rl_import@test.com'"
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let project_id = create_project(&app, &cookie).await;
+
+        // First 3 requests consume the burst — must NOT be 429
+        for i in 0..3 {
+            let resp = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri(format!("/projects/{project_id}/import"))
+                        .header("cookie", &cookie)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_ne!(
+                resp.status(),
+                StatusCode::TOO_MANY_REQUESTS,
+                "request {i} should not be rate-limited"
+            );
+        }
+
+        // 4th request should be rate-limited
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/projects/{project_id}/import"))
+                    .header("cookie", &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
+    }
 }

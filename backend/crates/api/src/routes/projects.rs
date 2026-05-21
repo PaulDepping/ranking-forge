@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, patch, post, put},
+    routing::{get, patch, put},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -381,10 +381,8 @@ pub fn router() -> Router<AppState> {
             get(get_project).delete(delete_project).patch(patch_project),
         )
         .nest("/{id}/players", crate::routes::players::router())
-        .route(
-            "/{id}/import",
-            post(crate::routes::import::start_import).get(crate::routes::import::get_import_status),
-        )
+        .route("/{id}/import", get(crate::routes::import::get_import_status))
+        .merge(crate::routes::import::rate_limited_post_router())
         .route(
             "/{id}/tournament-entrants",
             get(crate::routes::players::list_tournament_entrants),
