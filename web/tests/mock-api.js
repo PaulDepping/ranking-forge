@@ -242,7 +242,7 @@ function createMockServer() {
 			const body = await readBody(req);
 			if (body?.email === 'testuser@test.com' && body?.password === 'testpass') {
 				res.setHeader('Set-Cookie', 'session_id=test-session; HttpOnly; Path=/; SameSite=Strict');
-				respond(res, 200, MOCK_USER);
+				respond(res, 200, { session_id: 'test-session', user: MOCK_USER });
 			} else {
 				respond(res, 401, { message: 'Invalid username or password' });
 			}
@@ -251,7 +251,7 @@ function createMockServer() {
 
 		if (path === '/auth/register' && req.method === 'POST') {
 			res.setHeader('Set-Cookie', 'session_id=test-session; HttpOnly; Path=/; SameSite=Strict');
-			respond(res, 201, MOCK_USER);
+			respond(res, 201, { session_id: 'test-session', user: MOCK_USER });
 			return;
 		}
 
