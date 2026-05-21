@@ -20,9 +20,8 @@ backend/          Rust workspace
   migrations/     SQL migrations (run by sqlx at startup)
   .sqlx/          Offline query cache (committed; required for SQLX_OFFLINE=true builds)
   openapi.yaml    Full REST API contract
-web/              SvelteKit frontend (Phase 6 — not yet implemented)
+web/              SvelteKit frontend
 DESIGN.md         Architecture reference with full data model and API overview
-ROADMAP.md        Phase breakdown and implementation decisions
 ```
 
 ## Test scripts
