@@ -4,7 +4,7 @@ import { makeApi } from "./api";
 describe("makeApi", () => {
   it("sends GET with credentials:include", async () => {
     const mockFetch = vi.fn().mockResolvedValue(new Response("{}"));
-    const api = makeApi(mockFetch, "http://localhost:8080");
+    const api = makeApi(mockFetch);
 
     await api.get("/projects");
 
@@ -16,7 +16,7 @@ describe("makeApi", () => {
 
   it("sends POST with JSON body and Content-Type header", async () => {
     const mockFetch = vi.fn().mockResolvedValue(new Response("{}"));
-    const api = makeApi(mockFetch, "http://localhost:8080");
+    const api = makeApi(mockFetch);
 
     await api.post("/projects", { name: "Test" });
 
@@ -30,7 +30,7 @@ describe("makeApi", () => {
 
   it("sends POST without body or Content-Type when no body given", async () => {
     const mockFetch = vi.fn().mockResolvedValue(new Response("{}"));
-    const api = makeApi(mockFetch, "http://localhost:8080");
+    const api = makeApi(mockFetch);
 
     await api.post("/auth/logout");
 
@@ -47,7 +47,7 @@ describe("makeApi", () => {
 
   it("sends PATCH with JSON body", async () => {
     const mockFetch = vi.fn().mockResolvedValue(new Response("{}"));
-    const api = makeApi(mockFetch, "http://localhost:8080");
+    const api = makeApi(mockFetch);
 
     await api.patch("/projects/1/events/2", { included: false });
 
@@ -66,7 +66,7 @@ describe("makeApi", () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValue(new Response(null, { status: 200 }));
-    const api = makeApi(mockFetch, "http://localhost:8080");
+    const api = makeApi(mockFetch);
 
     await api.delete("/projects/1");
 
@@ -78,14 +78,14 @@ describe("makeApi", () => {
     });
   });
 
-  it("prepends the base URL to every path", async () => {
+  it("uses PUBLIC_API_URL from env", async () => {
     const mockFetch = vi.fn().mockResolvedValue(new Response("{}"));
-    const api = makeApi(mockFetch, "https://api.example.com");
+    const api = makeApi(mockFetch);
 
     await api.get("/auth/me");
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "https://api.example.com/auth/me",
+      "http://localhost:8080/auth/me",
       expect.anything(),
     );
   });
@@ -95,7 +95,7 @@ describe("makeApi", () => {
       status: 200,
     });
     const mockFetch = vi.fn().mockResolvedValue(mockResponse);
-    const api = makeApi(mockFetch, "http://localhost:8080");
+    const api = makeApi(mockFetch);
 
     const result = await api.get("/projects/1");
 

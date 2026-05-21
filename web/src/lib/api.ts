@@ -1,17 +1,14 @@
-export function makeApi(
-  fetchFn: typeof fetch,
-  baseUrl: string,
-  sessionId?: string | null,
-) {
+import { env } from "$env/dynamic/public";
+
+export function makeApi(fetchFn: typeof fetch) {
   async function req(
     method: string,
     path: string,
     body?: unknown,
   ): Promise<Response> {
     const headers: Record<string, string> = {};
-    if (sessionId) headers["Cookie"] = `session_id=${sessionId}`;
     if (body !== undefined) headers["Content-Type"] = "application/json";
-    return fetchFn(baseUrl + path, {
+    return fetchFn(env.PUBLIC_API_URL + path, {
       method,
       credentials: "include",
       headers,
