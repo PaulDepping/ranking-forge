@@ -8,10 +8,10 @@ pub struct Config {
     #[arg(long, env = "DATABASE_URL")]
     pub database_url: String,
 
-    #[arg(long, env = "PORT", default_value = "3000")]
+    #[arg(long, env = "PORT", default_value_t = 3000)]
     pub port: u16,
 
-    #[arg(long, env = "BIND_ADDR", default_value_t = Ipv4Addr::new(0, 0, 0, 0).into())]
+    #[arg(long, env = "BIND_ADDR", default_value_t = Ipv4Addr::UNSPECIFIED.into())]
     pub bind_addr: IpAddr,
 
     /// Allowed CORS origin. Set to http://localhost:5173 for local dev.

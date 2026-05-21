@@ -42,7 +42,11 @@ async fn register(app: &Router, username: &str, password: &str) -> String {
         .unwrap();
 
     let resp = app.clone().oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::CREATED, "register should return 201");
+    assert_eq!(
+        resp.status(),
+        StatusCode::CREATED,
+        "register should return 201"
+    );
 
     let body = read_json(resp).await;
     format!("session_id={}", body["session_id"].as_str().unwrap())
