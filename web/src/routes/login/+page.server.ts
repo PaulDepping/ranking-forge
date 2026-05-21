@@ -26,17 +26,14 @@ export const actions: Actions = {
       return fail(res.status, { error: body.message ?? "Login failed" });
     }
 
-    const setCookie = res.headers.get("set-cookie");
-    const match = setCookie?.match(/session_id=([^;]+)/);
-    if (match) {
-      cookies.set("session_id", match[1], {
-        path: "/",
-        httpOnly: true,
-        sameSite: "strict",
-        maxAge: 60 * 60 * 24 * 30,
-        ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
-      });
-    }
+    const body = await res.json();
+    cookies.set("session_id", body.session_id, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "strict",
+      maxAge: 60 * 60 * 24 * 30,
+      ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
+    });
 
     const safe =
       redirectTo.startsWith("/") && !redirectTo.startsWith("//")
