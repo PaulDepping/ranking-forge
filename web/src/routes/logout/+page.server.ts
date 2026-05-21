@@ -7,15 +7,14 @@ export const load: PageServerLoad = () => {
 };
 
 export const actions: Actions = {
-  default: async ({ fetch, cookies }) => {
-    const sessionId = cookies.get("session_id");
-    if (sessionId) {
-      await fetch(`${env.INTERNAL_API_URL}/auth/logout`, {
-        method: "POST",
-        headers: { Cookie: `session_id=${sessionId}` },
-      }).catch(() => {});
+  default: async ({ locals, cookies }) => {
+    if (locals.api) {
+      await locals.api.post("/auth/logout").catch(() => {});
     }
-    cookies.delete("session_id", { path: "/" });
+    cookies.delete("session_id", {
+      path: "/",
+      ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
+    });
     redirect(303, "/login");
   },
 };
