@@ -31,7 +31,11 @@ export const actions: Actions = {
       return fail(res.status, { error: body.message ?? "Registration failed" });
     }
 
-    const body = await res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!body.session_id)
+      return fail(500, {
+        error: "Registration failed: invalid server response",
+      });
     cookies.set("session_id", body.session_id, {
       path: "/",
       httpOnly: true,
