@@ -63,6 +63,7 @@ async fn main() {
     tracing::info!("Worker ready, listening for import jobs");
 
     let mut cleanup_interval = tokio::time::interval(Duration::from_secs(3600));
+    cleanup_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
     let mut in_flight: Vec<(Uuid, JoinHandle<()>)> = Vec::new();
 
     loop {
