@@ -17,9 +17,9 @@ RUN --mount=type=bind,source=crates,target=crates \
 
 FROM chef AS builder
 COPY --from=planner /app/recipe.json recipe.json
+COPY Cargo.lock Cargo.lock
 # Compile dependencies only — this layer is cached until Cargo.lock changes
-RUN --mount=type=bind,source=Cargo.lock,target=Cargo.lock \
-    --mount=type=cache,target=/usr/local/cargo/git/db \
+RUN --mount=type=cache,target=/usr/local/cargo/git/db \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
     cargo chef cook --release --locked --recipe-path recipe.json
 # Compile source — starts from pre-built deps above, so only our code is compiled
