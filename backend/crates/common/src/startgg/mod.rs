@@ -822,6 +822,25 @@ mod tests {
     // ── tournament_participants ───────────────────────────────────────────────────
 
     #[tokio::test]
+    async fn tournament_participants_returns_none_when_not_found() {
+        let mock = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": {
+                    "tournament": null
+                }
+            })))
+            .mount(&mock)
+            .await;
+        let c = client(&mock.uri());
+        let result = c
+            .tournament_participants("nonexistent-slug")
+            .await
+            .expect("should not error");
+        assert!(result.is_none(), "expected None for missing tournament");
+    }
+
+    #[tokio::test]
     async fn tournament_participants_returns_all_with_user() {
         let mock = MockServer::start().await;
 
@@ -847,7 +866,8 @@ mod tests {
         let result = client(&mock.uri())
             .tournament_participants("some-weekly")
             .await
-            .unwrap();
+            .unwrap()
+            .expect("expected Some");
 
         // Guest (no user) is skipped; Mang0 and Spectator are both included
         assert_eq!(result.len(), 2);
@@ -899,7 +919,8 @@ mod tests {
         let result = client(&mock.uri())
             .tournament_participants("some-weekly")
             .await
-            .unwrap();
+            .unwrap()
+            .expect("expected Some");
 
         assert_eq!(result.len(), 2);
     }

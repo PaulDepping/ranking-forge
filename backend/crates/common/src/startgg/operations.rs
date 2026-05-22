@@ -389,7 +389,7 @@ impl StartggClient {
     pub async fn tournament_participants(
         &self,
         tournament_handle: &str,
-    ) -> Result<Vec<TournamentParticipant>, StartggError> {
+    ) -> Result<Option<Vec<TournamentParticipant>>, StartggError> {
         let t = Instant::now();
         let mut result = Vec::new();
         let mut page = 1i32;
@@ -409,7 +409,12 @@ impl StartggClient {
 
             let participant_page = match data.tournament.and_then(|t| t.participants) {
                 Some(p) => p,
-                None => break,
+                None => {
+                    if page == 1 {
+                        return Ok(None);
+                    }
+                    break;
+                }
             };
 
             for node in participant_page.nodes {
@@ -433,7 +438,7 @@ impl StartggClient {
             elapsed_ms = t.elapsed().as_millis(),
             "startgg query complete"
         );
-        Ok(result)
+        Ok(Some(result))
     }
 
     #[instrument(skip(self))]
