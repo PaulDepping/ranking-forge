@@ -177,3 +177,40 @@ fn entrant_node_startgg_user_id_none_when_no_participants() {
     let e = make_entrant(vec![]);
     assert_eq!(e.startgg_user_id(), None);
 }
+
+#[test]
+fn event_node_deserializes_videogame() {
+    let json = r#"{
+        "id": 2001,
+        "name": "Melee Singles",
+        "numEntrants": 8,
+        "startAt": 1700040000,
+        "slug": "tournament/test/event/melee-singles",
+        "state": "COMPLETED",
+        "isOnline": false,
+        "type": 1,
+        "teamRosterSize": null,
+        "videogame": { "id": 1, "name": "Super Smash Bros. Melee" }
+    }"#;
+    let node: EventNode = serde_json::from_str(json).unwrap();
+    let vg = node.videogame.unwrap();
+    assert_eq!(vg.id, 1);
+    assert_eq!(vg.name, "Super Smash Bros. Melee");
+}
+
+#[test]
+fn event_node_videogame_is_none_when_absent() {
+    let json = r#"{
+        "id": 2001,
+        "name": "Melee Singles",
+        "numEntrants": 8,
+        "startAt": null,
+        "slug": null,
+        "state": null,
+        "isOnline": null,
+        "type": null,
+        "teamRosterSize": null
+    }"#;
+    let node: EventNode = serde_json::from_str(json).unwrap();
+    assert!(node.videogame.is_none());
+}

@@ -116,6 +116,15 @@ pub(crate) struct TournamentsByUserVars {
     pub per_page: i32,
 }
 
+#[derive(Serialize)]
+pub(crate) struct TournamentsByUserAllGamesVars {
+    #[serde(rename = "userId")]
+    pub user_id: i64,
+    pub page: i32,
+    #[serde(rename = "perPage")]
+    pub per_page: i32,
+}
+
 #[derive(Deserialize)]
 pub(crate) struct TournamentsByUserData {
     pub user: Option<UserWithTournaments>,
@@ -138,6 +147,12 @@ pub struct TournamentPage {
 pub struct TeamRosterSize {
     pub min_players: Option<i32>,
     pub max_players: Option<i32>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct EventVideogame {
+    pub id: i64,
+    pub name: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -214,6 +229,7 @@ pub struct EventNode {
     #[serde(rename = "type")]
     pub event_type: Option<i32>,
     pub team_roster_size: Option<TeamRosterSize>,
+    pub videogame: Option<EventVideogame>,
 }
 
 // ── Event entrants ────────────────────────────────────────────────────────────

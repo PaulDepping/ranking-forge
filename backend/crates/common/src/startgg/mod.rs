@@ -2,9 +2,9 @@ mod operations;
 mod queries;
 
 pub use queries::{
-    EntrantNode, EntrantPage, EntrantStanding, EventNode, GameNode, PageInfo, Participant,
-    ParticipantUser, PhaseGroupNode, PhaseGroupPage, PhaseNode, ScoreValue, SetNode, SetPage,
-    SetPhaseGroup, SetSlot, SlotEntrant, SlotStanding, SlotStats, TeamRosterSize,
+    EntrantNode, EntrantPage, EntrantStanding, EventNode, EventVideogame, GameNode, PageInfo,
+    Participant, ParticipantUser, PhaseGroupNode, PhaseGroupPage, PhaseNode, ScoreValue, SetNode,
+    SetPage, SetPhaseGroup, SetSlot, SlotEntrant, SlotStanding, SlotStats, TeamRosterSize,
     TournamentEntrant, TournamentEntrantOrdered, TournamentEventWithEntrants, TournamentNode,
     TournamentPage, TournamentParticipant, UserNode,
 };
