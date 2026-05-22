@@ -7,6 +7,7 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			$lib: resolve('./src/lib'),
+			'$app/navigation': resolve('./src/__mocks__/app-navigation.ts'),
 			'$env/dynamic/public': resolve('./src/__mocks__/env.ts'),
 			'$env/dynamic/private': resolve('./src/__mocks__/env.private.ts'),
 		},

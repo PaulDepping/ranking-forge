@@ -50,6 +50,7 @@ export interface TournamentEntrantOrdered {
 export interface TournamentEventData {
   id: number;
   name: string;
+  state: string | null;
   entrants: TournamentEntrantOrdered[];
 }
 

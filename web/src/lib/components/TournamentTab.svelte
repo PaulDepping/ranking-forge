@@ -253,44 +253,55 @@
       >
     </div>
 
-    <ScrollArea class="h-52 rounded-md border">
-      <div class="divide-y">
-        {#each filteredEntrants as entrant (entrant.startgg_user_id)}
-          {@const isAdded = alreadyAddedIds.has(entrant.startgg_user_id)}
-          <div
-            class="flex items-center gap-3 px-3 py-2 text-sm"
-            class:opacity-50={isAdded}
-          >
-            <Checkbox
-              id="entrant-{entrant.startgg_user_id}"
-              checked={selected.has(entrant.startgg_user_id)}
-              disabled={isAdded}
-              onCheckedChange={() =>
-                !isAdded && toggleEntrant(entrant.startgg_user_id)}
-            />
-            {#if activeTab !== "all"}
-              <span
-                class="w-8 text-right text-xs text-muted-foreground flex-shrink-0"
-              >
-                {formatRank(entrant)}
-              </span>
-            {/if}
-            <Label
-              for="entrant-{entrant.startgg_user_id}"
-              class="flex flex-1 items-center gap-2 {isAdded
-                ? 'cursor-default'
-                : 'cursor-pointer'}"
+    {#if activeTab !== "all" && visibleEntrants.length === 0}
+      {@const currentEvent = tournamentData?.events.find(
+        (e) => String(e.id) === activeTab,
+      )}
+      <p class="py-6 text-center text-sm text-muted-foreground">
+        {currentEvent?.state === "CREATED"
+          ? "This event's brackets haven't been published yet"
+          : "No entrants found for this event"}
+      </p>
+    {:else}
+      <ScrollArea class="h-52 rounded-md border">
+        <div class="divide-y">
+          {#each filteredEntrants as entrant (entrant.startgg_user_id)}
+            {@const isAdded = alreadyAddedIds.has(entrant.startgg_user_id)}
+            <div
+              class="flex items-center gap-3 px-3 py-2 text-sm"
+              class:opacity-50={isAdded}
             >
-              <span class="font-medium">{entrant.name}</span>
-              <span class="text-muted-foreground">{entrant.handle}</span>
-            </Label>
-            {#if isAdded}
-              <Badge variant="secondary" class="text-xs">already added</Badge>
-            {/if}
-          </div>
-        {/each}
-      </div>
-    </ScrollArea>
+              <Checkbox
+                id="entrant-{entrant.startgg_user_id}"
+                checked={selected.has(entrant.startgg_user_id)}
+                disabled={isAdded}
+                onCheckedChange={() =>
+                  !isAdded && toggleEntrant(entrant.startgg_user_id)}
+              />
+              {#if activeTab !== "all"}
+                <span
+                  class="w-8 text-right text-xs text-muted-foreground flex-shrink-0"
+                >
+                  {formatRank(entrant)}
+                </span>
+              {/if}
+              <Label
+                for="entrant-{entrant.startgg_user_id}"
+                class="flex flex-1 items-center gap-2 {isAdded
+                  ? 'cursor-default'
+                  : 'cursor-pointer'}"
+              >
+                <span class="font-medium">{entrant.name}</span>
+                <span class="text-muted-foreground">{entrant.handle}</span>
+              </Label>
+              {#if isAdded}
+                <Badge variant="secondary" class="text-xs">already added</Badge>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      </ScrollArea>
+    {/if}
 
     {#if addError}<p class="text-sm text-destructive">{addError}</p>{/if}
     <div class="flex items-center justify-between">
