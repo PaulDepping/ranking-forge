@@ -28,14 +28,16 @@
   <h2 class="mx-auto max-w-5xl px-4 text-lg font-semibold">Stats</h2>
 
   {#if data.stats.length === 0}
-    <Empty.Root>
-      <Empty.Header>
-        <Empty.Title>No stats yet</Empty.Title>
-        <Empty.Description
-          >Import tournaments and include some events to generate stats.</Empty.Description
-        >
-      </Empty.Header>
-    </Empty.Root>
+    <div class="mx-auto max-w-5xl px-4">
+      <Empty.Root>
+        <Empty.Header>
+          <Empty.Title>No stats yet</Empty.Title>
+          <Empty.Description
+            >Import tournaments and include some events to generate stats.</Empty.Description
+          >
+        </Empty.Header>
+      </Empty.Root>
+    </div>
   {:else}
     <div
       class="grid gap-3"

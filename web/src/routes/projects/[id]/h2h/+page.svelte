@@ -76,14 +76,16 @@
   <h2 class="mx-auto max-w-5xl px-4 text-lg font-semibold">Head-to-head</h2>
 
   {#if data.players.length < 2 || data.h2h.length === 0}
-    <Empty.Root>
-      <Empty.Header>
-        <Empty.Title>No head-to-head data yet</Empty.Title>
-        <Empty.Description
-          >Import tournaments to generate head-to-head records.</Empty.Description
-        >
-      </Empty.Header>
-    </Empty.Root>
+    <div class="mx-auto max-w-5xl px-4">
+      <Empty.Root>
+        <Empty.Header>
+          <Empty.Title>No head-to-head data yet</Empty.Title>
+          <Empty.Description
+            >Import tournaments to generate head-to-head records.</Empty.Description
+          >
+        </Empty.Header>
+      </Empty.Root>
+    </div>
   {:else}
     <div class="overflow-x-auto">
       <div class="w-fit mx-auto">
