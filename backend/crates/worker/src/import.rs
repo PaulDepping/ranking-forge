@@ -103,7 +103,7 @@ pub async fn run(
             startgg,
             project_id,
             tournament,
-            game_id,
+            Some(game_id),
             project.game_name.as_deref(),
             &account_map,
         )
@@ -200,7 +200,7 @@ async fn import_tournament(
     startgg: &StartggClient,
     project_id: Uuid,
     tournament: &TournamentNode,
-    game_id: i64,
+    game_id: Option<i64>,
     game_name: Option<&str>,
     account_map: &HashMap<i64, Uuid>,
 ) -> anyhow::Result<()> {
@@ -277,10 +277,13 @@ async fn import_event(
     project_id: Uuid,
     tournament_db_id: Uuid,
     event: &EventNode,
-    game_id: i64,
+    game_id: Option<i64>,
     game_name: Option<&str>,
     account_map: &HashMap<i64, Uuid>,
 ) -> anyhow::Result<()> {
+    let effective_game_id = game_id.or_else(|| event.videogame.as_ref().map(|v| v.id));
+    let effective_game_name =
+        game_name.or_else(|| event.videogame.as_ref().map(|v| v.name.as_str()));
     let start_at = event.start_at.map(ts_to_dt);
     let min_team_size = event.team_roster_size.as_ref().and_then(|r| r.min_players);
     let max_team_size = event.team_roster_size.as_ref().and_then(|r| r.max_players);
@@ -310,8 +313,8 @@ async fn import_event(
         event.event_type,
         min_team_size,
         max_team_size,
-        game_id,
-        game_name,
+        effective_game_id,
+        effective_game_name,
         event.num_entrants,
         start_at,
     )
