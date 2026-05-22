@@ -9,8 +9,8 @@ use super::queries::{
     TournamentAllEventsVars, TournamentEntrant, TournamentEntrantListData,
     TournamentEntrantListVars, TournamentEntrantOrdered, TournamentEventWithEntrants,
     TournamentEventsData, TournamentEventsVars, TournamentPage, TournamentParticipant,
-    TournamentParticipantsData, TournamentParticipantsVars, TournamentsByUserData,
-    TournamentsByUserVars, UserBySlugData, UserBySlugVars, UserNode,
+    TournamentParticipantsData, TournamentParticipantsVars, TournamentsByUserAllGamesVars,
+    TournamentsByUserData, TournamentsByUserVars, UserBySlugData, UserBySlugVars, UserNode,
 };
 use super::{StartggClient, StartggError};
 
@@ -44,6 +44,32 @@ const TOURNAMENTS_BY_USER_QUERY: &str = r#"
                         id name numEntrants startAt
                         slug state isOnline type
                         teamRosterSize { minPlayers maxPlayers }
+                    }
+                }
+            }
+        }
+    }"#;
+
+const TOURNAMENTS_BY_USER_ALL_GAMES_QUERY: &str = r#"
+    query($userId: ID!, $page: Int!, $perPage: Int!) {
+        user(id: $userId) {
+            tournaments(query: {
+                page: $page
+                perPage: $perPage
+            }) {
+                pageInfo { total totalPages }
+                nodes {
+                    id name slug
+                    city addrState countryCode
+                    venueName venueAddress
+                    timezone isOnline numAttendees
+                    lat lng state
+                    startAt endAt
+                    events {
+                        id name numEntrants startAt
+                        slug state isOnline type
+                        teamRosterSize { minPlayers maxPlayers }
+                        videogame { id name }
                     }
                 }
             }
@@ -210,6 +236,37 @@ impl StartggClient {
                 TournamentsByUserVars {
                     user_id,
                     game_id,
+                    page,
+                    per_page,
+                },
+            )
+            .await?;
+        tracing::debug!(
+            elapsed_ms = t.elapsed().as_millis(),
+            "startgg query complete"
+        );
+        Ok(data
+            .user
+            .map(|u| u.tournaments)
+            .unwrap_or_else(|| TournamentPage {
+                page_info: None,
+                nodes: vec![],
+            }))
+    }
+
+    #[instrument(skip(self))]
+    pub async fn tournaments_by_user_all_games(
+        &self,
+        user_id: i64,
+        page: i32,
+        per_page: i32,
+    ) -> Result<TournamentPage, StartggError> {
+        let t = Instant::now();
+        let data: TournamentsByUserData = self
+            .gql(
+                TOURNAMENTS_BY_USER_ALL_GAMES_QUERY,
+                TournamentsByUserAllGamesVars {
+                    user_id,
                     page,
                     per_page,
                 },
