@@ -24,8 +24,8 @@
   }
 </script>
 
-<div class="space-y-4 px-4">
-  <h2 class="text-lg font-semibold">Stats</h2>
+<div class="space-y-4">
+  <h2 class="mx-auto max-w-5xl px-4 text-lg font-semibold">Stats</h2>
 
   {#if data.stats.length === 0}
     <Empty.Root>
