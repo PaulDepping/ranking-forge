@@ -37,11 +37,6 @@ pub async fn run(
     .fetch_one(pool)
     .await?;
 
-    let Some(game_id) = project.game_id else {
-        tracing::warn!(%project_id, "project has no game_id set, skipping import");
-        return Ok(());
-    };
-
     // Build startgg_user_id → player_id map for this project
     let account_rows = sqlx::query!(
         "SELECT sa.startgg_user_id, sa.player_id
@@ -70,15 +65,26 @@ pub async fn run(
     let mut seen: HashMap<i64, TournamentNode> = HashMap::new();
     let total_players = user_ids.len();
     for (i, user_id) in user_ids.iter().enumerate() {
-        collect_user_tournaments(
-            startgg,
-            *user_id,
-            game_id,
-            params.after_date,
-            params.before_date,
-            &mut seen,
-        )
-        .await?;
+        if let Some(game_id) = project.game_id {
+            collect_user_tournaments(
+                startgg,
+                *user_id,
+                game_id,
+                params.after_date,
+                params.before_date,
+                &mut seen,
+            )
+            .await?;
+        } else {
+            collect_user_tournaments_all_games(
+                startgg,
+                *user_id,
+                params.after_date,
+                params.before_date,
+                &mut seen,
+            )
+            .await?;
+        }
         update_progress(pool, job_id, "scanning", i + 1, total_players).await?;
     }
     tracing::info!(
@@ -103,7 +109,7 @@ pub async fn run(
             startgg,
             project_id,
             tournament,
-            Some(game_id),
+            project.game_id,
             project.game_name.as_deref(),
             &account_map,
         )
@@ -184,6 +190,73 @@ async fn collect_user_tournaments(
     }
 
     tracing::info!(scanned, newly_added, "user tournaments scanned");
+    Ok(())
+}
+
+#[instrument(skip(startgg, seen), fields(startgg_user_id = user_id))]
+async fn collect_user_tournaments_all_games(
+    startgg: &StartggClient,
+    user_id: i64,
+    after_date: Option<i64>,
+    before_date: Option<i64>,
+    seen: &mut HashMap<i64, TournamentNode>,
+) -> anyhow::Result<()> {
+    let mut per_page = 25i32;
+    let mut scanned = 0usize;
+    let mut newly_added = 0usize;
+
+    'pages: loop {
+        let mut page = 1i32;
+        loop {
+            let tournament_page = match startgg
+                .tournaments_by_user_all_games(user_id, page, per_page)
+                .await
+            {
+                Err(StartggError::ComplexityTooHigh { actual, limit }) if per_page > 1 => {
+                    tracing::warn!(
+                        per_page,
+                        actual,
+                        limit,
+                        "complexity too high, halving perPage"
+                    );
+                    per_page /= 2;
+                    continue 'pages;
+                }
+                other => other?,
+            };
+
+            for tournament in tournament_page.nodes {
+                let start_ts = tournament.start_at.unwrap_or(0);
+                if let Some(before) = before_date {
+                    if start_ts > before {
+                        continue;
+                    }
+                }
+                if let Some(after) = after_date {
+                    if start_ts < after {
+                        continue;
+                    }
+                }
+                scanned += 1;
+                seen.entry(tournament.id).or_insert_with(|| {
+                    newly_added += 1;
+                    tournament
+                });
+            }
+
+            let total_pages = tournament_page
+                .page_info
+                .as_ref()
+                .and_then(|p| p.total_pages)
+                .unwrap_or(1);
+            if page >= total_pages {
+                break 'pages;
+            }
+            page += 1;
+        }
+    }
+
+    tracing::info!(scanned, newly_added, "user tournaments scanned (all games)");
     Ok(())
 }
 
