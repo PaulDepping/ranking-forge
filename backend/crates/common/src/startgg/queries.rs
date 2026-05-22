@@ -585,6 +585,7 @@ pub(crate) struct TournamentWithAllEvents {
 pub(crate) struct TournamentAllEventNode {
     pub id: i64,
     pub name: String,
+    pub state: Option<String>,
 }
 
 /// Public output type for `tournament_events_with_entrants`.
@@ -601,5 +602,6 @@ pub struct TournamentEntrantOrdered {
 pub struct TournamentEventWithEntrants {
     pub id: i64,
     pub name: String,
+    pub state: Option<String>,
     pub entrants: Vec<TournamentEntrantOrdered>,
 }

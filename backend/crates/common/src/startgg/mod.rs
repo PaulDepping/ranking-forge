@@ -1020,6 +1020,76 @@ mod tests {
         assert_eq!(mang0.placement, None);
     }
 
+    #[tokio::test]
+    async fn tournament_events_with_entrants_threads_event_state() {
+        let mock = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": {
+                    "tournament": {
+                        "events": [
+                            { "id": 101, "name": "Melee Singles", "state": "CREATED" },
+                            { "id": 102, "name": "Ultimate Singles", "state": "ACTIVE" }
+                        ]
+                    }
+                }
+            })))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+
+        // Entrants for event 101 — empty (brackets not published)
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": {
+                    "event": {
+                        "entrants": {
+                            "pageInfo": { "totalPages": 1 },
+                            "nodes": []
+                        }
+                    }
+                }
+            })))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+
+        // Entrants for event 102
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": {
+                    "event": {
+                        "entrants": {
+                            "pageInfo": { "totalPages": 1 },
+                            "nodes": [{
+                                "initialSeedNum": 1,
+                                "standing": { "placement": 1 },
+                                "participants": [{
+                                    "gamerTag": "Mang0",
+                                    "user": { "id": 1001, "slug": "user/mang0" }
+                                }]
+                            }]
+                        }
+                    }
+                }
+            })))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+
+        let result = client(&mock.uri())
+            .tournament_events_with_entrants("some-weekly")
+            .await
+            .unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].state.as_deref(), Some("CREATED"));
+        assert_eq!(result[0].entrants.len(), 0);
+        assert_eq!(result[1].state.as_deref(), Some("ACTIVE"));
+        assert_eq!(result[1].entrants.len(), 1);
+    }
+
     // ── event_phases ──────────────────────────────────────────────────────────
 
     #[tokio::test]

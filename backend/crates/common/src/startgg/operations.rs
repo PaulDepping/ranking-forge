@@ -143,7 +143,7 @@ const TOURNAMENT_ALL_EVENTS_QUERY: &str = r#"
     query($slug: String!) {
         tournament(slug: $slug) {
             events {
-                id name
+                id name state
             }
         }
     }"#;
@@ -529,6 +529,7 @@ impl StartggClient {
             result.push(TournamentEventWithEntrants {
                 id: event_node.id,
                 name: event_node.name,
+                state: event_node.state,
                 entrants,
             });
         }
