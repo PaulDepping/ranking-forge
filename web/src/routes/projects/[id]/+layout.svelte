@@ -41,7 +41,8 @@
     <div>
       <a
         href="/projects"
-        class="text-sm text-muted-foreground hover:text-foreground">← Projects</a
+        class="text-sm text-muted-foreground hover:text-foreground"
+        >← Projects</a
       >
       <h1 class="mt-1 text-2xl font-bold">{data.project.name}</h1>
       {#if data.project.game_name}

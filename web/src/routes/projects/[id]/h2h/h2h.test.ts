@@ -76,7 +76,13 @@ describe("H2H page", () => {
 
   it("shows empty message when h2h data is absent", () => {
     render(Page, {
-      data: { user, project, players: players.slice(0, 1), h2h: [], wide: false },
+      data: {
+        user,
+        project,
+        players: players.slice(0, 1),
+        h2h: [],
+        wide: false,
+      },
     });
     expect(screen.getByText("No head-to-head data yet")).toBeInTheDocument();
     expect(
