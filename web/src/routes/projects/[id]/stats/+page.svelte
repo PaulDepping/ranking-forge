@@ -24,7 +24,7 @@
   }
 </script>
 
-<div class="space-y-4">
+<div class="space-y-4 px-4">
   <h2 class="text-lg font-semibold">Stats</h2>
 
   {#if data.stats.length === 0}

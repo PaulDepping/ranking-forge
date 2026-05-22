@@ -72,7 +72,7 @@
   }
 </script>
 
-<div class="space-y-4">
+<div class="space-y-4 px-4">
   <h2 class="text-lg font-semibold">Head-to-head</h2>
 
   {#if data.players.length < 2 || data.h2h.length === 0}
