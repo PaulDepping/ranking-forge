@@ -123,6 +123,21 @@ Protected routes receive an `AuthUser` via `impl FromRequestParts`. It reads the
 
 `common::jobs` provides `enqueue`, `claim`, `mark_running/done/failed`. The worker listens via `PgListener` and claims jobs with `SELECT ... FOR UPDATE SKIP LOCKED` — safe for concurrent workers.
 
+## Git commands
+
+Never combine a `cd` to the project root with a git command in the same shell invocation. Git operates on the current working tree, so `git status` works from any directory in the repo. If you need to run a git command from a path outside the repo, use `git -C /abs/path/to/repo <subcommand>` — this keeps the command starting with `git` and avoids a unnecessary `cd &&` prefix.
+
+```bash
+# Wrong — triggers an extra permission prompt and is redundant
+cd /home/pd/private_projects/ranking_forge && git log --oneline -5
+
+# Right — git already knows the repo root
+git log --oneline -5
+
+# Right — when truly outside the repo tree
+git -C /home/pd/private_projects/ranking_forge log --oneline -5
+```
+
 ## Formatting
 
 Run formatters before every commit:
