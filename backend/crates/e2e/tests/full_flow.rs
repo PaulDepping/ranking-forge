@@ -944,3 +944,207 @@ async fn import_skips_sort_if_already_ranked(pool: PgPool) {
     // Manual order (Mango first) must be preserved
     assert_eq!(names, vec!["Mango", "Armada"]);
 }
+
+/// Regression: a project with no game_id should import all tournaments/events
+/// and store per-event game_id/game_name from the start.gg videogame field.
+#[sqlx::test(migrations = "../../migrations")]
+async fn import_no_game_filter_flow(pool: PgPool) {
+    let mock = MockServer::start().await;
+
+    // user_by_slug("mango")
+    Mock::given(method("POST"))
+        .and(body_string_contains("\"mango\""))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": { "user": { "id": 12345_i64, "player": { "gamerTag": "Mango" } } }
+        })))
+        .mount(&mock)
+        .await;
+
+    // tournaments_by_user_all_games — identified by the videogame sub-selection
+    Mock::given(method("POST"))
+        .and(body_string_contains("videogame { id name }"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": {
+                "user": {
+                    "tournaments": {
+                        "pageInfo": { "total": 1, "totalPages": 1 },
+                        "nodes": [{
+                            "id": 1001_i64,
+                            "name": "Test Tournament",
+                            "slug": "tournament/test-2024",
+                            "city": "San Jose",
+                            "addrState": "CA",
+                            "countryCode": "US",
+                            "venueName": null,
+                            "venueAddress": null,
+                            "timezone": "America/Los_Angeles",
+                            "isOnline": false,
+                            "numAttendees": 8,
+                            "startAt": 1700000000_i64,
+                            "endAt":   1700086400_i64,
+                            "events": [{
+                                "id": 2001_i64,
+                                "name": "Melee Singles",
+                                "numEntrants": 2,
+                                "startAt": 1700040000_i64,
+                                "slug": "tournament/test-2024/event/melee-singles",
+                                "state": "COMPLETED",
+                                "isOnline": false,
+                                "type": 1,
+                                "teamRosterSize": null,
+                                "videogame": { "id": 1, "name": "Super Smash Bros. Melee" }
+                            }]
+                        }]
+                    }
+                }
+            }
+        })))
+        .mount(&mock)
+        .await;
+
+    // event phases
+    Mock::given(method("POST"))
+        .and(body_string_contains("phaseGroups(query:"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": {
+                "event": {
+                    "phases": [{
+                        "id": 5001_i64,
+                        "name": "Bracket",
+                        "bracketType": "DOUBLE_ELIMINATION",
+                        "phaseOrder": 1,
+                        "numSeeds": 1,
+                        "groupCount": 1,
+                        "state": "COMPLETED",
+                        "isExhibition": false,
+                        "phaseGroups": {
+                            "pageInfo": { "total": 1, "totalPages": 1 },
+                            "nodes": [{
+                                "id": 6001_i64,
+                                "displayIdentifier": "1",
+                                "bracketType": "DOUBLE_ELIMINATION",
+                                "bracketUrl": null,
+                                "numRounds": null,
+                                "startAt": null,
+                                "firstRoundTime": null,
+                                "state": 3
+                            }]
+                        }
+                    }]
+                }
+            }
+        })))
+        .mount(&mock)
+        .await;
+
+    // event entrants
+    Mock::given(method("POST"))
+        .and(body_string_contains("entrants(query:"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": {
+                "event": {
+                    "entrants": {
+                        "pageInfo": { "total": 1, "totalPages": 1 },
+                        "nodes": [{
+                            "id": 3001_i64,
+                            "initialSeedNum": 1,
+                            "isDisqualified": false,
+                            "standing": { "placement": 1 },
+                            "participants": [{ "gamerTag": "Mango", "user": { "id": 12345_i64 } }]
+                        }]
+                    }
+                }
+            }
+        })))
+        .mount(&mock)
+        .await;
+
+    // event sets — empty bracket (no sets to import)
+    Mock::given(method("POST"))
+        .and(body_string_contains("sets(page:"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": {
+                "event": {
+                    "sets": {
+                        "pageInfo": { "total": 0, "totalPages": 1 },
+                        "nodes": []
+                    }
+                }
+            }
+        })))
+        .mount(&mock)
+        .await;
+
+    let base_url = mock.uri();
+    let app = make_app(pool.clone(), &base_url);
+
+    // ── Setup ─────────────────────────────────────────────────────────────────
+
+    let cookie = register(&app, "gameuser", "pass1234").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
+
+    // Create project with NO game_id
+    let resp = post_json(
+        &app,
+        "/projects",
+        &cookie,
+        json!({ "name": "All Games PR" }),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let project = read_json(resp).await;
+    let project_id = project["id"].as_str().unwrap().to_string();
+
+    // Add Mango and link start.gg account
+    let resp = post_json(
+        &app,
+        &format!("/projects/{project_id}/players"),
+        &cookie,
+        json!({"name": "Mango"}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let mango_id = read_json(resp).await["id"].as_str().unwrap().to_string();
+
+    let resp = post_json(
+        &app,
+        &format!("/projects/{project_id}/players/{mango_id}/accounts"),
+        &cookie,
+        json!({"handle": "user/mango"}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    // ── Import ────────────────────────────────────────────────────────────────
+
+    let project_uuid = Uuid::parse_str(&project_id).unwrap();
+    let startgg_worker = StartggClient::new_with_base_url("test-key".into(), base_url.into());
+    worker::import::run(
+        &pool,
+        &startgg_worker,
+        project_uuid,
+        Uuid::nil(),
+        common::jobs::ImportParams::default(),
+    )
+    .await
+    .unwrap();
+
+    // ── Assertions ────────────────────────────────────────────────────────────
+
+    // Event was created with per-event game_id and game_name from start.gg
+    let event_row = sqlx::query!(
+        r#"SELECT e.game_id, e.game_name
+           FROM events e
+           JOIN tournaments t ON t.id = e.tournament_id
+           WHERE t.startgg_id = 1001"#
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(event_row.game_id, Some(1_i64));
+    assert_eq!(
+        event_row.game_name.as_deref(),
+        Some("Super Smash Bros. Melee")
+    );
+}
