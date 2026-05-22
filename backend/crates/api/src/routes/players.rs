@@ -492,6 +492,7 @@ pub struct TournamentParticipantResp {
 pub struct TournamentEventResp {
     pub id: i64,
     pub name: String,
+    pub state: Option<String>,
     pub entrants: Vec<TournamentEntrantOrderedResp>,
 }
 
@@ -527,10 +528,14 @@ pub async fn list_tournament_entrants(
 
     let handle = normalize_tournament_handle(&q.tournament);
 
-    let participants = startgg
-        .tournament_participants(&handle)
-        .await
-        .map_err(AppError::from)?;
+    let participants = match startgg.tournament_participants(&handle).await? {
+        Some(p) => p,
+        None => {
+            return Err(AppError::UnprocessableEntity(
+                "Tournament not found on start.gg".into(),
+            ));
+        }
+    };
 
     let events = startgg
         .tournament_events_with_entrants(&handle)
@@ -551,6 +556,7 @@ pub async fn list_tournament_entrants(
         .map(|e| TournamentEventResp {
             id: e.id,
             name: e.name,
+            state: e.state,
             entrants: e
                 .entrants
                 .into_iter()

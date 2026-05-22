@@ -1612,6 +1612,38 @@ async fn test_list_tournament_entrants_normalizes_url(pool: PgPool) {
     assert!(body["events"].as_array().unwrap().is_empty());
 }
 
+#[sqlx::test(migrations = "../../migrations")]
+async fn test_list_tournament_entrants_returns_422_when_not_found(pool: PgPool) {
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    let mock = MockServer::start().await;
+
+    // Mock participants query returning null (tournament not found)
+    Mock::given(wiremock::matchers::method("POST"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": { "tournament": null }
+        })))
+        .up_to_n_times(1)
+        .mount(&mock)
+        .await;
+
+    let app = make_app(pool.clone(), &mock.uri());
+    let cookie = register(&app, "alice", "password123").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
+    let pid = create_project(&app, &pool, &cookie).await;
+
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid}/tournament-entrants?tournament=nonexistent"),
+        &cookie,
+    )
+    .await;
+
+    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    let body = read_json(resp).await;
+    assert_eq!(body["message"], "Tournament not found on start.gg");
+}
+
 // ── Rename player ─────────────────────────────────────────────────────────────
 
 #[sqlx::test(migrations = "../../migrations")]
