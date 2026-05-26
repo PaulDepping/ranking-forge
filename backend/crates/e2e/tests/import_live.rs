@@ -1,55 +1,403 @@
 #![cfg(feature = "live-tests")]
 
-use common::startgg::StartggClient;
-
-// ── Discovery helper ──────────────────────────────────────────────────────────
-// Run once with a known Hannover player slug to identify golden tournament data.
-// Command:
+// Golden-dataset live integration tests for the Smash Hannover Weekly series.
+//
+// These tests call the real start.gg API. They are gated behind the `live-tests`
+// feature flag and require STARTGG_API_KEY to be set in the environment.
+//
+// Run with:
 //   DATABASE_URL=postgres://postgres:postgres@localhost:15432/postgres \
 //   STARTGG_API_KEY=<your-key> \
 //   SQLX_OFFLINE=true \
-//   cargo test -p e2e --features live-tests -- discover_hannover_weeklies --nocapture
-//
-// After collecting output, replace this file with the golden tests in Task 4.
+//   cargo test -p e2e --features live-tests
 
-#[tokio::test]
-async fn discover_hannover_weeklies() {
-    let key = std::env::var("STARTGG_API_KEY")
-        .expect("STARTGG_API_KEY must be set to run live tests");
+use api::{routes, state::AppState};
+use axum::{Router, body::Body, http::Request, http::StatusCode};
+use common::startgg::StartggClient;
+use http_body_util::BodyExt;
+use serde_json::{Value, json};
+use sqlx::PgPool;
+use tower::ServiceExt;
+use uuid::Uuid;
 
-    let player_slug = "user/06b4042d";
-    let melee_game_id: i64 = 1;
+// ── Golden dataset ────────────────────────────────────────────────────────────
 
-    let client = StartggClient::new(key);
+const PLAYER1_SLUG: &str = "user/06b4042d"; // gamerTag: "King"
+const PLAYER2_SLUG: &str = "user/54b7bbf3";
 
-    let user = client
-        .user_by_slug(player_slug)
+const WEEKLY_100_NAME: &str = "Smash Hannover Weekly #100";
+const WEEKLY_100_SLUG: &str = "tournament/smash-hannover-weekly-100";
+
+const WEEKLY_88_NAME: &str = "Smash Hannover Weekly #88";
+const WEEKLY_88_SLUG: &str = "tournament/smash-hannover-weekly-88";
+
+const WEEKLY_84_NAME: &str = "Smash Hannover Weekly #84";
+const WEEKLY_84_SLUG: &str = "tournament/smash-hannover-weekly-84";
+
+// ── Helpers (mirrors full_flow.rs) ───────────────────────────────────────────
+
+fn make_app(pool: PgPool, startgg_base_url: &str) -> Router {
+    let state = AppState {
+        db: pool,
+        cors_origin: "http://localhost".to_string(),
+        startgg_base_url: startgg_base_url.to_string(),
+    };
+    routes::router().with_state(state)
+}
+
+async fn read_json(resp: axum::response::Response) -> Value {
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+async fn register(app: &Router, username: &str, password: &str) -> String {
+    let req = Request::builder()
+        .method("POST")
+        .uri("/auth/register")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            serde_json::to_vec(&json!({"email": format!("{username}@test.com"), "display_name": username, "password": password}))
+                .unwrap(),
+        ))
+        .unwrap();
+    let resp = app.clone().oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    format!("session_id={}", body["session_id"].as_str().unwrap())
+}
+
+async fn post_json(app: &Router, uri: &str, cookie: &str, body: Value) -> axum::response::Response {
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(uri)
+                .header("content-type", "application/json")
+                .header("cookie", cookie)
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
         .await
-        .expect("API call failed")
-        .expect("player slug not found — check it is correct");
-    eprintln!("User ID: {}  gamerTag: {:?}", user.id, user.gamer_tag());
+        .unwrap()
+}
 
-    // Fetch page 1 of Melee tournaments (50 per page — enough for a local player)
-    let page = client
-        .tournaments_by_user(user.id, melee_game_id, 1, 50)
+async fn get_req(app: &Router, uri: &str, cookie: &str) -> axum::response::Response {
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(uri)
+                .header("cookie", cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
-        .expect("tournaments_by_user failed");
-    eprintln!(
-        "\nTotal pages: {:?}  Tournaments on page 1: {}",
-        page.page_info.as_ref().map(|p| p.total_pages),
-        page.nodes.len()
+        .unwrap()
+}
+
+async fn set_startgg_api_key(pool: &PgPool, cookie: &str, api_key: &str) {
+    let session_id: uuid::Uuid = cookie
+        .split('=')
+        .nth(1)
+        .unwrap()
+        .parse()
+        .expect("invalid session UUID in cookie");
+    sqlx::query!(
+        "UPDATE users SET startgg_api_key = $1
+         WHERE id = (SELECT user_id FROM sessions WHERE id = $2)",
+        api_key,
+        session_id,
+    )
+    .execute(pool)
+    .await
+    .expect("failed to set startgg_api_key");
+}
+
+fn live_api_key() -> String {
+    std::env::var("STARTGG_API_KEY").expect("STARTGG_API_KEY must be set to run live tests")
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+/// Golden-dataset test: import Smash Hannover Weekly #100.
+///
+/// Registers a user, creates a Melee project (game_id = 1), adds Player 1
+/// (slug user/06b4042d / gamerTag "King"), links their start.gg account, then
+/// runs the import worker against the real API.
+///
+/// Asserts:
+/// - "Smash Hannover Weekly #100" appears in the project's tournament list
+/// - at least one event with num_entrants > 0
+#[sqlx::test(migrations = "../../migrations")]
+async fn import_hannover_weekly_100(pool: PgPool) {
+    let api_key = live_api_key();
+
+    let startgg_client = StartggClient::new(api_key.clone());
+    let app = make_app(pool.clone(), "https://api.start.gg/gql/alpha");
+
+    let cookie = register(&app, "liveuser1", "pass1234").await;
+    set_startgg_api_key(&pool, &cookie, &api_key).await;
+
+    let resp = post_json(
+        &app,
+        "/projects",
+        &cookie,
+        json!({
+            "name": "Hannover Melee PR",
+            "game_id": 1,
+            "game_name": "Super Smash Bros. Melee"
+        }),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let project = read_json(resp).await;
+    let project_id = project["id"].as_str().unwrap().to_string();
+
+    // Add Player 1 and link their start.gg account
+    let resp = post_json(
+        &app,
+        &format!("/projects/{project_id}/players"),
+        &cookie,
+        json!({"name": "King"}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let player1_id = read_json(resp).await["id"].as_str().unwrap().to_string();
+
+    let resp = post_json(
+        &app,
+        &format!("/projects/{project_id}/players/{player1_id}/accounts"),
+        &cookie,
+        json!({"handle": PLAYER1_SLUG}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    // Run import against the real start.gg API
+    let project_uuid = Uuid::parse_str(&project_id).unwrap();
+    worker::import::run(
+        &pool,
+        &startgg_client,
+        project_uuid,
+        Uuid::nil(),
+        common::jobs::ImportParams::default(),
+    )
+    .await
+    .unwrap();
+
+    // Assert: Weekly #100 appears in the tournament list
+    let resp = get_req(
+        &app,
+        &format!("/projects/{project_id}/tournaments"),
+        &cookie,
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = read_json(resp).await;
+    let tournaments = body.as_array().unwrap();
+
+    let weekly_100 = tournaments
+        .iter()
+        .find(|t| t["name"] == WEEKLY_100_NAME)
+        .unwrap_or_else(|| {
+            let names: Vec<&str> = tournaments
+                .iter()
+                .filter_map(|t| t["name"].as_str())
+                .collect();
+            panic!(
+                "Expected '{}' in tournament list, got: {:?}",
+                WEEKLY_100_NAME, names
+            );
+        });
+
+    // Verify the slug matches the golden dataset
+    assert!(
+        weekly_100["slug"]
+            .as_str()
+            .map(|s| s.contains(WEEKLY_100_SLUG.trim_start_matches("tournament/")))
+            .unwrap_or(false),
+        "tournament slug did not contain expected handle: {:?}",
+        weekly_100["slug"]
     );
 
-    for t in &page.nodes {
-        eprintln!("\n=== {} ===", t.name);
-        eprintln!("  slug:    {}", t.slug);
-        eprintln!("  state:   {:?}", t.state);
-        eprintln!("  startAt: {:?}", t.start_at);
-        if let Some(events) = &t.events {
-            for e in events {
-                eprintln!("  event: {} (id: {})", e.name, e.id);
-                eprintln!("    numEntrants: {:?}  state: {:?}", e.num_entrants, e.state);
-            }
-        }
-    }
+    // Assert: at least one event with num_entrants > 0
+    let events = weekly_100["events"].as_array().unwrap();
+    assert!(
+        !events.is_empty(),
+        "Weekly #100 should have at least one event"
+    );
+    let has_entrants = events
+        .iter()
+        .any(|e| e["num_entrants"].as_i64().unwrap_or(0) > 0);
+    assert!(
+        has_entrants,
+        "At least one event in Weekly #100 should have num_entrants > 0, events: {:?}",
+        events
+    );
+}
+
+/// Golden-dataset test: import Smash Hannover Weekly #88 and #84.
+///
+/// Registers a user, creates a Melee project, adds both Player 1 (slug
+/// user/06b4042d) and Player 2 (slug user/54b7bbf3), links their start.gg
+/// accounts, then runs the import worker against the real API.
+///
+/// Asserts:
+/// - "Smash Hannover Weekly #88" appears in the tournament list
+/// - "Smash Hannover Weekly #84" appears in the tournament list
+/// - total set count > 0 across all player stats
+#[sqlx::test(migrations = "../../migrations")]
+async fn import_hannover_weekly_88_and_84(pool: PgPool) {
+    let api_key = live_api_key();
+
+    let startgg_client = StartggClient::new(api_key.clone());
+    let app = make_app(pool.clone(), "https://api.start.gg/gql/alpha");
+
+    let cookie = register(&app, "liveuser2", "pass1234").await;
+    set_startgg_api_key(&pool, &cookie, &api_key).await;
+
+    let resp = post_json(
+        &app,
+        "/projects",
+        &cookie,
+        json!({
+            "name": "Hannover Melee PR 2-Player",
+            "game_id": 1,
+            "game_name": "Super Smash Bros. Melee"
+        }),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let project = read_json(resp).await;
+    let project_id = project["id"].as_str().unwrap().to_string();
+
+    // Add Player 1
+    let resp = post_json(
+        &app,
+        &format!("/projects/{project_id}/players"),
+        &cookie,
+        json!({"name": "King"}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let player1_id = read_json(resp).await["id"].as_str().unwrap().to_string();
+
+    let resp = post_json(
+        &app,
+        &format!("/projects/{project_id}/players/{player1_id}/accounts"),
+        &cookie,
+        json!({"handle": PLAYER1_SLUG}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    // Add Player 2
+    let resp = post_json(
+        &app,
+        &format!("/projects/{project_id}/players"),
+        &cookie,
+        json!({"name": "Player2"}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let player2_id = read_json(resp).await["id"].as_str().unwrap().to_string();
+
+    let resp = post_json(
+        &app,
+        &format!("/projects/{project_id}/players/{player2_id}/accounts"),
+        &cookie,
+        json!({"handle": PLAYER2_SLUG}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    // Run import against the real start.gg API
+    let project_uuid = Uuid::parse_str(&project_id).unwrap();
+    worker::import::run(
+        &pool,
+        &startgg_client,
+        project_uuid,
+        Uuid::nil(),
+        common::jobs::ImportParams::default(),
+    )
+    .await
+    .unwrap();
+
+    // Assert: Weekly #88 appears in the tournament list
+    let resp = get_req(
+        &app,
+        &format!("/projects/{project_id}/tournaments"),
+        &cookie,
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = read_json(resp).await;
+    let tournaments = body.as_array().unwrap();
+
+    let tournament_names: Vec<&str> = tournaments
+        .iter()
+        .filter_map(|t| t["name"].as_str())
+        .collect();
+
+    assert!(
+        tournaments.iter().any(|t| t["name"] == WEEKLY_88_NAME),
+        "Expected '{}' in tournament list, got: {:?}",
+        WEEKLY_88_NAME,
+        tournament_names
+    );
+
+    // Assert: Weekly #84 appears in the tournament list
+    assert!(
+        tournaments.iter().any(|t| t["name"] == WEEKLY_84_NAME),
+        "Expected '{}' in tournament list, got: {:?}",
+        WEEKLY_84_NAME,
+        tournament_names
+    );
+
+    // Verify slugs match the golden dataset
+    let weekly_88 = tournaments
+        .iter()
+        .find(|t| t["name"] == WEEKLY_88_NAME)
+        .unwrap();
+    assert!(
+        weekly_88["slug"]
+            .as_str()
+            .map(|s| s.contains(WEEKLY_88_SLUG.trim_start_matches("tournament/")))
+            .unwrap_or(false),
+        "Weekly #88 slug did not match golden dataset: {:?}",
+        weekly_88["slug"]
+    );
+
+    let weekly_84 = tournaments
+        .iter()
+        .find(|t| t["name"] == WEEKLY_84_NAME)
+        .unwrap();
+    assert!(
+        weekly_84["slug"]
+            .as_str()
+            .map(|s| s.contains(WEEKLY_84_SLUG.trim_start_matches("tournament/")))
+            .unwrap_or(false),
+        "Weekly #84 slug did not match golden dataset: {:?}",
+        weekly_84["slug"]
+    );
+
+    // Assert: total set count > 0 across all player stats
+    let resp = get_req(&app, &format!("/projects/{project_id}/stats"), &cookie).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let stats = read_json(resp).await;
+    let stats_arr = stats.as_array().unwrap();
+
+    let total_sets: usize = stats_arr
+        .iter()
+        .map(|s| {
+            s["wins"].as_array().map(|a| a.len()).unwrap_or(0)
+                + s["losses"].as_array().map(|a| a.len()).unwrap_or(0)
+        })
+        .sum();
+
+    assert!(
+        total_sets > 0,
+        "Expected total set count > 0 after importing both players, got 0"
+    );
 }
