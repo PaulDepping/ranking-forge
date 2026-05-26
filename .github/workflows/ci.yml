@@ -137,7 +137,7 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:15432/postgres
           STARTGG_API_KEY: ${{ secrets.STARTGG_API_KEY }}
           SQLX_OFFLINE: "true"
-        working-directory: backend
+        working-directory: backend/
         run: cargo test -p e2e --features live-tests
 
   build-web:
