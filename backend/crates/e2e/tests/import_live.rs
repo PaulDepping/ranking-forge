@@ -26,13 +26,13 @@ const PLAYER1_SLUG: &str = "user/06b4042d"; // gamerTag: "King"
 const PLAYER2_SLUG: &str = "user/54b7bbf3";
 
 const WEEKLY_100_NAME: &str = "Smash Hannover Weekly #100";
-const WEEKLY_100_SLUG: &str = "tournament/smash-hannover-weekly-100";
+const WEEKLY_100_HANDLE: &str = "smash-hannover-weekly-100";
 
 const WEEKLY_88_NAME: &str = "Smash Hannover Weekly #88";
-const WEEKLY_88_SLUG: &str = "tournament/smash-hannover-weekly-88";
+const WEEKLY_88_HANDLE: &str = "smash-hannover-weekly-88";
 
 const WEEKLY_84_NAME: &str = "Smash Hannover Weekly #84";
-const WEEKLY_84_SLUG: &str = "tournament/smash-hannover-weekly-84";
+const WEEKLY_84_HANDLE: &str = "smash-hannover-weekly-84";
 
 // ── Helpers (mirrors full_flow.rs) ───────────────────────────────────────────
 
@@ -211,14 +211,11 @@ async fn import_hannover_weekly_100(pool: PgPool) {
             );
         });
 
-    // Verify the slug matches the golden dataset
-    assert!(
-        weekly_100["slug"]
-            .as_str()
-            .map(|s| s.contains(WEEKLY_100_SLUG.trim_start_matches("tournament/")))
-            .unwrap_or(false),
-        "tournament slug did not contain expected handle: {:?}",
-        weekly_100["slug"]
+    // Verify the handle matches the golden dataset
+    assert_eq!(
+        weekly_100["handle"].as_str().unwrap_or(""),
+        WEEKLY_100_HANDLE,
+        "tournament handle did not match golden dataset"
     );
 
     // Assert: at least one event with num_entrants > 0
@@ -355,31 +352,25 @@ async fn import_hannover_weekly_88_and_84(pool: PgPool) {
         tournament_names
     );
 
-    // Verify slugs match the golden dataset
+    // Verify handles match the golden dataset
     let weekly_88 = tournaments
         .iter()
         .find(|t| t["name"] == WEEKLY_88_NAME)
         .unwrap();
-    assert!(
-        weekly_88["slug"]
-            .as_str()
-            .map(|s| s.contains(WEEKLY_88_SLUG.trim_start_matches("tournament/")))
-            .unwrap_or(false),
-        "Weekly #88 slug did not match golden dataset: {:?}",
-        weekly_88["slug"]
+    assert_eq!(
+        weekly_88["handle"].as_str().unwrap_or(""),
+        WEEKLY_88_HANDLE,
+        "Weekly #88 handle did not match golden dataset"
     );
 
     let weekly_84 = tournaments
         .iter()
         .find(|t| t["name"] == WEEKLY_84_NAME)
         .unwrap();
-    assert!(
-        weekly_84["slug"]
-            .as_str()
-            .map(|s| s.contains(WEEKLY_84_SLUG.trim_start_matches("tournament/")))
-            .unwrap_or(false),
-        "Weekly #84 slug did not match golden dataset: {:?}",
-        weekly_84["slug"]
+    assert_eq!(
+        weekly_84["handle"].as_str().unwrap_or(""),
+        WEEKLY_84_HANDLE,
+        "Weekly #84 handle did not match golden dataset"
     );
 
     // Assert: total set count > 0 across all player stats
