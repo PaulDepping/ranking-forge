@@ -1,6 +1,6 @@
 # start.gg API — Project Notes
 
-Reference for the start.gg GraphQL API as used by RankingForge. See `schema.graphql` in this directory for the full SDL schema. Run `fetch-schema.sh` to refresh it before extending the query set.
+Reference for the start.gg GraphQL API as used by RankingForge. See `backend/crates/common/src/startgg/schema.graphql` for the full SDL schema. Run `fetch-schema.sh` to refresh it before extending the query set.
 
 ## API Basics
 

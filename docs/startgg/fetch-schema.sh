@@ -22,6 +22,6 @@ echo "Fetching start.gg GraphQL schema..."
 npx --yes get-graphql-schema \
   https://api.start.gg/gql/alpha \
   --header "Authorization=Bearer ${STARTGG_API_KEY}" \
-  > "$SCRIPT_DIR/schema.graphql"
+  > "$REPO_ROOT/backend/crates/common/src/startgg/schema.graphql"
 
-echo "Done. Schema written to docs/startgg/schema.graphql"
+echo "Done. Schema written to backend/crates/common/src/startgg/schema.graphql"
