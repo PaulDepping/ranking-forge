@@ -1,0 +1,12 @@
+[package]
+name = "topology"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+topology-tests = []
+
+[dev-dependencies]
+reqwest   = { version = "0.13", features = ["json"] }
+serde_json = "1"
+tokio     = { version = "1", features = ["full"] }
