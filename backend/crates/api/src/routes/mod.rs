@@ -1,6 +1,7 @@
 pub mod account;
 pub mod auth;
 pub mod games;
+pub mod health;
 pub mod import;
 pub mod invite_links;
 pub mod members;
@@ -16,6 +17,7 @@ use axum::{
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        .route("/health", get(health::health))
         .nest("/auth", auth::router())
         .nest("/account", account::router())
         .nest("/projects", projects::router())

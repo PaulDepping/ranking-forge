@@ -325,6 +325,24 @@ fn startgg_games_ok() -> Value {
     })
 }
 
+// ── Health ────────────────────────────────────────────────────────────────────
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn health_returns_200(pool: PgPool) {
+    let app = make_app(pool, "");
+    let resp = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/health")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 #[sqlx::test(migrations = "../../migrations")]
