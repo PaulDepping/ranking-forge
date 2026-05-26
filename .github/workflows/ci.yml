@@ -140,6 +140,61 @@ jobs:
         working-directory: backend/
         run: cargo test -p e2e --features live-tests
 
+  topology:
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend/
+
+      - name: Start Postgres
+        run: |
+          docker run -d --name rf-topology \
+            -e POSTGRES_PASSWORD=postgres \
+            -p 15432:5432 \
+            postgres:18
+          until docker exec rf-topology pg_isready -U postgres -q 2>/dev/null; do
+            sleep 0.1
+          done
+
+      - name: Build api and worker
+        working-directory: backend/
+        env:
+          SQLX_OFFLINE: "true"
+        run: cargo build -p api -p worker
+
+      - name: Start api
+        shell: bash
+        working-directory: backend/
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:15432/postgres
+          STARTGG_API_KEY: ${{ secrets.STARTGG_API_KEY }}
+          CORS_ORIGIN: http://localhost
+        run: ./target/debug/api &
+
+      - name: Start worker
+        shell: bash
+        working-directory: backend/
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:15432/postgres
+          STARTGG_API_KEY: ${{ secrets.STARTGG_API_KEY }}
+        run: ./target/debug/worker &
+
+      - name: Run topology tests
+        working-directory: backend/
+        env:
+          API_URL: http://localhost:3000
+          STARTGG_API_KEY: ${{ secrets.STARTGG_API_KEY }}
+          SQLX_OFFLINE: "true"
+        run: cargo test -p topology --features topology-tests
+
   build-web:
     needs: test
     runs-on: ubuntu-latest
