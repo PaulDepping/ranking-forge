@@ -85,27 +85,38 @@ Note: `graphql-parser` validates query document syntax. Field-level validation a
 
 ### File location
 
-`backend/crates/e2e/tests/import_live.rs` — alongside the existing wiremock-based e2e tests. Runs as part of `cargo test -p e2e`.
+`backend/crates/e2e/tests/import_live.rs` — alongside the existing wiremock-based e2e tests.
 
-### DB
+### Opt-in via Cargo feature flag
 
-Uses `#[sqlx::test(migrations = "../../migrations")]` — the same pattern as all other e2e tests. Spins up an ephemeral Postgres per test, no persistent DB required.
+The entire file is gated behind a `live-tests` feature in `backend/crates/e2e/Cargo.toml`:
 
-### Skip gate
+```toml
+[features]
+live-tests = []
+```
 
-Every test function checks for the API key at the start of the body:
+```rust
+// import_live.rs
+#![cfg(feature = "live-tests")]
+```
+
+Without `--features live-tests` the file does not compile and the tests do not appear in `cargo test` output at all — no silent passes, no "ignored" entries. This is the explicit opt-in: you must ask for these tests to exist.
+
+When the feature is enabled, each test reads `STARTGG_API_KEY` from the environment and fails loudly if it is not set:
 
 ```rust
 #[sqlx::test(migrations = "../../migrations")]
 async fn import_hannover_weekly_live(pool: PgPool) {
-    let Some(key) = std::env::var("STARTGG_API_KEY").ok() else {
-        return; // skip silently — STARTGG_API_KEY not set
-    };
-    // ... rest of test using real StartggClient::new(key)
+    let key = std::env::var("STARTGG_API_KEY")
+        .expect("STARTGG_API_KEY must be set to run live tests");
+    // ... rest of test using StartggClient::new(key)
 }
 ```
 
-Returning early from `#[sqlx::test]` passes the test and cleans up the ephemeral DB. No `#[ignore]` tag needed.
+### DB
+
+Uses `#[sqlx::test(migrations = "../../migrations")]` — the same pattern as all other e2e tests. Spins up an ephemeral Postgres per test, no persistent DB required.
 
 ### What each test exercises
 
@@ -158,9 +169,17 @@ Each full weekly import calls roughly 3–5 API operations per event, with 2–3
 
 ## CI integration
 
-Add `STARTGG_API_KEY` as a repository secret. The existing CI jobs run `cargo test -p common` and `cargo test -p e2e` — both pick up the new live tests automatically when the env var is present.
+Add `STARTGG_API_KEY` as a repository secret. The existing CI jobs (`cargo test -p common`, `cargo test -p e2e`) are unchanged — they never see the live tests.
 
-Local development without a key: all live tests self-skip, CI remains green.
+A dedicated CI step runs the live suite explicitly:
+
+```bash
+STARTGG_API_KEY=${{ secrets.STARTGG_API_KEY }} cargo test -p e2e --features live-tests
+```
+
+This step only exists in CI environments where the secret is available. If the secret is not configured (forks, external PRs), the step is omitted or skipped at the CI level — no test binary is built and no silent passes occur.
+
+Local development: run live tests explicitly with `STARTGG_API_KEY=xxx cargo test -p e2e --features live-tests`. Without the flag, `cargo test --workspace` never touches them.
 
 ## Out of scope
 
