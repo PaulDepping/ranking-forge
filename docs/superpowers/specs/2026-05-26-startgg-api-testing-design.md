@@ -16,13 +16,11 @@ All start.gg API calls are tested via wiremock. The wiremock suite is thorough (
 
 Unit tests that validate each of the 6 query string constants against the start.gg GraphQL SDL schema. Runs unconditionally in `cargo test -p common` — no API key, no network.
 
-### Layer 2: Live golden-dataset tests
+### Layer 2: Live full-pipeline e2e tests
 
-Integration tests that call the real start.gg API using a hardcoded past tournament dataset from the Smash Hannover Weekly local scene. Gated on `STARTGG_API_KEY` being set: silently pass when absent, run fully when present.
+Full import pipeline tests that use the real start.gg API and an ephemeral Postgres DB. Gated on `STARTGG_API_KEY` being set: silently pass when absent, run fully when present. These live in `crates/e2e` alongside the existing wiremock-based e2e tests, and follow the same `#[sqlx::test]` pattern.
 
 ## Architecture
-
-No new crate. Both layers live in `common`.
 
 ```
 backend/crates/common/
@@ -31,8 +29,10 @@ backend/crates/common/
       schema.graphql          ← moved here from docs/startgg/
       operations/
         tests.rs              ← new: offline schema validation tests
+
+backend/crates/e2e/
   tests/
-    startgg_live.rs           ← new: live golden-dataset integration tests
+    import_live.rs            ← new: live full-pipeline import tests
 ```
 
 ## Layer 1: Offline schema validation
@@ -67,8 +67,6 @@ mod tests {
 
     fn assert_valid_query(query: &str) {
         let _doc: Document<String> = parse_query(query).expect("query failed to parse");
-        // graphql-parser validates syntax; structural field validation against the schema
-        // requires the schema document to be used for validation.
     }
 
     #[test] fn game_search_query_is_valid() { assert_valid_query(GAME_SEARCH_QUERY); }
@@ -81,73 +79,89 @@ mod tests {
 }
 ```
 
-Note: `graphql-parser` validates query document syntax. Field-level validation against the schema (detecting unknown field names, wrong argument types) requires the `apollo-compiler` crate or similar. The implementation should evaluate whether `graphql-parser` alone is sufficient or whether a schema-aware validator is needed. At minimum, both the schema and each query must parse without error — this already catches typos in field names if the parser enforces schema conformance, or serves as a syntax-only guard if it does not.
+Note: `graphql-parser` validates query document syntax. Field-level validation against the schema (detecting unknown field names, wrong argument types) requires the `apollo-compiler` crate or similar. The implementation should evaluate whether `graphql-parser` alone is sufficient or whether a schema-aware validator is needed. At minimum, both the schema and each query must parse without error.
 
-## Layer 2: Live golden-dataset tests
+## Layer 2: Live full-pipeline e2e tests
 
 ### File location
 
-`backend/crates/common/tests/startgg_live.rs` — a standard Rust integration test file. Runs as part of `cargo test -p common`.
+`backend/crates/e2e/tests/import_live.rs` — alongside the existing wiremock-based e2e tests. Runs as part of `cargo test -p e2e`.
+
+### DB
+
+Uses `#[sqlx::test(migrations = "../../migrations")]` — the same pattern as all other e2e tests. Spins up an ephemeral Postgres per test, no persistent DB required.
 
 ### Skip gate
 
-Every test function begins:
+Every test function checks for the API key at the start of the body:
 
 ```rust
-let Some(key) = std::env::var("STARTGG_API_KEY").ok() else {
-    eprintln!("STARTGG_API_KEY not set — skipping live test");
-    return;
-};
-let client = StartggClient::new(key);
+#[sqlx::test(migrations = "../../migrations")]
+async fn import_hannover_weekly_live(pool: PgPool) {
+    let Some(key) = std::env::var("STARTGG_API_KEY").ok() else {
+        return; // skip silently — STARTGG_API_KEY not set
+    };
+    // ... rest of test using real StartggClient::new(key)
+}
 ```
 
-Silently passes (exit 0) when the key is absent. No `#[ignore]` tag — these are normal tests that self-skip.
+Returning early from `#[sqlx::test]` passes the test and cleans up the ephemeral DB. No `#[ignore]` tag needed.
+
+### What each test exercises
+
+Each test runs a complete import for a known past Smash Hannover Weekly tournament and asserts specific results in the DB. This exercises the full stack: `StartggClient` → real start.gg API → import worker logic → DB writes → assertions on DB state.
+
+A single test covers all 6 operations implicitly: the import worker calls `tournaments_by_user` (or the all-games variant), `event_entrants`, `event_sets`, and `event_phases` for every event it processes.
 
 ### Golden dataset
 
-A block of hardcoded constants at the top of the file, clearly marked:
+A block of hardcoded constants at the top of the file:
 
 ```rust
 // ── Golden dataset: Smash Hannover Weekly ────────────────────────────────────
-// Source: past completed tournaments from the Hannover Melee scene.
-// Data is immutable (tournaments are finished). Verify against the app's
-// import results before committing these values.
+// Source: 2–3 past completed Smash Hannover Weekly tournaments.
+// Data is immutable (tournaments are finished).
+// IDs and expected values were verified by running the import and
+// inspecting the DB output during initial implementation.
 
-const TOURNAMENT_1_SLUG: &str = "tournament/smash-hannover-weekly-XX";
-const TOURNAMENT_1_EVENT_ID: i64 = /* fill in */;
+const HANNOVER_USER_SLUG: &str = "user/...";   // a known Hannover scene player
+const HANNOVER_GAME_ID: i64 = 1;               // Melee
+
+const WEEKLY_1_SLUG: &str = "tournament/smash-hannover-weekly-XX";
+const WEEKLY_1_EXPECTED_WINNER: &str = "PlayerHandle";
 // ... etc for 2–3 tournaments
 ```
 
-The dataset is populated during implementation by:
-1. Running a real import of 2–3 past Smash Hannover Weeklies via the app.
-2. User verifies the imported results are correct.
-3. Tournament slugs, event IDs, and 2–3 known set results (winner handle, loser handle, scores) are hardcoded as constants.
+### Discovery flow (one-time, during implementation)
 
-### Tests per operation covered
+The golden dataset is populated during implementation without needing the app running:
 
-| Test | Operation | Asserts |
-|---|---|---|
-| `user_by_slug_returns_known_user` | `user_by_slug` | Correct numeric start.gg user ID for a known scene player slug |
-| `tournaments_by_user_includes_known_weekly` | `tournaments_by_user` | A known tournament slug appears in results for the right user+game |
-| `event_entrants_returns_known_players` | `event_entrants` | Known player handles appear in entrant list for a past event |
-| `event_sets_returns_known_result` | `event_sets` | A specific set has the correct winner ID, loser ID, and scores |
-| `event_phases_returns_phases` | `event_phases` | At least one phase is returned with a non-empty phase group list |
-| `search_games_finds_melee` | `search_games` | Melee appears in results with a stable non-zero ID |
+1. Write a temporary discovery test that calls `StartggClient::new(key).tournaments_by_user(...)` for a known Hannover player slug, and prints tournament slugs, event IDs, and top set results.
+2. Run it once with `STARTGG_API_KEY` set.
+3. User inspects the output and confirms the data looks correct.
+4. Promote 2–3 past completed weeklies to constants; add specific assertions (e.g. known winner of a specific set).
+5. Delete the discovery helper.
 
-All assertions use immutable facts from past completed events.
+### Assertions per test
+
+Each per-tournament test asserts:
+- The tournament record exists in the DB with the correct slug and name.
+- The expected player handles are present in the `users` table.
+- At least one event is imported with a non-zero entrant count.
+- A specific known set result: correct winner, loser, and scores.
 
 ### Rate limits
 
-6 operations × 2–3 tournaments ≈ 20–30 API calls total. Well within the 80 req/60s limit. No throttling logic needed in the tests.
+Each full weekly import calls roughly 3–5 API operations per event, with 2–3 tournaments having 1–2 events each. Total: ~15–30 API calls per test run. Well within the 80 req/60s limit. No throttling logic needed in the tests.
 
 ## CI integration
 
-Add `STARTGG_API_KEY` as a repository secret. No new workflow file needed — `cargo test -p common` already runs integration tests. The existing CI job gains the env var and the live suite runs automatically.
+Add `STARTGG_API_KEY` as a repository secret. The existing CI jobs run `cargo test -p common` and `cargo test -p e2e` — both pick up the new live tests automatically when the env var is present.
 
 Local development without a key: all live tests self-skip, CI remains green.
 
 ## Out of scope
 
-- Testing the worker's import logic end-to-end against the live API (covered by existing e2e tests with wiremock).
-- Asserting all fields we map — we assert a curated set of immutable facts, not exhaustive field coverage.
+- Asserting every field we map — we assert a curated set of immutable facts, not exhaustive field coverage.
 - Complexity retry behavior against the live API — covered by existing wiremock tests.
+- Testing with a persistent DB — ephemeral `#[sqlx::test]` DB is sufficient.
