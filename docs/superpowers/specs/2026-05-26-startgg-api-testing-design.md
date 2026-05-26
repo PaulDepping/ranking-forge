@@ -109,9 +109,11 @@ Returning early from `#[sqlx::test]` passes the test and cleans up the ephemeral
 
 ### What each test exercises
 
-Each test runs a complete import for a known past Smash Hannover Weekly tournament and asserts specific results in the DB. This exercises the full stack: `StartggClient` → real start.gg API → import worker logic → DB writes → assertions on DB state.
+Each test calls `worker::import::run()` directly as a library function — the same pattern used by all existing e2e tests — and asserts specific results in the DB afterwards.
 
-A single test covers all 6 operations implicitly: the import worker calls `tournaments_by_user` (or the all-games variant), `event_entrants`, `event_sets`, and `event_phases` for every event it processes.
+This exercises: `StartggClient` → real start.gg API → import worker logic → DB writes → DB assertions. A single import covers all 6 API operations implicitly: `user_by_slug`, `tournaments_by_user` (or the all-games variant), `event_phases`, `event_entrants`, and `event_sets`.
+
+**What this does NOT test:** The job queue path. In production the worker is a separate process that receives a Postgres `NOTIFY`, claims a job with `SELECT ... FOR UPDATE SKIP LOCKED`, then calls `import::run()`. These live tests call `import::run()` directly, bypassing `PgListener` and job claiming entirely — the same gap that exists in the current wiremock e2e suite. See the "Future work" section below.
 
 ### Golden dataset
 
@@ -165,3 +167,22 @@ Local development without a key: all live tests self-skip, CI remains green.
 - Asserting every field we map — we assert a curated set of immutable facts, not exhaustive field coverage.
 - Complexity retry behavior against the live API — covered by existing wiremock tests.
 - Testing with a persistent DB — ephemeral `#[sqlx::test]` DB is sufficient.
+
+## Future work: full deployment topology testing
+
+The live e2e tests (Layer 2) and all existing e2e tests share a gap: they call `worker::import::run()` as a library function and never exercise the job queue path (`PgListener`, NOTIFY/LISTEN, job claiming with `SELECT ... FOR UPDATE SKIP LOCKED`).
+
+A production-fidelity smoke test suite would close this gap by running the actual compiled binaries as separate processes:
+
+1. `docker compose up` — starts `db`, `api`, and `worker` containers as in production.
+2. Trigger an import via the real API (HTTP POST).
+3. Wait for the worker to claim the job and complete the import.
+4. Assert results via the API.
+
+This is a meaningfully different testing tier — closer to a staging environment than a developer test suite. It would require:
+
+- A `docker-compose.test.yml` with the three services and a test-runner container or script.
+- A mechanism to wait for job completion (poll the job status endpoint, or watch the `jobs` table).
+- A separate CI job (not part of `cargo test`) to run it.
+
+This is left as a future concern. The current design covers API contract correctness (Layer 1 + Layer 2); full deployment topology validation is a separate, heavier effort.
