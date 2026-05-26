@@ -93,8 +93,15 @@ async fn smoke_import_roundtrip() {
     // 1. Wait for API to be up
     wait_for_api(&client).await;
 
-    // 2. Register a user
-    let session_id = register(&client, "topology@test.com", "password1234").await;
+    // 2. Register a user (unique email so repeated runs against the same DB succeed)
+    let unique_email = format!(
+        "topology-{}@test.com",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis()
+    );
+    let session_id = register(&client, &unique_email, "password1234").await;
 
     // 3. Set the start.gg API key (endpoint validates key against start.gg)
     let resp = client

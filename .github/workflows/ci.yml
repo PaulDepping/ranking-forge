@@ -177,15 +177,14 @@ jobs:
           DATABASE_URL: postgres://postgres:postgres@localhost:15432/postgres
           STARTGG_API_KEY: ${{ secrets.STARTGG_API_KEY }}
           CORS_ORIGIN: http://localhost
-        run: ./target/debug/api &
+        run: ./target/debug/api > /tmp/api.log 2>&1 &
 
       - name: Start worker
         shell: bash
         working-directory: backend/
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:15432/postgres
-          STARTGG_API_KEY: ${{ secrets.STARTGG_API_KEY }}
-        run: ./target/debug/worker &
+        run: ./target/debug/worker > /tmp/worker.log 2>&1 &
 
       - name: Run topology tests
         working-directory: backend/
@@ -194,6 +193,12 @@ jobs:
           STARTGG_API_KEY: ${{ secrets.STARTGG_API_KEY }}
           SQLX_OFFLINE: "true"
         run: cargo test -p topology --features topology-tests
+
+      - name: Dump service logs on failure
+        if: failure()
+        run: |
+          echo "=== api.log ===" && cat /tmp/api.log || true
+          echo "=== worker.log ===" && cat /tmp/worker.log || true
 
   build-web:
     needs: test
