@@ -160,13 +160,18 @@ impl StartggClient {
                     .with_max_times(5)
                     .with_jitter(),
             )
-            .when(|e| {
-                matches!(e, StartggError::Http(re) if re.status()
-                    .map(|s| s.is_server_error())
-                    .unwrap_or(false))
+            .when(|e| match e {
+                StartggError::Http(re) => re.status().map(|s| s.is_server_error()).unwrap_or(false),
+                // start.gg sometimes signals transient overload as a GraphQL
+                // error instead of HTTP 429; retry a bounded number of times.
+                StartggError::GraphQL(msg) => msg.contains("An unknown error has occurred"),
+                _ => false,
             })
             .notify(|_err, dur| {
-                tracing::warn!(?dur, "start.gg server error; retrying");
+                tracing::warn!(
+                    ?dur,
+                    "start.gg server error or transient overload; retrying"
+                );
             })
             .await
     }
@@ -1186,6 +1191,53 @@ mod tests {
         );
         assert_eq!(groups.nodes[0].id, 100);
         assert_eq!(groups.nodes[1].id, 101);
+    }
+
+    // ── transient "unknown error" retry ──────────────────────────────────────
+
+    #[tokio::test]
+    async fn unknown_error_once_then_succeeds() {
+        let mock = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": null,
+                "errors": [{"message": "An unknown error has occurred"}]
+            })))
+            .up_to_n_times(1)
+            .mount(&mock)
+            .await;
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": { "videogames": { "nodes": [
+                    {"id": 1, "name": "Melee", "displayName": null}
+                ] } }
+            })))
+            .mount(&mock)
+            .await;
+
+        let games = client(&mock.uri()).search_games("melee").await.unwrap();
+        assert_eq!(games.len(), 1);
+        assert_eq!(games[0].id, 1);
+    }
+
+    #[tokio::test]
+    async fn unknown_error_exhausts_retries() {
+        let mock = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": null,
+                "errors": [{"message": "An unknown error has occurred"}]
+            })))
+            .mount(&mock)
+            .await;
+
+        let err = client(&mock.uri()).search_games("melee").await.unwrap_err();
+        let request_count = mock.received_requests().await.unwrap().len();
+        assert!(
+            request_count > 1,
+            "expected retries on unknown error, got {request_count} request(s)"
+        );
+        assert!(matches!(err, StartggError::GraphQL(_)));
     }
 
     // ── 5xx server error retry ────────────────────────────────────────────────

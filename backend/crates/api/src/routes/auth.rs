@@ -376,12 +376,11 @@ mod tests {
         // Register creates one active session
         let _cookie = register(&app, "cleanup_user").await;
 
-        let user_id = sqlx::query_scalar!(
-            "SELECT id FROM users WHERE email = 'cleanup_user@test.com'"
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let user_id =
+            sqlx::query_scalar!("SELECT id FROM users WHERE email = 'cleanup_user@test.com'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
 
         // Insert an already-expired session
         sqlx::query!(

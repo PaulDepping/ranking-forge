@@ -381,7 +381,10 @@ pub fn router() -> Router<AppState> {
             get(get_project).delete(delete_project).patch(patch_project),
         )
         .nest("/{id}/players", crate::routes::players::router())
-        .route("/{id}/import", get(crate::routes::import::get_import_status))
+        .route(
+            "/{id}/import",
+            get(crate::routes::import::get_import_status),
+        )
         .merge(crate::routes::import::rate_limited_post_router())
         .route(
             "/{id}/tournament-entrants",

@@ -174,14 +174,17 @@ async fn import_hannover_weekly_100(pool: PgPool) {
     .await;
     assert_eq!(resp.status(), StatusCode::CREATED);
 
-    // Run import against the real start.gg API
+    // Scope to ±8 days around the known startAt of Weekly #100 (2026-03-10).
     let project_uuid = Uuid::parse_str(&project_id).unwrap();
     worker::import::run(
         &pool,
         &startgg_client,
         project_uuid,
         Uuid::nil(),
-        common::jobs::ImportParams::default(),
+        common::jobs::ImportParams {
+            after_date: Some(1772469000),  // 2026-03-02
+            before_date: Some(1773851400), // 2026-03-18
+        },
     )
     .await
     .unwrap();
@@ -309,14 +312,17 @@ async fn import_hannover_weekly_88_and_84(pool: PgPool) {
     .await;
     assert_eq!(resp.status(), StatusCode::CREATED);
 
-    // Run import against the real start.gg API
+    // Scope to cover both #84 (2025-11-04) and #88 (2025-12-02) ±8 days each.
     let project_uuid = Uuid::parse_str(&project_id).unwrap();
     worker::import::run(
         &pool,
         &startgg_client,
         project_uuid,
         Uuid::nil(),
-        common::jobs::ImportParams::default(),
+        common::jobs::ImportParams {
+            after_date: Some(1761582600),  // 2025-10-27 (~8 days before #84)
+            before_date: Some(1765384200), // 2025-12-10 (~8 days after #88)
+        },
     )
     .await
     .unwrap();
