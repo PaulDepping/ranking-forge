@@ -138,7 +138,7 @@ jobs:
           STARTGG_API_KEY: ${{ secrets.STARTGG_API_KEY }}
           SQLX_OFFLINE: "true"
         working-directory: backend/
-        run: cargo test -p e2e --features live-tests -- --test-threads=1
+        run: cargo test -p e2e --features live-tests
 
   build-web:
     needs: test

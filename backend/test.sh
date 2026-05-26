@@ -60,10 +60,10 @@ fi
 if [ -n "${STARTGG_API_KEY:-}" ]; then
     echo "Running live start.gg API tests..."
     if $VERBOSE; then
-        cargo test -p e2e --features live-tests "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}" -- --test-threads=1
+        cargo test -p e2e --features live-tests "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}"
     else
         tmpfile=$(mktemp)
-        if cargo test -p e2e --features live-tests "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}" -- --test-threads=1 >"$tmpfile" 2>&1; then
+        if cargo test -p e2e --features live-tests "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}" >"$tmpfile" 2>&1; then
             rm -f "$tmpfile"
             echo "PASS (live)"
         else
