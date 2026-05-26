@@ -1,6 +1,8 @@
 use super::{
-    EVENT_ENTRANTS_QUERY, EVENT_PHASES_QUERY, EVENT_SETS_QUERY, GAME_SEARCH_QUERY,
-    TOURNAMENTS_BY_USER_ALL_GAMES_QUERY, TOURNAMENTS_BY_USER_QUERY, USER_BY_SLUG_QUERY,
+    CURRENT_USER_QUERY, EVENT_ENTRANTS_QUERY, EVENT_PHASES_QUERY, EVENT_SETS_QUERY,
+    GAME_SEARCH_QUERY, TOURNAMENT_ALL_EVENTS_QUERY, TOURNAMENT_ENTRANT_LIST_QUERY,
+    TOURNAMENT_EVENTS_QUERY, TOURNAMENT_PARTICIPANTS_QUERY, TOURNAMENTS_BY_USER_ALL_GAMES_QUERY,
+    TOURNAMENTS_BY_USER_QUERY, USER_BY_SLUG_QUERY,
 };
 
 fn assert_query_parses(query: &'static str) {
@@ -21,6 +23,8 @@ fn schema_parses() {
 // These tests catch: garbled syntax, mismatched braces, invalid variable
 // declarations, and unknown query keywords. Full schema-aware validation
 // would require apollo-compiler or similar — that is left as future work.
+//
+// Tests cover all 12 query constants used in StartggClient operations.
 
 #[test]
 fn game_search_query_is_valid() {
@@ -55,4 +59,29 @@ fn event_sets_query_is_valid() {
 #[test]
 fn event_phases_query_is_valid() {
     assert_query_parses(EVENT_PHASES_QUERY);
+}
+
+#[test]
+fn tournament_events_query_is_valid() {
+    assert_query_parses(TOURNAMENT_EVENTS_QUERY);
+}
+
+#[test]
+fn tournament_entrant_list_query_is_valid() {
+    assert_query_parses(TOURNAMENT_ENTRANT_LIST_QUERY);
+}
+
+#[test]
+fn tournament_participants_query_is_valid() {
+    assert_query_parses(TOURNAMENT_PARTICIPANTS_QUERY);
+}
+
+#[test]
+fn tournament_all_events_query_is_valid() {
+    assert_query_parses(TOURNAMENT_ALL_EVENTS_QUERY);
+}
+
+#[test]
+fn current_user_query_is_valid() {
+    assert_query_parses(CURRENT_USER_QUERY);
 }
