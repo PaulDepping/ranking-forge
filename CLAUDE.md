@@ -93,7 +93,7 @@ cargo test -p common -- test_name
 
 Local documentation lives in `docs/startgg/`:
 
-- `schema.graphql` — full SDL schema from GraphQL introspection; the authoritative type and field reference for the start.gg API
+- `backend/crates/common/src/startgg/schema.graphql` — full SDL schema from GraphQL introspection; the authoritative type and field reference for the start.gg API
 - `project-notes.md` — the 5 GraphQL operations this project uses, rate limits, auth, and known API quirks (including the `ActivityState` string/int inconsistency)
 - `fetch-schema.sh` — run this to refresh `schema.graphql` before extending the query set; requires `STARTGG_API_KEY` in environment or root `.env`
 
