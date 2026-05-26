@@ -3,6 +3,9 @@ name = "e2e"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+live-tests = []
+
 [dev-dependencies]
 api    = { path = "../api" }
 worker = { path = "../worker" }
