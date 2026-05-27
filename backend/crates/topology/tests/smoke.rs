@@ -156,10 +156,17 @@ async fn smoke_import_roundtrip() {
         .await;
     }
 
-    // 6. Trigger import — api inserts job row and sends NOTIFY jobs
+    // 6. Trigger import — api inserts job row and sends NOTIFY jobs.
+    // Scope to the window around Hannover Weekly #84 and #88 to avoid fetching
+    // the full tournament history (which would take far longer than the 120 s
+    // timeout).  This mirrors the date range used in import_live.rs.
     let resp = client
         .post(format!("{}/projects/{project_id}/import", api_url()))
         .header("cookie", format!("session_id={session_id}"))
+        .json(&json!({
+            "after_date": "2025-10-27",
+            "before_date": "2025-12-10"
+        }))
         .send()
         .await
         .expect("POST /projects/{project_id}/import failed");

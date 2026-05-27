@@ -175,7 +175,6 @@ jobs:
         working-directory: backend/
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:15432/postgres
-          STARTGG_API_KEY: ${{ secrets.STARTGG_API_KEY }}
           CORS_ORIGIN: http://localhost
         run: ./target/debug/api > /tmp/api.log 2>&1 &
 
