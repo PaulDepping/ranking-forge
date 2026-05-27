@@ -38,6 +38,7 @@ FROM debian:bookworm-slim AS base
 RUN apt-get update && apt-get install -y --no-install-recommends \
     adduser \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 ARG UID=10001
@@ -53,6 +54,8 @@ USER appuser
 
 FROM base AS api
 COPY --from=builder /bin/api /bin/
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:3000/health || exit 1
 CMD ["/bin/api"]
 
 FROM base AS worker
