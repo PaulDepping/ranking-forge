@@ -435,6 +435,390 @@ async fn import_hannover_weekly_88_and_84(pool: PgPool) {
             }
         }
     }
+
+    // ── Stats ──────────────────────────────────────────────────────────────────
+    let resp = get_req(&app, &format!("/projects/{project_id}/stats"), &cookie).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let stats = read_json(resp).await;
+    let stats_arr = stats.as_array().unwrap();
+
+    let king_stats = stats_arr
+        .iter()
+        .find(|s| s["player_id"] == json!(player1_id))
+        .expect("King not found in stats");
+    let player2_stats = stats_arr
+        .iter()
+        .find(|s| s["player_id"] == json!(player2_id))
+        .expect("Player2 not found in stats");
+
+    let king_wins = king_stats["wins"].as_array().unwrap();
+    let king_losses = king_stats["losses"].as_array().unwrap();
+    let p2_wins = player2_stats["wins"].as_array().unwrap();
+    let p2_losses = player2_stats["losses"].as_array().unwrap();
+
+    assert_eq!(king_wins.len(), 12, "king wins count");
+    assert_eq!(king_losses.len(), 0, "king losses count");
+    assert_eq!(p2_wins.len(), 7, "player2 wins count");
+    assert_eq!(p2_losses.len(), 1, "player2 losses count");
+
+    let find_set = |arr: &[Value], set_id: i64| -> &Value {
+        arr.iter()
+            .find(|s| s["startgg_set_id"] == json!(set_id))
+            .unwrap_or_else(|| panic!("set {set_id} not found"))
+    };
+
+    // King wins at #88
+    // All King wins at #88 are in Melee Singles, none are DQs
+    for w in king_wins
+        .iter()
+        .filter(|w| w["tournament_name"] == json!(WEEKLY_88_NAME))
+    {
+        assert_eq!(
+            w["event_name"],
+            json!("Melee Singles"),
+            "king #88 win event_name"
+        );
+        assert_eq!(w["is_dq"], json!(false), "king #88 win is_dq");
+    }
+    {
+        let s = find_set(king_wins, 96986292);
+        assert_eq!(s["opponent_name"], json!("Klinx"), "96986292 opponent_name");
+        assert_eq!(s["upset_factor"], json!(-3_i64), "96986292 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 1"), "96986292 round_name");
+        assert_eq!(s["winner_seed"], json!(1_i64), "96986292 winner_seed");
+        assert_eq!(s["loser_seed"], json!(5_i64), "96986292 loser_seed");
+    }
+    {
+        let s = find_set(king_wins, 96986545);
+        assert_eq!(s["opponent_name"], json!("Pompf"), "96986545 opponent_name");
+        assert_eq!(s["upset_factor"], json!(-2_i64), "96986545 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 2"), "96986545 round_name");
+        assert_eq!(s["winner_seed"], json!(1_i64), "96986545 winner_seed");
+        assert_eq!(s["loser_seed"], json!(4_i64), "96986545 loser_seed");
+    }
+    {
+        let s = find_set(king_wins, 96986713);
+        assert_eq!(
+            s["opponent_name"],
+            json!("Efisch"),
+            "96986713 opponent_name"
+        );
+        assert_eq!(s["upset_factor"], json!(-1_i64), "96986713 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 3"), "96986713 round_name");
+        assert_eq!(s["winner_seed"], json!(1_i64), "96986713 winner_seed");
+        assert_eq!(s["loser_seed"], json!(2_i64), "96986713 loser_seed");
+    }
+    {
+        let s = find_set(king_wins, 96987400);
+        assert_eq!(
+            s["opponent_name"],
+            json!("Kometeisball"),
+            "96987400 opponent_name"
+        );
+        assert_eq!(s["upset_factor"], json!(-4_i64), "96987400 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 4"), "96987400 round_name");
+        assert_eq!(s["winner_seed"], json!(1_i64), "96987400 winner_seed");
+        assert_eq!(s["loser_seed"], json!(7_i64), "96987400 loser_seed");
+    }
+
+    // King wins at #84
+    // All King wins at #84 are in Melee Singles, none are DQs
+    for w in king_wins
+        .iter()
+        .filter(|w| w["tournament_name"] == json!(WEEKLY_84_NAME))
+    {
+        assert_eq!(
+            w["event_name"],
+            json!("Melee Singles"),
+            "king #84 win event_name"
+        );
+        assert_eq!(w["is_dq"], json!(false), "king #84 win is_dq");
+    }
+    {
+        let s = find_set(king_wins, 95869986);
+        assert_eq!(
+            s["opponent_name"],
+            json!("zyklop007"),
+            "95869986 opponent_name"
+        );
+        assert_eq!(s["upset_factor"], json!(-5_i64), "95869986 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 2"), "95869986 round_name");
+        assert_eq!(s["winner_seed"], json!(1_i64), "95869986 winner_seed");
+        assert_eq!(s["loser_seed"], json!(9_i64), "95869986 loser_seed");
+    }
+    {
+        let s = find_set(king_wins, 95869990);
+        assert_eq!(
+            s["opponent_name"],
+            json!("Hektor"),
+            "95869990 opponent_name"
+        );
+        assert_eq!(s["upset_factor"], json!(-4_i64), "95869990 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 3"), "95869990 round_name");
+        assert_eq!(s["winner_seed"], json!(1_i64), "95869990 winner_seed");
+        assert_eq!(s["loser_seed"], json!(8_i64), "95869990 loser_seed");
+    }
+    {
+        let s = find_set(king_wins, 95869994);
+        assert_eq!(
+            s["opponent_name"],
+            json!("Kometeisball"),
+            "95869994 opponent_name"
+        );
+        assert_eq!(s["upset_factor"], json!(-4_i64), "95869994 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 4"), "95869994 round_name");
+        assert_eq!(s["winner_seed"], json!(1_i64), "95869994 winner_seed");
+        assert_eq!(s["loser_seed"], json!(7_i64), "95869994 loser_seed");
+    }
+    {
+        let s = find_set(king_wins, 95869998);
+        assert_eq!(
+            s["opponent_name"],
+            json!("Thought"),
+            "95869998 opponent_name"
+        );
+        assert_eq!(s["upset_factor"], json!(-3_i64), "95869998 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 5"), "95869998 round_name");
+        assert_eq!(s["winner_seed"], json!(1_i64), "95869998 winner_seed");
+        assert_eq!(s["loser_seed"], json!(6_i64), "95869998 loser_seed");
+    }
+    {
+        let s = find_set(king_wins, 95870002);
+        assert_eq!(s["opponent_name"], json!("Marc"), "95870002 opponent_name");
+        assert_eq!(s["upset_factor"], json!(-3_i64), "95870002 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 6"), "95870002 round_name");
+        assert_eq!(s["winner_seed"], json!(1_i64), "95870002 winner_seed");
+        assert_eq!(s["loser_seed"], json!(5_i64), "95870002 loser_seed");
+    }
+    {
+        let s = find_set(king_wins, 95870006);
+        assert_eq!(
+            s["opponent_name"],
+            json!("Efisch"),
+            "95870006 opponent_name"
+        );
+        assert_eq!(s["upset_factor"], json!(-2_i64), "95870006 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 7"), "95870006 round_name");
+        assert_eq!(s["winner_seed"], json!(1_i64), "95870006 winner_seed");
+        assert_eq!(s["loser_seed"], json!(4_i64), "95870006 loser_seed");
+    }
+    {
+        let s = find_set(king_wins, 95870010);
+        assert_eq!(
+            s["opponent_name"],
+            json!("Sabaca"),
+            "95870010 opponent_name"
+        );
+        assert_eq!(s["upset_factor"], json!(-2_i64), "95870010 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 8"), "95870010 round_name");
+        assert_eq!(s["winner_seed"], json!(1_i64), "95870010 winner_seed");
+        assert_eq!(s["loser_seed"], json!(3_i64), "95870010 loser_seed");
+    }
+    {
+        let s = find_set(king_wins, 95870014);
+        assert_eq!(
+            s["opponent_name"],
+            json!("Player2"),
+            "95870014 opponent_name"
+        );
+        assert_eq!(s["upset_factor"], json!(-1_i64), "95870014 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 9"), "95870014 round_name");
+        assert_eq!(s["winner_seed"], json!(1_i64), "95870014 winner_seed");
+        assert_eq!(s["loser_seed"], json!(2_i64), "95870014 loser_seed");
+    }
+
+    // Player2 wins at #84
+    // All Player2 wins at #84 are in Melee Singles, none are DQs
+    for w in p2_wins.iter() {
+        assert_eq!(w["event_name"], json!("Melee Singles"), "p2 win event_name");
+        assert_eq!(
+            w["tournament_name"],
+            json!("Smash Hannover Weekly #84"),
+            "p2 win tournament_name"
+        );
+        assert_eq!(w["is_dq"], json!(false), "p2 win is_dq");
+    }
+    // Player2 loss is at #84
+    for l in p2_losses.iter() {
+        assert_eq!(
+            l["event_name"],
+            json!("Melee Singles"),
+            "p2 loss event_name"
+        );
+        assert_eq!(
+            l["tournament_name"],
+            json!("Smash Hannover Weekly #84"),
+            "p2 loss tournament_name"
+        );
+        assert_eq!(l["is_dq"], json!(false), "p2 loss is_dq");
+    }
+    {
+        let s = find_set(p2_wins, 95869982);
+        assert_eq!(
+            s["opponent_name"],
+            json!("zyklop007"),
+            "95869982 opponent_name"
+        );
+        assert_eq!(s["upset_factor"], json!(-4_i64), "95869982 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 1"), "95869982 round_name");
+        assert_eq!(s["winner_seed"], json!(2_i64), "95869982 winner_seed");
+        assert_eq!(s["loser_seed"], json!(9_i64), "95869982 loser_seed");
+    }
+    {
+        let s = find_set(p2_wins, 95869987);
+        assert_eq!(
+            s["opponent_name"],
+            json!("Kometeisball"),
+            "95869987 opponent_name"
+        );
+        assert_eq!(s["upset_factor"], json!(-3_i64), "95869987 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 2"), "95869987 round_name");
+        assert_eq!(s["winner_seed"], json!(2_i64), "95869987 winner_seed");
+        assert_eq!(s["loser_seed"], json!(7_i64), "95869987 loser_seed");
+    }
+    {
+        let s = find_set(p2_wins, 95869992);
+        assert_eq!(s["opponent_name"], json!("Marc"), "95869992 opponent_name");
+        assert_eq!(s["upset_factor"], json!(-2_i64), "95869992 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 3"), "95869992 round_name");
+        assert_eq!(s["winner_seed"], json!(2_i64), "95869992 winner_seed");
+        assert_eq!(s["loser_seed"], json!(5_i64), "95869992 loser_seed");
+    }
+    {
+        let s = find_set(p2_wins, 95869997);
+        assert_eq!(
+            s["opponent_name"],
+            json!("Sabaca"),
+            "95869997 opponent_name"
+        );
+        assert_eq!(s["upset_factor"], json!(-1_i64), "95869997 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 4"), "95869997 round_name");
+        assert_eq!(s["winner_seed"], json!(2_i64), "95869997 winner_seed");
+        assert_eq!(s["loser_seed"], json!(3_i64), "95869997 loser_seed");
+    }
+    {
+        let s = find_set(p2_wins, 95870005);
+        assert_eq!(
+            s["opponent_name"],
+            json!("Hektor"),
+            "95870005 opponent_name"
+        );
+        assert_eq!(s["upset_factor"], json!(-3_i64), "95870005 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 6"), "95870005 round_name");
+        assert_eq!(s["winner_seed"], json!(2_i64), "95870005 winner_seed");
+        assert_eq!(s["loser_seed"], json!(8_i64), "95870005 loser_seed");
+    }
+    {
+        let s = find_set(p2_wins, 95870008);
+        assert_eq!(
+            s["opponent_name"],
+            json!("Thought"),
+            "95870008 opponent_name"
+        );
+        assert_eq!(s["upset_factor"], json!(-2_i64), "95870008 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 7"), "95870008 round_name");
+        assert_eq!(s["winner_seed"], json!(2_i64), "95870008 winner_seed");
+        assert_eq!(s["loser_seed"], json!(6_i64), "95870008 loser_seed");
+    }
+    {
+        let s = find_set(p2_wins, 95870011);
+        assert_eq!(
+            s["opponent_name"],
+            json!("Efisch"),
+            "95870011 opponent_name"
+        );
+        assert_eq!(s["upset_factor"], json!(-1_i64), "95870011 upset_factor");
+        assert_eq!(s["round_name"], json!("Round 8"), "95870011 round_name");
+        assert_eq!(s["winner_seed"], json!(2_i64), "95870011 winner_seed");
+        assert_eq!(s["loser_seed"], json!(4_i64), "95870011 loser_seed");
+    }
+
+    // Player2 loss at #84
+    {
+        let s = find_set(p2_losses, 95870014);
+        assert_eq!(
+            s["opponent_name"],
+            json!("King"),
+            "p2 loss 95870014 opponent_name"
+        );
+        assert_eq!(
+            s["upset_factor"],
+            json!(-1_i64),
+            "p2 loss 95870014 upset_factor"
+        );
+        assert_eq!(
+            s["round_name"],
+            json!("Round 9"),
+            "p2 loss 95870014 round_name"
+        );
+        assert_eq!(
+            s["winner_seed"],
+            json!(1_i64),
+            "p2 loss 95870014 winner_seed"
+        );
+        assert_eq!(s["loser_seed"], json!(2_i64), "p2 loss 95870014 loser_seed");
+    }
+
+    // ── H2H summary ───────────────────────────────────────────────────────────
+    let resp = get_req(
+        &app,
+        &format!("/projects/{project_id}/head-to-head"),
+        &cookie,
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let h2h = read_json(resp).await;
+    let h2h_arr = h2h.as_array().unwrap();
+
+    let king_vs_p2 = h2h_arr
+        .iter()
+        .find(|e| e["player_id"] == json!(player1_id) && e["opponent_id"] == json!(player2_id))
+        .expect("king→player2 entry missing from H2H summary");
+    let p2_vs_king = h2h_arr
+        .iter()
+        .find(|e| e["player_id"] == json!(player2_id) && e["opponent_id"] == json!(player1_id))
+        .expect("player2→king entry missing from H2H summary");
+
+    assert_eq!(king_vs_p2["wins"], json!(1_i64), "king→p2 wins");
+    assert_eq!(king_vs_p2["losses"], json!(0_i64), "king→p2 losses");
+    assert_eq!(p2_vs_king["wins"], json!(0_i64), "p2→king wins");
+    assert_eq!(p2_vs_king["losses"], json!(1_i64), "p2→king losses");
+
+    // ── H2H sets drilldown ────────────────────────────────────────────────────
+    let resp = get_req(
+        &app,
+        &format!("/projects/{project_id}/head-to-head/{player1_id}/{player2_id}/sets"),
+        &cookie,
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let sets_body = read_json(resp).await;
+    let sets_arr = sets_body.as_array().unwrap();
+
+    assert_eq!(sets_arr.len(), 1, "H2H sets count");
+
+    // sets_arr.len() == 1 asserted above; direct index is safe
+    assert_eq!(sets_arr[0]["is_win"], json!(true), "sets[0] is_win");
+    assert_eq!(
+        sets_arr[0]["tournament_name"],
+        json!("Smash Hannover Weekly #84"),
+        "sets[0] tournament_name"
+    );
+    assert_eq!(
+        sets_arr[0]["event_name"],
+        json!("Melee Singles"),
+        "sets[0] event_name"
+    );
+    assert_eq!(
+        sets_arr[0]["round_name"],
+        json!("Round 9"),
+        "sets[0] round_name"
+    );
+    assert_eq!(
+        sets_arr[0]["opponent_name"],
+        json!("Player2"),
+        "sets[0] opponent_name"
+    );
 }
 
 /// Temporary discovery test — run once with --nocapture to read off golden
