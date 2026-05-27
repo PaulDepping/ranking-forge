@@ -96,6 +96,27 @@ async fn get_req(app: &Router, uri: &str, cookie: &str) -> axum::response::Respo
         .unwrap()
 }
 
+#[allow(dead_code)]
+async fn patch_json(
+    app: &Router,
+    uri: &str,
+    cookie: &str,
+    body: Value,
+) -> axum::response::Response {
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .method("PATCH")
+                .uri(uri)
+                .header("content-type", "application/json")
+                .header("cookie", cookie)
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
 async fn set_startgg_api_key(pool: &PgPool, cookie: &str, api_key: &str) {
     let session_id: uuid::Uuid = cookie
         .split('=')
@@ -396,5 +417,162 @@ async fn import_hannover_weekly_88_and_84(pool: PgPool) {
     assert!(
         total_sets > 0,
         "Expected total set count > 0 after importing both players, got 0"
+    );
+}
+
+/// Temporary discovery test — run once with --nocapture to read off golden
+/// event IDs and stats values, then delete this function after Task 4.
+///
+/// Run with:
+///   DATABASE_URL=postgres://postgres:postgres@localhost:15432/postgres \
+///   STARTGG_API_KEY=<your-key> \
+///   SQLX_OFFLINE=true \
+///   cargo test -p e2e --features live-tests -- discover_hannover_stats --nocapture
+#[sqlx::test(migrations = "../../migrations")]
+async fn discover_hannover_stats(pool: PgPool) {
+    let api_key = live_api_key();
+    let startgg_client = StartggClient::new(api_key.clone());
+    let app = make_app(pool.clone(), "https://api.start.gg/gql/alpha");
+
+    let cookie = register(&app, "discoveruser", "pass1234").await;
+    set_startgg_api_key(&pool, &cookie, &api_key).await;
+
+    // Create a Melee project
+    let resp = post_json(
+        &app,
+        "/projects",
+        &cookie,
+        json!({
+            "name": "Discover H2H Stats",
+            "game_id": 1,
+            "game_name": "Super Smash Bros. Melee"
+        }),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let project = read_json(resp).await;
+    let project_id = project["id"].as_str().unwrap().to_string();
+
+    // Add Player 1 (King)
+    let resp = post_json(
+        &app,
+        &format!("/projects/{project_id}/players"),
+        &cookie,
+        json!({"name": "King"}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let king_id = read_json(resp).await["id"].as_str().unwrap().to_string();
+
+    let resp = post_json(
+        &app,
+        &format!("/projects/{project_id}/players/{king_id}/accounts"),
+        &cookie,
+        json!({"handle": PLAYER1_SLUG}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    // Add Player 2
+    let resp = post_json(
+        &app,
+        &format!("/projects/{project_id}/players"),
+        &cookie,
+        json!({"name": "Player2"}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let player2_id = read_json(resp).await["id"].as_str().unwrap().to_string();
+
+    let resp = post_json(
+        &app,
+        &format!("/projects/{project_id}/players/{player2_id}/accounts"),
+        &cookie,
+        json!({"handle": PLAYER2_SLUG}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    // Run import — same date window as import_hannover_weekly_88_and_84
+    let project_uuid = Uuid::parse_str(&project_id).unwrap();
+    worker::import::run(
+        &pool,
+        &startgg_client,
+        project_uuid,
+        Uuid::nil(),
+        common::jobs::ImportParams {
+            after_date: Some(1761582600),  // 2025-10-27
+            before_date: Some(1765384200), // 2025-12-10
+        },
+    )
+    .await
+    .unwrap();
+
+    // ── Print all events (to identify KEEP_EVENT_STARTGG_ID_* values) ─────────
+    let resp = get_req(
+        &app,
+        &format!("/projects/{project_id}/tournaments"),
+        &cookie,
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let tournaments = read_json(resp).await;
+    eprintln!("\n=== TOURNAMENTS & EVENTS ===");
+    for t in tournaments.as_array().unwrap() {
+        eprintln!(
+            "Tournament: {}  (handle: {})",
+            t["name"].as_str().unwrap_or("?"),
+            t["handle"].as_str().unwrap_or("?")
+        );
+        for e in t["events"].as_array().unwrap() {
+            eprintln!(
+                "  event  startgg_id={}  name={:?}  included={}",
+                e["startgg_id"],
+                e["name"].as_str().unwrap_or("?"),
+                e["included"]
+            );
+        }
+    }
+
+    // ── Print full stats ───────────────────────────────────────────────────────
+    let resp = get_req(&app, &format!("/projects/{project_id}/stats"), &cookie).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let stats = read_json(resp).await;
+    eprintln!(
+        "\n=== STATS ===\n{}",
+        serde_json::to_string_pretty(&stats).unwrap()
+    );
+
+    // ── Print H2H summary ──────────────────────────────────────────────────────
+    let resp = get_req(
+        &app,
+        &format!("/projects/{project_id}/head-to-head"),
+        &cookie,
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let h2h = read_json(resp).await;
+    eprintln!(
+        "\n=== H2H SUMMARY ===\n{}",
+        serde_json::to_string_pretty(&h2h).unwrap()
+    );
+
+    // ── Print H2H sets drilldown ───────────────────────────────────────────────
+    let resp = get_req(
+        &app,
+        &format!("/projects/{project_id}/head-to-head/{king_id}/{player2_id}/sets"),
+        &cookie,
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let sets = read_json(resp).await;
+    eprintln!(
+        "\n=== H2H SETS ({king_id} vs {player2_id}) ===\n{}",
+        serde_json::to_string_pretty(&sets).unwrap()
+    );
+
+    panic!(
+        "discovery complete — review output above, fill in golden constants, \
+         extend import_hannover_weekly_88_and_84, then delete this function"
     );
 }
