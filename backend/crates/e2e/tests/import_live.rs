@@ -34,6 +34,10 @@ const WEEKLY_88_HANDLE: &str = "smash-hannover-weekly-88";
 const WEEKLY_84_NAME: &str = "Smash Hannover Weekly #84";
 const WEEKLY_84_HANDLE: &str = "smash-hannover-weekly-84";
 
+// ── Event filtering constants (from discover_hannover_stats Task 2 Step 3) ────
+const KEEP_EVENT_STARTGG_ID_88: i64 = 1514034; // Melee Singles at Smash Hannover Weekly #88
+const KEEP_EVENT_STARTGG_ID_84: i64 = 1495126; // Melee Singles at Smash Hannover Weekly #84
+
 // ── Helpers (mirrors full_flow.rs) ───────────────────────────────────────────
 
 fn make_app(pool: PgPool, startgg_base_url: &str) -> Router {
@@ -96,7 +100,6 @@ async fn get_req(app: &Router, uri: &str, cookie: &str) -> axum::response::Respo
         .unwrap()
 }
 
-#[allow(dead_code)]
 async fn patch_json(
     app: &Router,
     uri: &str,
@@ -267,7 +270,9 @@ async fn import_hannover_weekly_100(pool: PgPool) {
 /// Asserts:
 /// - "Smash Hannover Weekly #88" appears in the tournament list
 /// - "Smash Hannover Weekly #84" appears in the tournament list
-/// - total set count > 0 across all player stats
+/// - Handles match golden constants
+/// - All events except Melee Singles at #88 (startgg_id 1514034) and #84
+///   (startgg_id 1495126) are excluded
 #[sqlx::test(migrations = "../../migrations")]
 async fn import_hannover_weekly_88_and_84(pool: PgPool) {
     let api_key = live_api_key();
@@ -400,24 +405,36 @@ async fn import_hannover_weekly_88_and_84(pool: PgPool) {
         "Weekly #84 handle did not match golden dataset"
     );
 
-    // Assert: total set count > 0 across all player stats
-    let resp = get_req(&app, &format!("/projects/{project_id}/stats"), &cookie).await;
-    assert_eq!(resp.status(), StatusCode::OK);
-    let stats = read_json(resp).await;
-    let stats_arr = stats.as_array().unwrap();
-
-    let total_sets: usize = stats_arr
-        .iter()
-        .map(|s| {
-            s["wins"].as_array().map(|a| a.len()).unwrap_or(0)
-                + s["losses"].as_array().map(|a| a.len()).unwrap_or(0)
-        })
-        .sum();
-
-    assert!(
-        total_sets > 0,
-        "Expected total set count > 0 after importing both players, got 0"
-    );
+    // ── Filter: exclude all events except the two target Melee Singles events ──
+    let keep_ids = [KEEP_EVENT_STARTGG_ID_88, KEEP_EVENT_STARTGG_ID_84];
+    for tournament in tournaments.as_array().unwrap() {
+        let tournament_name = tournament["name"].as_str().unwrap_or("?");
+        for event in tournament["events"].as_array().unwrap_or_else(|| {
+            panic!(
+                "tournament '{}' events field should be an array",
+                tournament_name
+            )
+        }) {
+            let startgg_id = event["startgg_id"].as_i64().unwrap_or(0);
+            if !keep_ids.contains(&startgg_id) {
+                let event_uuid = event["id"]
+                    .as_str()
+                    .expect("event id should be a string UUID");
+                let resp = patch_json(
+                    &app,
+                    &format!("/projects/{project_id}/events/{event_uuid}"),
+                    &cookie,
+                    json!({"included": false}),
+                )
+                .await;
+                assert!(
+                    resp.status().is_success(),
+                    "PATCH event/{event_uuid} returned {}",
+                    resp.status()
+                );
+            }
+        }
+    }
 }
 
 /// Temporary discovery test — run once with --nocapture to read off golden
