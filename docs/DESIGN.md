@@ -6,10 +6,15 @@ This platform serves a common use case in the smash scene: helping TOs and other
 
 ## Scope
 
-The initial POC covers data collection and display only. Publishing rankings and allowing guests to view the underlying stats is planned but out of scope for now.
+RankingForge is a multi-user platform for smash-scene power rankings. Features:
 
-Out of scope for POC:
-- Public / guest access to rankings
+- Project ownership and collaboration (members, invite links)
+- Public project sharing — guests can view published projects without an account
+- Per-user start.gg API keys
+- Tournament import from start.gg with per-event filtering
+- Upset-factor statistics, head-to-head set records, and ranking views
+
+Out of scope:
 - Email verification or password reset
 - OAuth / social login
 - Multi-player doubles events
@@ -22,6 +27,13 @@ Out of scope for POC:
 4. I select a video game that start.gg supports.
 5. The server queries all start.gg tournaments that any of those players have entered. I am shown a list of those tournaments and their relevant events, and can manually deselect any I do not want to count.
 6. I get an overview of that list of players: each player's individual wins and losses as separate lists (each sorted by upset factor), with the player list ordered by aggregate upset factor. I also get a head-to-head table of set records between each player.
+
+7. As a project owner I can invite collaborators by email. Collaborators can manage
+   players, trigger imports, and adjust settings, but cannot delete the project or
+   transfer ownership.
+
+8. I can mark the project as published so that anyone with the link can view the
+   stats, head-to-head, ranking, and tournament pages without creating an account.
 
 ## Architecture
 
@@ -121,20 +133,24 @@ users
 
 ## API Overview
 
-See `api/openapi.yaml` for the full contract.
+See `openapi.yaml` for the full contract.
 
-| Group                | Endpoints                                                                                          |
-|----------------------|----------------------------------------------------------------------------------------------------|
-| Auth                 | POST /auth/register, /auth/login, /auth/logout; GET /auth/me                                       |
-| Projects             | GET/POST /projects; GET/PATCH/DELETE /projects/:id                                                 |
-| Players              | CRUD on /projects/:id/players                                                                      |
-| start.gg accounts    | POST/DELETE /projects/:id/players/:pid/accounts                                                    |
-| Import               | POST/GET /projects/:id/import                                                                      |
-| Tournament entrants  | GET /projects/:id/tournament-entrants                                                              |
-| Tournaments          | GET /projects/:id/tournaments                                                                      |
-| Events               | PATCH /projects/:id/events/:eid (toggle included)                                                  |
-| Stats                | GET /projects/:id/stats; GET /projects/:id/head-to-head; GET /projects/:id/head-to-head/:a/:b/sets |
-| Games                | GET /games?q= (proxies start.gg game search)                                                       |
+| Group             | Endpoints |
+|-------------------|-----------|
+| Auth              | POST /auth/register, /auth/login, /auth/logout; GET /auth/me |
+| Account           | PATCH /account/profile; PATCH /account/password; PUT/DELETE /account/startgg-key; DELETE /account |
+| Projects          | GET/POST /projects; GET/PATCH/DELETE /projects/:id (`published` flag toggles guest access) |
+| Players           | CRUD on /projects/:id/players |
+| Ranking           | PUT /projects/:id/ranking (reorder players) |
+| start.gg accounts | POST/DELETE /projects/:id/players/:pid/accounts |
+| Import            | POST/GET /projects/:id/import |
+| Tournament entrants | GET /projects/:id/tournament-entrants |
+| Tournaments       | GET /projects/:id/tournaments |
+| Events            | PATCH /projects/:id/events/:eid (toggle included) |
+| Stats             | GET /projects/:id/stats; GET /projects/:id/stats/:player_id; GET /projects/:id/head-to-head; GET /projects/:id/head-to-head/:a/:b/sets |
+| Members           | GET/POST /projects/:id/members; PATCH/DELETE /projects/:id/members/:uid; POST /projects/:id/members/transfer-ownership |
+| Invite links      | GET/POST /projects/:id/invite-links; DELETE /projects/:id/invite-links/:lid; POST /invite/:token/accept |
+| Games             | GET /games?q= (proxies start.gg game search) |
 
 ## Upset Factor
 
