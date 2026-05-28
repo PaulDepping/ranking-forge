@@ -9,8 +9,8 @@ Two guards enforce access control across all routes:
    as Public below, an unauthenticated response redirects to `/login`.
 
 2. **`(editor)` group layout** (`src/routes/projects/[id]/(editor)/+layout.server.ts`) —
-   checks that the current user is a member of the project. Redirects non-members to
-   `/login?redirect=<path>`.
+   checks that the current user has **editor** or **owner** role on the project. Viewers are redirected.
+   Redirects non-members to `/login?redirect=<path>`.
 
 "Owner/member" means the route is accessible to the project owner and all project
 members (collaborators). "Published: guest" means unauthenticated users can also
@@ -28,12 +28,12 @@ access it when the project's `published` flag is `true`.
 | `/invite/[token]` | Public | Accept a collaboration invite link |
 | `/projects` | Authenticated | List projects owned by or shared with the current user |
 | `/projects/new` | Authenticated | Create a new project |
-| `/projects/[id]` | Owner/member (published: guest) | Project root — redirects to `/stats` |
+| `/projects/[id]` | Owner/member (published: guest) | Project overview — editors and owners land on /players; viewers and guests land on /ranking |
 | `/projects/[id]/stats` | Owner/member (published: guest) | Per-player win/loss lists sorted by upset factor |
 | `/projects/[id]/h2h` | Owner/member (published: guest) | Head-to-head set record matrix |
 | `/projects/[id]/ranking` | Owner/member (published: guest) | Players ordered by aggregate upset factor |
 | `/projects/[id]/tournaments` | Owner/member (published: guest) | Tournament list with include/exclude toggles |
-| `/projects/[id]/settings` | Owner/member | Project name, game, published flag, member management |
+| `/projects/[id]/settings` | Owner only | Project name, game, published flag, member management |
 | `/projects/[id]/(editor)/import` | Owner/member | Trigger a start.gg import; view current job status |
 | `/projects/[id]/(editor)/players` | Owner/member | Add, remove, and link players |
 | `/projects/[id]/(editor)/players/[player_id]` | Owner/member | Edit one player's display name and start.gg accounts |
