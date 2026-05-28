@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT u.startgg_api_key FROM projects rp\n                         JOIN users u ON u.id = rp.owner_id\n                         WHERE rp.id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "startgg_api_key",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "fe9360c6d688b78586d2d4c934c4ae13bbdddc3001781b6cd3cae3147a51a526"
+}

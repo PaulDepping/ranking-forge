@@ -31,7 +31,7 @@ pub async fn run(
     params: ImportParams,
 ) -> anyhow::Result<()> {
     let project = sqlx::query!(
-        "SELECT game_id, game_name FROM ranking_projects WHERE id = $1",
+        "SELECT game_id, game_name FROM projects WHERE id = $1",
         project_id,
     )
     .fetch_one(pool)
@@ -94,7 +94,7 @@ pub async fn run(
 
     // Check before import so we can apply initial ranking sort afterwards
     let is_first_import = sqlx::query_scalar!(
-        "SELECT NOT EXISTS (SELECT 1 FROM project_events WHERE project_id = $1)",
+        "SELECT NOT EXISTS (SELECT 1 FROM ranking_events re JOIN rankings r ON r.id = re.ranking_id WHERE r.project_id = $1)",
         project_id,
     )
     .fetch_one(pool)
@@ -396,13 +396,16 @@ async fn import_event(
 
     let event_db_id: Uuid = row.id;
 
-    // Register event in this project (included by default, don't overwrite existing choice)
+    // Register event in all rankings for this project (included by default, don't overwrite existing choice)
     sqlx::query!(
-        "INSERT INTO project_events (project_id, event_id, included)
-         VALUES ($1, $2, TRUE)
-         ON CONFLICT (project_id, event_id) DO NOTHING",
-        project_id,
+        r#"
+        INSERT INTO ranking_events (ranking_id, event_id, included)
+        SELECT r.id, $1, true
+        FROM rankings r WHERE r.project_id = $2
+        ON CONFLICT DO NOTHING
+        "#,
         event_db_id,
+        project_id,
     )
     .execute(pool)
     .await?;
@@ -751,10 +754,11 @@ async fn seed_ranking_by_winrate(pool: &PgPool, project_id: Uuid) -> anyhow::Res
                 ) AS new_rank
             FROM stats
         )
-        UPDATE players
+        UPDATE ranking_players
         SET rank_position = ranked.new_rank::int4
         FROM ranked
-        WHERE players.id = ranked.player_id
+        WHERE ranking_players.player_id = ranked.player_id
+          AND ranking_players.ranking_id IN (SELECT id FROM rankings WHERE project_id = $1)
         "#,
         project_id,
     )

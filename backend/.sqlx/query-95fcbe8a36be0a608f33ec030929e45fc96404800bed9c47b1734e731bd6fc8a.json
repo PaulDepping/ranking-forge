@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT rp.player_id AS id, pl.name\n        FROM ranking_players rp\n        JOIN players pl ON pl.id = rp.player_id\n        WHERE rp.ranking_id = $1\n        ORDER BY rp.rank_position ASC, pl.created_at ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "95fcbe8a36be0a608f33ec030929e45fc96404800bed9c47b1734e731bd6fc8a"
+}

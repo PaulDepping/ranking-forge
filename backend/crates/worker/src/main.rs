@@ -80,7 +80,7 @@ async fn main() {
                     let import_params = common::jobs::ImportParams::from_job(&job);
 
                     let api_key = match sqlx::query_scalar!(
-                        "SELECT u.startgg_api_key FROM ranking_projects rp
+                        "SELECT u.startgg_api_key FROM projects rp
                          JOIN users u ON u.id = rp.owner_id
                          WHERE rp.id = $1",
                         project_id,

@@ -90,7 +90,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "api"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "argon2",
  "async-trait",
@@ -463,7 +463,7 @@ dependencies = [
 
 [[package]]
 name = "common"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "backon",
  "chrono",
@@ -686,7 +686,7 @@ checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
 name = "e2e"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "api",
  "axum",
@@ -2969,7 +2969,7 @@ dependencies = [
 
 [[package]]
 name = "topology"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "reqwest",
  "serde_json",
@@ -3841,7 +3841,7 @@ dependencies = [
 
 [[package]]
 name = "worker"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "chrono",
