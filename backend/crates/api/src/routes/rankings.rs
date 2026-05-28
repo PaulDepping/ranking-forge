@@ -265,7 +265,7 @@ async fn create_ranking(
     sqlx::query!(
         r#"
         INSERT INTO ranking_events (ranking_id, event_id, included)
-        SELECT DISTINCT $1, e.id, true
+        SELECT DISTINCT $1::uuid, e.id, true
         FROM events e
         JOIN entrants ent ON ent.event_id = e.id
         JOIN players pl ON pl.id = ent.player_id AND pl.project_id = $2

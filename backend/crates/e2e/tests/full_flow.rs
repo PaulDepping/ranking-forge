@@ -109,6 +109,35 @@ async fn put_json(app: &Router, uri: &str, cookie: &str, body: Value) -> axum::r
         .unwrap()
 }
 
+async fn create_ranking(app: &Router, cookie: &str, project_id: &str, name: &str) -> String {
+    let resp = post_json(
+        app,
+        &format!("/projects/{project_id}/rankings"),
+        cookie,
+        json!({"name": name}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    read_json(resp).await["id"].as_str().unwrap().to_string()
+}
+
+async fn add_player_to_ranking(
+    app: &Router,
+    cookie: &str,
+    project_id: &str,
+    ranking_id: &str,
+    player_id: &str,
+) {
+    let resp = post_json(
+        app,
+        &format!("/projects/{project_id}/rankings/{ranking_id}/players"),
+        cookie,
+        json!({"player_id": player_id}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+}
+
 async fn set_startgg_api_key(pool: &PgPool, cookie: &str, api_key: &str) {
     let session_id: uuid::Uuid = cookie
         .split('=')
@@ -510,6 +539,12 @@ async fn full_import_flow(pool: PgPool) {
     .await;
     assert_eq!(resp.status(), StatusCode::CREATED);
 
+    // ── Create ranking and add players ────────────────────────────────────────
+
+    let ranking_id = create_ranking(&app, &cookie, &project_id, "Test Ranking").await;
+    add_player_to_ranking(&app, &cookie, &project_id, &ranking_id, &mango_id).await;
+    add_player_to_ranking(&app, &cookie, &project_id, &ranking_id, &armada_id).await;
+
     // ── Import ────────────────────────────────────────────────────────────────
 
     let project_uuid = Uuid::parse_str(&project_id).unwrap();
@@ -528,7 +563,7 @@ async fn full_import_flow(pool: PgPool) {
 
     let resp = get_req(
         &app,
-        &format!("/projects/{project_id}/tournaments"),
+        &format!("/projects/{project_id}/rankings/{ranking_id}/tournaments"),
         &cookie,
     )
     .await;
@@ -545,7 +580,12 @@ async fn full_import_flow(pool: PgPool) {
 
     // ── Stats ─────────────────────────────────────────────────────────────────
 
-    let resp = get_req(&app, &format!("/projects/{project_id}/stats"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{project_id}/rankings/{ranking_id}/stats"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
     let stats = read_json(resp).await;
     let stats_arr = stats.as_array().unwrap();
@@ -597,7 +637,7 @@ async fn full_import_flow(pool: PgPool) {
 
     let resp = get_req(
         &app,
-        &format!("/projects/{project_id}/head-to-head"),
+        &format!("/projects/{project_id}/rankings/{ranking_id}/head-to-head"),
         &cookie,
     )
     .await;
@@ -622,7 +662,9 @@ async fn full_import_flow(pool: PgPool) {
     // ── H2H sets endpoint ─────────────────────────────────────────────────────
     let resp = get_req(
         &app,
-        &format!("/projects/{project_id}/head-to-head/{mango_id}/{armada_id}/sets"),
+        &format!(
+            "/projects/{project_id}/rankings/{ranking_id}/head-to-head/{mango_id}/{armada_id}/sets"
+        ),
         &cookie,
     )
     .await;
@@ -641,14 +683,19 @@ async fn full_import_flow(pool: PgPool) {
 
     let resp = patch_json(
         &app,
-        &format!("/projects/{project_id}/events/{event_id}"),
+        &format!("/projects/{project_id}/rankings/{ranking_id}/events/{event_id}"),
         &cookie,
         json!({"included": false}),
     )
     .await;
     assert_eq!(resp.status(), StatusCode::OK);
 
-    let resp = get_req(&app, &format!("/projects/{project_id}/stats"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{project_id}/rankings/{ranking_id}/stats"),
+        &cookie,
+    )
+    .await;
     let stats = read_json(resp).await;
     let armada_stats = stats
         .as_array()
@@ -663,14 +710,19 @@ async fn full_import_flow(pool: PgPool) {
 
     let resp = patch_json(
         &app,
-        &format!("/projects/{project_id}/events/{event_id}"),
+        &format!("/projects/{project_id}/rankings/{ranking_id}/events/{event_id}"),
         &cookie,
         json!({"included": true}),
     )
     .await;
     assert_eq!(resp.status(), StatusCode::OK);
 
-    let resp = get_req(&app, &format!("/projects/{project_id}/stats"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{project_id}/rankings/{ranking_id}/stats"),
+        &cookie,
+    )
+    .await;
     let stats = read_json(resp).await;
     let armada_stats = stats
         .as_array()
@@ -809,6 +861,11 @@ async fn import_seeds_rank_by_winrate(pool: PgPool) {
     .await;
     assert_eq!(resp.status(), StatusCode::CREATED);
 
+    // Create ranking and add both players
+    let ranking_id = create_ranking(&app, &cookie, &project_id, "Test Ranking").await;
+    add_player_to_ranking(&app, &cookie, &project_id, &ranking_id, &mango_id).await;
+    add_player_to_ranking(&app, &cookie, &project_id, &ranking_id, &armada_id).await;
+
     // Import: Armada wins 1-0, Mango loses 0-1
     let startgg = StartggClient::new_with_base_url("test-key".into(), base_url.into());
     worker::import::run(
@@ -821,8 +878,13 @@ async fn import_seeds_rank_by_winrate(pool: PgPool) {
     .await
     .unwrap();
 
-    // After import, GET /players should return Armada first (higher winrate)
-    let resp = get_req(&app, &format!("/projects/{project_id}/players"), &cookie).await;
+    // After import, GET /rankings/{rid}/players should return Armada first (higher winrate)
+    let resp = get_req(
+        &app,
+        &format!("/projects/{project_id}/rankings/{ranking_id}/players"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
     let players = read_json(resp).await;
     let names: Vec<&str> = players
@@ -896,6 +958,11 @@ async fn import_skips_sort_if_already_ranked(pool: PgPool) {
     .await;
     assert_eq!(resp.status(), StatusCode::CREATED);
 
+    // Create ranking and add both players
+    let ranking_id = create_ranking(&app, &cookie, &project_id, "Test Ranking").await;
+    add_player_to_ranking(&app, &cookie, &project_id, &ranking_id, &mango_id).await;
+    add_player_to_ranking(&app, &cookie, &project_id, &ranking_id, &armada_id).await;
+
     let project_uuid = Uuid::parse_str(&project_id).unwrap();
     let startgg = StartggClient::new_with_base_url("test-key".into(), base_url.clone().into());
 
@@ -913,7 +980,7 @@ async fn import_skips_sort_if_already_ranked(pool: PgPool) {
     // User manually reorders: Mango first, Armada second
     let resp = put_json(
         &app,
-        &format!("/projects/{project_id}/ranking"),
+        &format!("/projects/{project_id}/rankings/{ranking_id}/ranking"),
         &cookie,
         json!({"player_ids": [mango_id, armada_id]}),
     )
@@ -932,7 +999,12 @@ async fn import_skips_sort_if_already_ranked(pool: PgPool) {
     .await
     .unwrap();
 
-    let resp = get_req(&app, &format!("/projects/{project_id}/players"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{project_id}/rankings/{ranking_id}/players"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
     let players = read_json(resp).await;
     let names: Vec<&str> = players
@@ -1114,6 +1186,10 @@ async fn import_no_game_filter_flow(pool: PgPool) {
     )
     .await;
     assert_eq!(resp.status(), StatusCode::CREATED);
+
+    // Create ranking and add player
+    let _ranking_id = create_ranking(&app, &cookie, &project_id, "Test Ranking").await;
+    add_player_to_ranking(&app, &cookie, &project_id, &_ranking_id, &mango_id).await;
 
     // ── Import ────────────────────────────────────────────────────────────────
 

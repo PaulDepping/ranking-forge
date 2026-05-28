@@ -138,6 +138,35 @@ async fn set_startgg_api_key(pool: &PgPool, cookie: &str, api_key: &str) {
     .expect("failed to set startgg_api_key");
 }
 
+async fn create_ranking(app: &Router, cookie: &str, project_id: &str, name: &str) -> String {
+    let resp = post_json(
+        app,
+        &format!("/projects/{project_id}/rankings"),
+        cookie,
+        json!({"name": name}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    read_json(resp).await["id"].as_str().unwrap().to_string()
+}
+
+async fn add_player_to_ranking(
+    app: &Router,
+    cookie: &str,
+    project_id: &str,
+    ranking_id: &str,
+    player_id: &str,
+) {
+    let resp = post_json(
+        app,
+        &format!("/projects/{project_id}/rankings/{ranking_id}/players"),
+        cookie,
+        json!({"player_id": player_id}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+}
+
 fn live_api_key() -> String {
     std::env::var("STARTGG_API_KEY").expect("STARTGG_API_KEY must be set to run live tests")
 }
@@ -198,6 +227,10 @@ async fn import_hannover_weekly_100(pool: PgPool) {
     .await;
     assert_eq!(resp.status(), StatusCode::CREATED);
 
+    // Create ranking and add player before import (so ranking_events rows are created)
+    let ranking_id = create_ranking(&app, &cookie, &project_id, "Hannover PR").await;
+    add_player_to_ranking(&app, &cookie, &project_id, &ranking_id, &player1_id).await;
+
     // Scope to ±8 days around the known startAt of Weekly #100 (2026-03-10).
     let project_uuid = Uuid::parse_str(&project_id).unwrap();
     worker::import::run(
@@ -216,7 +249,7 @@ async fn import_hannover_weekly_100(pool: PgPool) {
     // Assert: Weekly #100 appears in the tournament list
     let resp = get_req(
         &app,
-        &format!("/projects/{project_id}/tournaments"),
+        &format!("/projects/{project_id}/rankings/{ranking_id}/tournaments"),
         &cookie,
     )
     .await;
@@ -338,6 +371,11 @@ async fn import_hannover_weekly_88_and_84(pool: PgPool) {
     .await;
     assert_eq!(resp.status(), StatusCode::CREATED);
 
+    // Create ranking and add both players before import
+    let ranking_id = create_ranking(&app, &cookie, &project_id, "Hannover PR 2P").await;
+    add_player_to_ranking(&app, &cookie, &project_id, &ranking_id, &player1_id).await;
+    add_player_to_ranking(&app, &cookie, &project_id, &ranking_id, &player2_id).await;
+
     // Scope to cover both #84 (2025-11-04) and #88 (2025-12-02) ±8 days each.
     let project_uuid = Uuid::parse_str(&project_id).unwrap();
     worker::import::run(
@@ -356,7 +394,7 @@ async fn import_hannover_weekly_88_and_84(pool: PgPool) {
     // Assert: Weekly #88 appears in the tournament list
     let resp = get_req(
         &app,
-        &format!("/projects/{project_id}/tournaments"),
+        &format!("/projects/{project_id}/rankings/{ranking_id}/tournaments"),
         &cookie,
     )
     .await;
@@ -422,7 +460,7 @@ async fn import_hannover_weekly_88_and_84(pool: PgPool) {
                     .expect("event id should be a string UUID");
                 let resp = patch_json(
                     &app,
-                    &format!("/projects/{project_id}/events/{event_uuid}"),
+                    &format!("/projects/{project_id}/rankings/{ranking_id}/events/{event_uuid}"),
                     &cookie,
                     json!({"included": false}),
                 )
@@ -437,7 +475,12 @@ async fn import_hannover_weekly_88_and_84(pool: PgPool) {
     }
 
     // ── Stats ──────────────────────────────────────────────────────────────────
-    let resp = get_req(&app, &format!("/projects/{project_id}/stats"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{project_id}/rankings/{ranking_id}/stats"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
     let stats = read_json(resp).await;
     let stats_arr = stats.as_array().unwrap();
@@ -762,7 +805,7 @@ async fn import_hannover_weekly_88_and_84(pool: PgPool) {
     // ── H2H summary ───────────────────────────────────────────────────────────
     let resp = get_req(
         &app,
-        &format!("/projects/{project_id}/head-to-head"),
+        &format!("/projects/{project_id}/rankings/{ranking_id}/head-to-head"),
         &cookie,
     )
     .await;
@@ -787,7 +830,7 @@ async fn import_hannover_weekly_88_and_84(pool: PgPool) {
     // ── H2H sets drilldown ────────────────────────────────────────────────────
     let resp = get_req(
         &app,
-        &format!("/projects/{project_id}/head-to-head/{player1_id}/{player2_id}/sets"),
+        &format!("/projects/{project_id}/rankings/{ranking_id}/head-to-head/{player1_id}/{player2_id}/sets"),
         &cookie,
     )
     .await;

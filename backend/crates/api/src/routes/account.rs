@@ -389,13 +389,10 @@ mod tests {
             .unwrap();
         assert_eq!(resp.status(), 204);
 
-        let count = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM ranking_projects WHERE id = $1",
-            project_id
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let count = sqlx::query_scalar!("SELECT COUNT(*) FROM projects WHERE id = $1", project_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert_eq!(count, Some(0));
     }
 

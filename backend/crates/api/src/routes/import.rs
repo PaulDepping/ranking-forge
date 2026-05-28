@@ -79,7 +79,7 @@ pub async fn start_import(
     require_project_access(&state.db, project_id, user.id, UserRole::Editor).await?;
 
     let owner_key: Option<String> = sqlx::query_scalar!(
-        "SELECT u.startgg_api_key FROM ranking_projects rp
+        "SELECT u.startgg_api_key FROM projects rp
          JOIN users u ON u.id = rp.owner_id
          WHERE rp.id = $1",
         project_id,

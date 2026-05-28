@@ -159,7 +159,7 @@ mod tests {
         .unwrap();
 
         let project_id: Uuid = sqlx::query_scalar!(
-            "INSERT INTO ranking_projects (owner_id, name) VALUES ($1, 'Test') RETURNING id",
+            "INSERT INTO projects (owner_id, name) VALUES ($1, 'Test') RETURNING id",
             user_id,
         )
         .fetch_one(pool)

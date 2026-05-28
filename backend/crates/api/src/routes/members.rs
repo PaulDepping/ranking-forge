@@ -185,7 +185,7 @@ async fn transfer_ownership(
 
     // Transfer ownership: update owner_id on the project
     sqlx::query!(
-        "UPDATE ranking_projects SET owner_id = $1 WHERE id = $2",
+        "UPDATE projects SET owner_id = $1 WHERE id = $2",
         body.user_id,
         project_id,
     )
@@ -441,13 +441,11 @@ mod tests {
         assert_eq!(old_role, Some("editor".to_string()));
 
         // New owner is now owner via owner_id, not in project_members
-        let new_owner_id_check = sqlx::query_scalar!(
-            "SELECT owner_id FROM ranking_projects WHERE id = $1",
-            proj_uuid
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let new_owner_id_check =
+            sqlx::query_scalar!("SELECT owner_id FROM projects WHERE id = $1", proj_uuid)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(new_owner_id_check, new_owner_id);
     }
 }

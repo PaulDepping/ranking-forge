@@ -131,7 +131,7 @@ pub async fn accept_invite_link(
 
     // If accepting user is already the owner (via owner_id), return success no-op
     let is_owner = sqlx::query_scalar!(
-        "SELECT 1 AS one FROM ranking_projects WHERE id = $1 AND owner_id = $2",
+        "SELECT 1 AS one FROM projects WHERE id = $1 AND owner_id = $2",
         link.project_id,
         user.id,
     )

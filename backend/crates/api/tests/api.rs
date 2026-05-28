@@ -134,7 +134,7 @@ async fn put_json(app: &Router, uri: &str, cookie: &str, body: Value) -> axum::r
 
 async fn seed_tournament_event(
     pool: &sqlx::PgPool,
-    project_id: Uuid,
+    ranking_id: Uuid,
     startgg_tournament_id: i64,
     startgg_event_id: i64,
 ) -> (Uuid, Uuid) {
@@ -160,8 +160,8 @@ async fn seed_tournament_event(
     .unwrap();
 
     sqlx::query!(
-        "INSERT INTO project_events (project_id, event_id, included) VALUES ($1, $2, true)",
-        project_id,
+        "INSERT INTO ranking_events (ranking_id, event_id, included) VALUES ($1, $2, true)",
+        ranking_id,
         event_id,
     )
     .execute(pool)
@@ -289,6 +289,37 @@ async fn create_project(app: &Router, pool: &PgPool, cookie: &str) -> String {
     let resp = post_json(app, "/projects", cookie, json!({"name": "Test Project"})).await;
     assert_eq!(resp.status(), StatusCode::CREATED);
     read_json(resp).await["id"].as_str().unwrap().to_string()
+}
+
+/// Create a ranking in the given project and return its UUID string.
+async fn create_ranking(app: &Router, cookie: &str, project_id: &str) -> String {
+    let resp = post_json(
+        app,
+        &format!("/projects/{project_id}/rankings"),
+        cookie,
+        json!({"name": "Test Ranking"}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    read_json(resp).await["id"].as_str().unwrap().to_string()
+}
+
+/// Add a player to a ranking.
+async fn add_player_to_ranking(
+    app: &Router,
+    cookie: &str,
+    project_id: &str,
+    ranking_id: &str,
+    player_id: &str,
+) {
+    let resp = post_json(
+        app,
+        &format!("/projects/{project_id}/rankings/{ranking_id}/players"),
+        cookie,
+        json!({"player_id": player_id}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
 }
 
 /// Create a player in the given project and return its UUID string.
@@ -1169,8 +1200,14 @@ async fn tournaments_list_empty(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid = create_project(&app, &pool, &cookie).await;
+    let rid = create_ranking(&app, &cookie, &pid).await;
 
-    let resp = get_req(&app, &format!("/projects/{pid}/tournaments"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid}/rankings/{rid}/tournaments"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
     assert_eq!(read_json(resp).await, json!([]));
 }
@@ -1180,11 +1217,17 @@ async fn tournaments_list_with_data(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid_str = create_project(&app, &pool, &cookie).await;
-    let pid = Uuid::parse_str(&pid_str).unwrap();
+    let rid = create_ranking(&app, &cookie, &pid_str).await;
+    let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
-    seed_tournament_event(&pool, pid, 1001, 2001).await;
+    seed_tournament_event(&pool, rid_uuid, 1001, 2001).await;
 
-    let resp = get_req(&app, &format!("/projects/{pid}/tournaments"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid_str}/rankings/{rid}/tournaments"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
 
     let body = read_json(resp).await;
@@ -1202,13 +1245,15 @@ async fn tournaments_list_requires_auth(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid = create_project(&app, &pool, &cookie).await;
+    let rid = create_ranking(&app, &cookie, &pid).await;
 
     // Unauthenticated request to a private project returns 404 (not 401)
     let resp = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/projects/{pid}/tournaments"))
+                .uri(&format!("/projects/{pid}/rankings/{rid}/tournaments"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1223,8 +1268,14 @@ async fn tournaments_list_enforces_ownership(pool: PgPool) {
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
     let pid = create_project(&app, &pool, &alice).await;
+    let rid = create_ranking(&app, &alice, &pid).await;
 
-    let resp = get_req(&app, &format!("/projects/{pid}/tournaments"), &bob).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid}/rankings/{rid}/tournaments"),
+        &bob,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
@@ -1235,13 +1286,14 @@ async fn patch_event_toggle_included(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid_str = create_project(&app, &pool, &cookie).await;
-    let pid = Uuid::parse_str(&pid_str).unwrap();
+    let rid = create_ranking(&app, &cookie, &pid_str).await;
+    let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
-    let (_, event_id) = seed_tournament_event(&pool, pid, 1002, 2002).await;
+    let (_, event_id) = seed_tournament_event(&pool, rid_uuid, 1002, 2002).await;
 
     let resp = patch_json(
         &app,
-        &format!("/projects/{pid}/events/{event_id}"),
+        &format!("/projects/{pid_str}/rankings/{rid}/events/{event_id}"),
         &cookie,
         json!({"included": false}),
     )
@@ -1253,7 +1305,7 @@ async fn patch_event_toggle_included(pool: PgPool) {
 
     let resp = patch_json(
         &app,
-        &format!("/projects/{pid}/events/{event_id}"),
+        &format!("/projects/{pid_str}/rankings/{rid}/events/{event_id}"),
         &cookie,
         json!({"included": true}),
     )
@@ -1267,10 +1319,11 @@ async fn patch_event_unknown_returns_404(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid = create_project(&app, &pool, &cookie).await;
+    let rid = create_ranking(&app, &cookie, &pid).await;
 
     let resp = patch_json(
         &app,
-        &format!("/projects/{pid}/events/{}", Uuid::new_v4()),
+        &format!("/projects/{pid}/rankings/{rid}/events/{}", Uuid::new_v4()),
         &cookie,
         json!({"included": false}),
     )
@@ -1284,13 +1337,14 @@ async fn patch_event_enforces_ownership(pool: PgPool) {
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
     let alice_pid_str = create_project(&app, &pool, &alice).await;
-    let alice_pid = Uuid::parse_str(&alice_pid_str).unwrap();
+    let alice_rid = create_ranking(&app, &alice, &alice_pid_str).await;
+    let alice_rid_uuid = Uuid::parse_str(&alice_rid).unwrap();
 
-    let (_, event_id) = seed_tournament_event(&pool, alice_pid, 1003, 2003).await;
+    let (_, event_id) = seed_tournament_event(&pool, alice_rid_uuid, 1003, 2003).await;
 
     let resp = patch_json(
         &app,
-        &format!("/projects/{alice_pid}/events/{event_id}"),
+        &format!("/projects/{alice_pid_str}/rankings/{alice_rid}/events/{event_id}"),
         &bob,
         json!({"included": false}),
     )
@@ -1305,8 +1359,14 @@ async fn stats_empty_project(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid = create_project(&app, &pool, &cookie).await;
+    let rid = create_ranking(&app, &cookie, &pid).await;
 
-    let resp = get_req(&app, &format!("/projects/{pid}/stats"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid}/rankings/{rid}/stats"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
     assert_eq!(read_json(resp).await, json!([]));
 }
@@ -1316,12 +1376,18 @@ async fn stats_upset_factor_computed(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid_str = create_project(&app, &pool, &cookie).await;
-    let pid = Uuid::parse_str(&pid_str).unwrap();
+    let rid = create_ranking(&app, &cookie, &pid_str).await;
+    let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
-    let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
-    let bob_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
+    let alice_id_str = create_player(&app, &cookie, &pid_str, "Alice").await;
+    let bob_id_str = create_player(&app, &cookie, &pid_str, "Bob").await;
+    let alice_id = Uuid::parse_str(&alice_id_str).unwrap();
+    let bob_id = Uuid::parse_str(&bob_id_str).unwrap();
 
-    let (_, event_id) = seed_tournament_event(&pool, pid, 2001, 3001).await;
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &alice_id_str).await;
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &bob_id_str).await;
+
+    let (_, event_id) = seed_tournament_event(&pool, rid_uuid, 2001, 3001).await;
 
     // Alice seed 2 (round 25), Bob seed 7 (round 22); Bob beats Alice
     // Bob's UF = round(2) - round(7) = 25 - 22 = 3
@@ -1329,7 +1395,12 @@ async fn stats_upset_factor_computed(pool: PgPool) {
     let bob_e = seed_entrant(&pool, event_id, Some(bob_id), 102, Some(7)).await;
     seed_set(&pool, event_id, bob_e, alice_e, 501).await;
 
-    let resp = get_req(&app, &format!("/projects/{pid}/stats"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid_str}/rankings/{rid}/stats"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
 
     let stats = read_json(resp).await;
@@ -1357,27 +1428,37 @@ async fn stats_excluded_events_not_counted(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid_str = create_project(&app, &pool, &cookie).await;
-    let pid = Uuid::parse_str(&pid_str).unwrap();
+    let rid = create_ranking(&app, &cookie, &pid_str).await;
+    let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
-    let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
-    let bob_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
+    let alice_id_str = create_player(&app, &cookie, &pid_str, "Alice").await;
+    let bob_id_str = create_player(&app, &cookie, &pid_str, "Bob").await;
+    let alice_id = Uuid::parse_str(&alice_id_str).unwrap();
+    let bob_id = Uuid::parse_str(&bob_id_str).unwrap();
 
-    let (_, event_id) = seed_tournament_event(&pool, pid, 2002, 3002).await;
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &alice_id_str).await;
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &bob_id_str).await;
+
+    let (_, event_id) = seed_tournament_event(&pool, rid_uuid, 2002, 3002).await;
     let alice_e = seed_entrant(&pool, event_id, Some(alice_id), 103, Some(2)).await;
     let bob_e = seed_entrant(&pool, event_id, Some(bob_id), 104, Some(7)).await;
     seed_set(&pool, event_id, bob_e, alice_e, 502).await;
 
-    // Exclude the event
-    sqlx::query!(
-        "UPDATE project_events SET included = false WHERE project_id = $1 AND event_id = $2",
-        pid,
-        event_id,
+    // Exclude the event via API
+    patch_json(
+        &app,
+        &format!("/projects/{pid_str}/rankings/{rid}/events/{event_id}"),
+        &cookie,
+        json!({"included": false}),
     )
-    .execute(&pool)
-    .await
-    .unwrap();
+    .await;
 
-    let resp = get_req(&app, &format!("/projects/{pid}/stats"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid_str}/rankings/{rid}/stats"),
+        &cookie,
+    )
+    .await;
     let entries = read_json(resp).await;
     for entry in entries.as_array().unwrap() {
         assert_eq!(entry["wins"], json!([]));
@@ -1390,13 +1471,15 @@ async fn stats_requires_auth(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid = create_project(&app, &pool, &cookie).await;
+    let rid = create_ranking(&app, &cookie, &pid).await;
 
     // Unauthenticated request to a private project returns 404 (not 401)
     let resp = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/projects/{pid}/stats"))
+                .uri(&format!("/projects/{pid}/rankings/{rid}/stats"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1411,8 +1494,9 @@ async fn stats_enforces_ownership(pool: PgPool) {
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
     let pid = create_project(&app, &pool, &alice).await;
+    let rid = create_ranking(&app, &alice, &pid).await;
 
-    let resp = get_req(&app, &format!("/projects/{pid}/stats"), &bob).await;
+    let resp = get_req(&app, &format!("/projects/{pid}/rankings/{rid}/stats"), &bob).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
@@ -1421,11 +1505,15 @@ async fn stats_includes_non_project_opponent(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid_str = create_project(&app, &pool, &cookie).await;
-    let pid = Uuid::parse_str(&pid_str).unwrap();
+    let rid = create_ranking(&app, &cookie, &pid_str).await;
+    let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
-    let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
+    let alice_id_str = create_player(&app, &cookie, &pid_str, "Alice").await;
+    let alice_id = Uuid::parse_str(&alice_id_str).unwrap();
 
-    let (_, event_id) = seed_tournament_event(&pool, pid, 2010, 3010).await;
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &alice_id_str).await;
+
+    let (_, event_id) = seed_tournament_event(&pool, rid_uuid, 2010, 3010).await;
 
     // Alice (seed 2) and a non-project entrant "Outsider" (seed 7)
     let alice_e = seed_entrant_named(&pool, event_id, Some(alice_id), 110, "Alice", Some(2)).await;
@@ -1434,12 +1522,17 @@ async fn stats_includes_non_project_opponent(pool: PgPool) {
     // Outsider beats Alice
     seed_set(&pool, event_id, outside_e, alice_e, 510).await;
 
-    let resp = get_req(&app, &format!("/projects/{pid}/stats"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid_str}/rankings/{rid}/stats"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
 
     let stats = read_json(resp).await;
     let entries = stats.as_array().unwrap();
-    assert_eq!(entries.len(), 1, "only project players in outer list");
+    assert_eq!(entries.len(), 1, "only ranking players in outer list");
 
     let alice = entries.iter().find(|s| s["name"] == "Alice").unwrap();
     assert_eq!(alice["wins"], json!([]));
@@ -1454,19 +1547,30 @@ async fn stats_returns_game_scores(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid_str = create_project(&app, &pool, &cookie).await;
-    let pid = Uuid::parse_str(&pid_str).unwrap();
+    let rid = create_ranking(&app, &cookie, &pid_str).await;
+    let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
-    let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
-    let bob_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
+    let alice_id_str = create_player(&app, &cookie, &pid_str, "Alice").await;
+    let bob_id_str = create_player(&app, &cookie, &pid_str, "Bob").await;
+    let alice_id = Uuid::parse_str(&alice_id_str).unwrap();
+    let bob_id = Uuid::parse_str(&bob_id_str).unwrap();
 
-    let (_, event_id) = seed_tournament_event(&pool, pid, 2011, 3011).await;
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &alice_id_str).await;
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &bob_id_str).await;
+
+    let (_, event_id) = seed_tournament_event(&pool, rid_uuid, 2011, 3011).await;
     let alice_e = seed_entrant(&pool, event_id, Some(alice_id), 112, Some(1)).await;
     let bob_e = seed_entrant(&pool, event_id, Some(bob_id), 113, Some(2)).await;
 
     // Alice beats Bob 3-1
     seed_set_with_scores(&pool, event_id, alice_e, bob_e, 511, 3, 1).await;
 
-    let resp = get_req(&app, &format!("/projects/{pid}/stats"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid_str}/rankings/{rid}/stats"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
 
     let stats = read_json(resp).await;
@@ -1877,7 +1981,8 @@ async fn list_tournaments_includes_event_type_and_bracket_types(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "usr1", "pass1234").await;
     let pid_str = create_project(&app, &pool, &cookie).await;
-    let pid = Uuid::parse_str(&pid_str).unwrap();
+    let rid = create_ranking(&app, &cookie, &pid_str).await;
+    let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
     // Insert a tournament with an event that has event_type=1 and two phases
     let t_id: uuid::Uuid = sqlx::query_scalar!(
@@ -1909,16 +2014,21 @@ async fn list_tournaments_includes_event_type_and_bracket_types(pool: PgPool) {
     .unwrap();
 
     sqlx::query!(
-        "INSERT INTO project_events (project_id, event_id, included)
+        "INSERT INTO ranking_events (ranking_id, event_id, included)
          VALUES ($1, $2, true)",
-        pid,
+        rid_uuid,
         e_id
     )
     .execute(&pool)
     .await
     .unwrap();
 
-    let resp = get_req(&app, &format!("/projects/{pid}/tournaments"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid_str}/rankings/{rid}/tournaments"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
     let body = read_json(resp).await;
 
@@ -1939,8 +2049,14 @@ async fn h2h_empty(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid = create_project(&app, &pool, &cookie).await;
+    let rid = create_ranking(&app, &cookie, &pid).await;
 
-    let resp = get_req(&app, &format!("/projects/{pid}/head-to-head"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid}/rankings/{rid}/head-to-head"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
     assert_eq!(read_json(resp).await, json!([]));
 }
@@ -1950,19 +2066,30 @@ async fn h2h_with_sets(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid_str = create_project(&app, &pool, &cookie).await;
-    let pid = Uuid::parse_str(&pid_str).unwrap();
+    let rid = create_ranking(&app, &cookie, &pid_str).await;
+    let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
-    let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
-    let bob_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
+    let alice_id_str = create_player(&app, &cookie, &pid_str, "Alice").await;
+    let bob_id_str = create_player(&app, &cookie, &pid_str, "Bob").await;
+    let alice_id = Uuid::parse_str(&alice_id_str).unwrap();
+    let bob_id = Uuid::parse_str(&bob_id_str).unwrap();
 
-    let (_, event_id) = seed_tournament_event(&pool, pid, 4001, 5001).await;
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &alice_id_str).await;
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &bob_id_str).await;
+
+    let (_, event_id) = seed_tournament_event(&pool, rid_uuid, 4001, 5001).await;
     let alice_e = seed_entrant(&pool, event_id, Some(alice_id), 201, Some(1)).await;
     let bob_e = seed_entrant(&pool, event_id, Some(bob_id), 202, Some(2)).await;
     // Alice beats Bob twice
     seed_set(&pool, event_id, alice_e, bob_e, 601).await;
     seed_set(&pool, event_id, alice_e, bob_e, 602).await;
 
-    let resp = get_req(&app, &format!("/projects/{pid}/head-to-head"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid_str}/rankings/{rid}/head-to-head"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
 
     let h2h = read_json(resp).await;
@@ -1991,13 +2118,15 @@ async fn h2h_requires_auth(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid = create_project(&app, &pool, &cookie).await;
+    let rid = create_ranking(&app, &cookie, &pid).await;
 
     // Unauthenticated request to a private project returns 404 (not 401)
     let resp = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/projects/{pid}/head-to-head"))
+                .uri(&format!("/projects/{pid}/rankings/{rid}/head-to-head"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -2012,8 +2141,14 @@ async fn h2h_enforces_ownership(pool: PgPool) {
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
     let pid = create_project(&app, &pool, &alice).await;
+    let rid = create_ranking(&app, &alice, &pid).await;
 
-    let resp = get_req(&app, &format!("/projects/{pid}/head-to-head"), &bob).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid}/rankings/{rid}/head-to-head"),
+        &bob,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
@@ -2022,10 +2157,16 @@ async fn stats_returns_enriched_set_fields(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid_str = create_project(&app, &pool, &cookie).await;
-    let pid = Uuid::parse_str(&pid_str).unwrap();
+    let rid = create_ranking(&app, &cookie, &pid_str).await;
+    let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
-    let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
-    let bob_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
+    let alice_id_str = create_player(&app, &cookie, &pid_str, "Alice").await;
+    let bob_id_str = create_player(&app, &cookie, &pid_str, "Bob").await;
+    let alice_id = Uuid::parse_str(&alice_id_str).unwrap();
+    let bob_id = Uuid::parse_str(&bob_id_str).unwrap();
+
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &alice_id_str).await;
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &bob_id_str).await;
 
     // Tournament with location
     let t_id: Uuid = sqlx::query_scalar!(
@@ -2049,8 +2190,8 @@ async fn stats_returns_enriched_set_fields(pool: PgPool) {
     .unwrap();
 
     sqlx::query!(
-        "INSERT INTO project_events (project_id, event_id, included) VALUES ($1, $2, true)",
-        pid,
+        "INSERT INTO ranking_events (ranking_id, event_id, included) VALUES ($1, $2, true)",
+        rid_uuid,
         e_id
     )
     .execute(&pool)
@@ -2114,7 +2255,12 @@ async fn stats_returns_enriched_set_fields(pool: PgPool) {
     .await
     .unwrap();
 
-    let resp = get_req(&app, &format!("/projects/{pid}/stats"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid_str}/rankings/{rid}/stats"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
 
     let stats = read_json(resp).await;
@@ -2139,10 +2285,16 @@ async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid_str = create_project(&app, &pool, &cookie).await;
-    let pid = Uuid::parse_str(&pid_str).unwrap();
+    let rid = create_ranking(&app, &cookie, &pid_str).await;
+    let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
-    let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
-    let bob_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
+    let alice_id_str = create_player(&app, &cookie, &pid_str, "Alice").await;
+    let bob_id_str = create_player(&app, &cookie, &pid_str, "Bob").await;
+    let alice_id = Uuid::parse_str(&alice_id_str).unwrap();
+    let bob_id = Uuid::parse_str(&bob_id_str).unwrap();
+
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &alice_id_str).await;
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &bob_id_str).await;
 
     // Online tournament (location should be "Online")
     let t_id: Uuid = sqlx::query_scalar!(
@@ -2165,8 +2317,8 @@ async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
     .unwrap();
 
     sqlx::query!(
-        "INSERT INTO project_events (project_id, event_id, included) VALUES ($1, $2, true)",
-        pid,
+        "INSERT INTO ranking_events (ranking_id, event_id, included) VALUES ($1, $2, true)",
+        rid_uuid,
         e_id
     )
     .execute(&pool)
@@ -2229,7 +2381,7 @@ async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
 
     let resp = get_req(
         &app,
-        &format!("/projects/{pid}/head-to-head/{alice_id}/{bob_id}/sets"),
+        &format!("/projects/{pid_str}/rankings/{rid}/head-to-head/{alice_id}/{bob_id}/sets"),
         &cookie,
     )
     .await;
@@ -2428,21 +2580,31 @@ async fn ranking_reorder_persists(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid = create_project(&app, &pool, &cookie).await;
+    let rid = create_ranking(&app, &cookie, &pid).await;
 
     let a = create_player(&app, &cookie, &pid, "Alpha").await;
     let b = create_player(&app, &cookie, &pid, "Beta").await;
     let c = create_player(&app, &cookie, &pid, "Gamma").await;
 
+    add_player_to_ranking(&app, &cookie, &pid, &rid, &a).await;
+    add_player_to_ranking(&app, &cookie, &pid, &rid, &b).await;
+    add_player_to_ranking(&app, &cookie, &pid, &rid, &c).await;
+
     let resp = put_json(
         &app,
-        &format!("/projects/{pid}/ranking"),
+        &format!("/projects/{pid}/rankings/{rid}/ranking"),
         &cookie,
         json!({ "player_ids": [c, b, a] }),
     )
     .await;
     assert_eq!(resp.status(), StatusCode::OK);
 
-    let resp = get_req(&app, &format!("/projects/{pid}/players"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid}/rankings/{rid}/players"),
+        &cookie,
+    )
+    .await;
     let players = read_json(resp).await;
     let names: Vec<&str> = players
         .as_array()
@@ -2458,13 +2620,17 @@ async fn ranking_reorder_rejects_incomplete_list(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid = create_project(&app, &pool, &cookie).await;
+    let rid = create_ranking(&app, &cookie, &pid).await;
 
     let a = create_player(&app, &cookie, &pid, "Alpha").await;
-    create_player(&app, &cookie, &pid, "Beta").await;
+    let b = create_player(&app, &cookie, &pid, "Beta").await;
+
+    add_player_to_ranking(&app, &cookie, &pid, &rid, &a).await;
+    add_player_to_ranking(&app, &cookie, &pid, &rid, &b).await;
 
     let resp = put_json(
         &app,
-        &format!("/projects/{pid}/ranking"),
+        &format!("/projects/{pid}/rankings/{rid}/ranking"),
         &cookie,
         json!({ "player_ids": [a] }),
     )
@@ -2477,12 +2643,14 @@ async fn ranking_reorder_rejects_unknown_id(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid = create_project(&app, &pool, &cookie).await;
+    let rid = create_ranking(&app, &cookie, &pid).await;
 
-    create_player(&app, &cookie, &pid, "Alpha").await;
+    let a = create_player(&app, &cookie, &pid, "Alpha").await;
+    add_player_to_ranking(&app, &cookie, &pid, &rid, &a).await;
 
     let resp = put_json(
         &app,
-        &format!("/projects/{pid}/ranking"),
+        &format!("/projects/{pid}/rankings/{rid}/ranking"),
         &cookie,
         json!({ "player_ids": [Uuid::new_v4().to_string()] }),
     )
@@ -2495,13 +2663,17 @@ async fn ranking_reorder_rejects_duplicate_ids(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice", "password123").await;
     let pid = create_project(&app, &pool, &cookie).await;
+    let rid = create_ranking(&app, &cookie, &pid).await;
 
     let a = create_player(&app, &cookie, &pid, "Alpha").await;
-    create_player(&app, &cookie, &pid, "Beta").await;
+    let b = create_player(&app, &cookie, &pid, "Beta").await;
+
+    add_player_to_ranking(&app, &cookie, &pid, &rid, &a).await;
+    add_player_to_ranking(&app, &cookie, &pid, &rid, &b).await;
 
     let resp = put_json(
         &app,
-        &format!("/projects/{pid}/ranking"),
+        &format!("/projects/{pid}/rankings/{rid}/ranking"),
         &cookie,
         json!({ "player_ids": [a, a] }),
     )
@@ -2516,14 +2688,21 @@ async fn player_stats_returns_single_player_data(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice_ps", "password123").await;
     let pid_str = create_project(&app, &pool, &cookie).await;
-    let pid = Uuid::parse_str(&pid_str).unwrap();
+    let rid = create_ranking(&app, &cookie, &pid_str).await;
+    let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
-    let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
-    let bob_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
-    let charlie_id =
-        Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Charlie").await).unwrap();
+    let alice_id_str = create_player(&app, &cookie, &pid_str, "Alice").await;
+    let bob_id_str = create_player(&app, &cookie, &pid_str, "Bob").await;
+    let charlie_id_str = create_player(&app, &cookie, &pid_str, "Charlie").await;
+    let alice_id = Uuid::parse_str(&alice_id_str).unwrap();
+    let bob_id = Uuid::parse_str(&bob_id_str).unwrap();
+    let charlie_id = Uuid::parse_str(&charlie_id_str).unwrap();
 
-    let (_, event_id) = seed_tournament_event(&pool, pid, 7001, 8001).await;
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &alice_id_str).await;
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &bob_id_str).await;
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &charlie_id_str).await;
+
+    let (_, event_id) = seed_tournament_event(&pool, rid_uuid, 7001, 8001).await;
     let alice_e = seed_entrant(&pool, event_id, Some(alice_id), 301, Some(1)).await;
     let bob_e = seed_entrant(&pool, event_id, Some(bob_id), 302, Some(2)).await;
     let charlie_e = seed_entrant(&pool, event_id, Some(charlie_id), 303, Some(3)).await;
@@ -2534,7 +2713,12 @@ async fn player_stats_returns_single_player_data(pool: PgPool) {
     // Bob beats Charlie (should not appear in Alice's stats)
     seed_set(&pool, event_id, bob_e, charlie_e, 403).await;
 
-    let resp = get_req(&app, &format!("/projects/{pid}/stats/{alice_id}"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid_str}/rankings/{rid}/stats/{alice_id}"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
 
     let body = read_json(resp).await;
@@ -2549,9 +2733,15 @@ async fn player_stats_returns_404_for_unknown_player(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "alice_ps2", "password123").await;
     let pid = create_project(&app, &pool, &cookie).await;
+    let rid = create_ranking(&app, &cookie, &pid).await;
     let fake_id = Uuid::new_v4();
 
-    let resp = get_req(&app, &format!("/projects/{pid}/stats/{fake_id}"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid}/rankings/{rid}/stats/{fake_id}"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
@@ -2560,19 +2750,30 @@ async fn player_stats_returns_losses_correctly(pool: PgPool) {
     let app = make_app(pool.clone(), "");
     let cookie = register(&app, "bob_ps", "password123").await;
     let pid_str = create_project(&app, &pool, &cookie).await;
-    let pid = Uuid::parse_str(&pid_str).unwrap();
+    let rid = create_ranking(&app, &cookie, &pid_str).await;
+    let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
-    let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
-    let bob_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Bob").await).unwrap();
+    let alice_id_str = create_player(&app, &cookie, &pid_str, "Alice").await;
+    let bob_id_str = create_player(&app, &cookie, &pid_str, "Bob").await;
+    let alice_id = Uuid::parse_str(&alice_id_str).unwrap();
+    let bob_id = Uuid::parse_str(&bob_id_str).unwrap();
 
-    let (_, event_id) = seed_tournament_event(&pool, pid, 7002, 8002).await;
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &alice_id_str).await;
+    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &bob_id_str).await;
+
+    let (_, event_id) = seed_tournament_event(&pool, rid_uuid, 7002, 8002).await;
     let alice_e = seed_entrant(&pool, event_id, Some(alice_id), 311, Some(1)).await;
     let bob_e = seed_entrant(&pool, event_id, Some(bob_id), 312, Some(2)).await;
 
     // Alice beats Bob — Bob's perspective should be 0 wins, 1 loss
     seed_set(&pool, event_id, alice_e, bob_e, 411).await;
 
-    let resp = get_req(&app, &format!("/projects/{pid}/stats/{bob_id}"), &cookie).await;
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid_str}/rankings/{rid}/stats/{bob_id}"),
+        &cookie,
+    )
+    .await;
     assert_eq!(resp.status(), StatusCode::OK);
 
     let body = read_json(resp).await;
@@ -2608,15 +2809,6 @@ async fn player_tournaments_returns_attendance_history(pool: PgPool) {
         t1_id
     )
     .fetch_one(&pool)
-    .await
-    .unwrap();
-
-    sqlx::query!(
-        "INSERT INTO project_events (project_id, event_id, included) VALUES ($1, $2, true)",
-        pid,
-        e1_id
-    )
-    .execute(&pool)
     .await
     .unwrap();
 
