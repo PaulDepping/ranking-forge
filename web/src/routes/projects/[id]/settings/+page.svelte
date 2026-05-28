@@ -2,6 +2,7 @@
   import { untrack } from "svelte";
   import { enhance } from "$app/forms";
   import { invalidateAll } from "$app/navigation";
+  import { page } from "$app/state";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
@@ -19,6 +20,20 @@
 
   let deleteDialogOpen = $state(false);
   let deleteFormEl = $state<HTMLFormElement | null>(null);
+
+  let copied = $state(false);
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(
+        `${page.url.origin}/projects/${data.project.id}`,
+      );
+    } catch {
+      // clipboard not available (e.g. headless browser), still show feedback
+    }
+    copied = true;
+    setTimeout(() => (copied = false), 2000);
+  }
 
   let addMemberRole = $state<"editor" | "viewer">("editor");
   let createLinkRole = $state<"editor" | "viewer">("editor");
@@ -68,6 +83,18 @@
         This project is private. Only members can view it.
       {/if}
     </p>
+    {#if data.project.published}
+      <div class="flex gap-2">
+        <Input
+          readonly
+          value="{page.url.origin}/projects/{data.project.id}"
+          class="flex-1 font-mono text-sm"
+        />
+        <Button type="button" variant="outline" onclick={copyLink}>
+          {copied ? "Copied!" : "Copy link"}
+        </Button>
+      </div>
+    {/if}
     <form method="POST" action="?/publish" use:enhance>
       <input
         type="hidden"

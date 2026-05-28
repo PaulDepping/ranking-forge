@@ -314,3 +314,27 @@ test('authenticated user sees "← Projects" back link', async ({ page }) => {
 	await page.goto('/projects/proj-1/stats');
 	await expect(page.getByRole('link', { name: '← Projects' })).toHaveAttribute('href', '/projects');
 });
+
+test('settings shows copy-link input and button when project is published', async ({ page }) => {
+	await page.goto('/projects/proj-published/settings');
+	const urlInput = page.locator('input[readonly]');
+	await expect(urlInput).toBeVisible();
+	await expect(urlInput).toHaveValue(/proj-published/);
+	await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible();
+});
+
+test('settings does not show copy-link when project is not published', async ({ page }) => {
+	await page.goto('/projects/proj-1/settings');
+	await expect(page.locator('input[readonly]')).not.toBeVisible();
+	await expect(page.getByRole('button', { name: 'Copy link' })).not.toBeVisible();
+});
+
+test('copy link button changes to Copied! after click', async ({ page, context }) => {
+	await context.grantPermissions(['clipboard-write']);
+	await page.goto('/projects/proj-published/settings');
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'Copy link' }).click();
+	await expect(page.getByRole('button', { name: 'Copied!' })).toBeVisible({ timeout: 1000 });
+	// Reverts after 2 seconds
+	await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible({ timeout: 4000 });
+});
