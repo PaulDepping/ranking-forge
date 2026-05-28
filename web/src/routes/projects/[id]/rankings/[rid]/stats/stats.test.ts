@@ -15,8 +15,8 @@ const project: Project = {
   game_id: null,
   game_name: null,
   created_at: "2026-01-01T00:00:00Z",
-  published: false,
   user_role: "owner",
+  owner_has_startgg_key: true,
 };
 
 function makeSet(opponentName: string, uf: number): SetRecord {

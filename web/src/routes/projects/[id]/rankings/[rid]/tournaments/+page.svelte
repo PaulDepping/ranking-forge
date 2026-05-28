@@ -16,6 +16,7 @@
   import * as Card from "$lib/components/ui/card";
   import * as Empty from "$lib/components/ui/empty";
   import { formatDate } from "$lib/utils";
+  import { invalidateAll } from "$app/navigation";
 
   let { data } = $props();
 
@@ -130,13 +131,15 @@
 
   async function toggleEvent(
     projectId: string,
+    rankingId: string,
     eventId: string,
     included: boolean,
   ) {
     const api = makeApi(fetch);
-    const res = await api.patch(`/projects/${projectId}/events/${eventId}`, {
-      included,
-    });
+    const res = await api.patch(
+      `/projects/${projectId}/rankings/${rankingId}/events/${eventId}`,
+      { included },
+    );
     if (!res.ok) return;
 
     const updated = await res.json();
@@ -241,18 +244,46 @@
     }));
 
     await Promise.all(
-      toChange.map((e) => toggleEvent(data.project.id, e.id, included)),
+      toChange.map((e) =>
+        toggleEvent(data.project.id, data.ranking.id, e.id, included),
+      ),
     );
   }
 
-  function handleToggle(projectId: string, event: TournamentEvent) {
+  function handleToggle(
+    projectId: string,
+    rankingId: string,
+    event: TournamentEvent,
+  ) {
     tournaments = tournaments.map((t) => ({
       ...t,
       events: t.events.map((e) =>
         e.id === event.id ? { ...e, included: !e.included } : e,
       ),
     }));
-    toggleEvent(projectId, event.id, !event.included);
+    toggleEvent(projectId, rankingId, event.id, !event.included);
+  }
+
+  // Delete tournament
+  let deleteTournamentId = $state<string | null>(null);
+  let deleteDialogOpen = $state(false);
+
+  function confirmDelete(tournamentId: string) {
+    deleteTournamentId = tournamentId;
+    deleteDialogOpen = true;
+  }
+
+  async function deleteTournament() {
+    if (!deleteTournamentId) return;
+    const api = makeApi(fetch);
+    const res = await api.delete(
+      `/projects/${data.project.id}/tournaments/${deleteTournamentId}`,
+    );
+    deleteDialogOpen = false;
+    deleteTournamentId = null;
+    if (res.ok) {
+      await invalidateAll();
+    }
   }
 </script>
 
@@ -574,6 +605,31 @@
       </Dialog.Content>
     </Dialog.Root>
 
+    <!-- Delete tournament confirmation dialog -->
+    <Dialog.Root bind:open={deleteDialogOpen}>
+      <Dialog.Content class="sm:max-w-sm">
+        <Dialog.Header>
+          <Dialog.Title>Delete tournament?</Dialog.Title>
+          <Dialog.Description
+            >This will remove the tournament and all its events from this
+            ranking. This action cannot be undone.</Dialog.Description
+          >
+        </Dialog.Header>
+        <Dialog.Footer>
+          <Button
+            variant="outline"
+            onclick={() => {
+              deleteDialogOpen = false;
+              deleteTournamentId = null;
+            }}>Cancel</Button
+          >
+          <Button variant="destructive" onclick={deleteTournament}
+            >Delete</Button
+          >
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog.Root>
+
     <!-- Tournament list — iterate visibleTournaments -->
     {#if visibleTournaments.length === 0}
       <Empty.Root>
@@ -602,11 +658,23 @@
                 : ""}
             </Card.Description>
             <Card.Action>
-              <Badge variant="outline">
-                {tournament.events.length} event{tournament.events.length !== 1
-                  ? "s"
-                  : ""}
-              </Badge>
+              <div class="flex items-center gap-2">
+                <Badge variant="outline">
+                  {tournament.events.length} event{tournament.events.length !==
+                  1
+                    ? "s"
+                    : ""}
+                </Badge>
+                {#if canEdit}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onclick={() => confirmDelete(tournament.id)}
+                  >
+                    Delete
+                  </Button>
+                {/if}
+              </div>
             </Card.Action>
           </Card.Header>
           <Card.Content class="p-0">
@@ -614,7 +682,7 @@
               {#each tournament.events as event (event.id)}
                 <Label
                   class="flex items-center justify-between px-4 py-2
-										{canEdit ? 'cursor-pointer hover:bg-accent/50' : ''}"
+									{canEdit ? 'cursor-pointer hover:bg-accent/50' : ''}"
                 >
                   <div>
                     <span class="text-sm">{event.name}</span>
@@ -628,7 +696,7 @@
                     <Checkbox
                       checked={event.included}
                       onCheckedChange={() =>
-                        handleToggle(data.project.id, event)}
+                        handleToggle(data.project.id, data.ranking.id, event)}
                     />
                   {/if}
                 </Label>

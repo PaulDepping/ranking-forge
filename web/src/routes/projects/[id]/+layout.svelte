@@ -7,12 +7,9 @@
   let { children, data } = $props();
 
   const allTabs = [
+    { label: "Rankings", href: "", minRole: null },
     { label: "Players", href: "players", minRole: "editor" as const },
     { label: "Import", href: "import", minRole: "editor" as const },
-    { label: "Tournaments", href: "tournaments", minRole: null },
-    { label: "Stats", href: "stats", minRole: null },
-    { label: "H2H", href: "h2h", minRole: null },
-    { label: "Ranking", href: "ranking", minRole: null },
     { label: "Settings", href: "settings", minRole: "owner" as const },
   ];
 
@@ -27,12 +24,17 @@
   );
 
   function tabHref(slug: string) {
+    if (slug === "") return `/projects/${data.project.id}`;
     return `/projects/${data.project.id}/${slug}`;
   }
 
   const currentTab = $derived(
-    tabs.find((t) => page.url.pathname.startsWith(tabHref(t.href)))?.href ??
-      tabs[0].href,
+    tabs.find((t) => {
+      if (t.href === "") {
+        return page.url.pathname === `/projects/${data.project.id}`;
+      }
+      return page.url.pathname.startsWith(tabHref(t.href));
+    })?.href ?? tabs[0].href,
   );
 </script>
 

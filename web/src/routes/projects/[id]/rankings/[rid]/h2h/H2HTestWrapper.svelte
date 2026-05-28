@@ -1,7 +1,7 @@
 <script lang="ts">
   import * as Tooltip from "$lib/components/ui/tooltip";
   import Page from "./+page.svelte";
-  import type { HeadToHeadEntry, Player, Project } from "$lib/types";
+  import type { HeadToHeadEntry, Project } from "$lib/types";
 
   interface WrapperData {
     user: {
@@ -12,7 +12,7 @@
     } | null;
     project: Project;
     h2h: HeadToHeadEntry[];
-    players: Player[];
+    players: { id: string; name: string }[];
     wide: boolean;
   }
 

@@ -15,11 +15,14 @@
 
   let items = $state<RankItem[]>(
     untrack(() =>
-      data.players.map((p: RankItem) => ({ id: p.id, name: p.name })),
+      data.players.map((p: { player_id: string; name: string }) => ({
+        id: p.player_id,
+        name: p.name,
+      })),
     ),
   );
   let savedIds = $state<string[]>(
-    untrack(() => data.players.map((p: RankItem) => p.id)),
+    untrack(() => data.players.map((p: { player_id: string }) => p.player_id)),
   );
 
   const statsMap = $derived<Record<string, PlayerStats>>(
@@ -89,6 +92,7 @@
     const api = makeApi(fetch);
     const res = await api.putRanking(
       data.project.id,
+      data.ranking.id,
       items.map((i) => i.id),
     );
     if (res.ok) {

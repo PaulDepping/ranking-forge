@@ -16,35 +16,14 @@ const project: Project = {
   game_id: null,
   game_name: null,
   created_at: "2026-01-01T00:00:00Z",
-  published: false,
   user_role: "owner",
+  owner_has_startgg_key: true,
 };
 
 const players = [
-  {
-    id: "p1",
-    name: "Alice",
-    project_id: "proj-1",
-    rank_position: 1,
-    created_at: "2026-01-01T00:00:00Z",
-    accounts: [],
-  },
-  {
-    id: "p2",
-    name: "Bob",
-    project_id: "proj-1",
-    rank_position: 2,
-    created_at: "2026-01-01T00:00:00Z",
-    accounts: [],
-  },
-  {
-    id: "p3",
-    name: "Charlie",
-    project_id: "proj-1",
-    rank_position: 3,
-    created_at: "2026-01-01T00:00:00Z",
-    accounts: [],
-  },
+  { id: "p1", name: "Alice" },
+  { id: "p2", name: "Bob" },
+  { id: "p3", name: "Charlie" },
 ];
 
 const h2h = [
