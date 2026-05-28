@@ -141,7 +141,7 @@ jobs:
         run: cargo test -p e2e --features live-tests
 
   topology:
-    needs: test
+    needs: live-tests
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 20
