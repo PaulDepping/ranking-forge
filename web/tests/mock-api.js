@@ -28,6 +28,28 @@ const MOCK_VIEWER_PROJECT = {
 	owner_has_startgg_key: true
 };
 
+const MOCK_GUEST_PROJECT = {
+	id: 'proj-guest',
+	name: 'Public Ranking',
+	game_id: 1,
+	game_name: 'Super Smash Bros. Melee',
+	created_at: '2026-01-01T00:00:00Z',
+	published: true,
+	user_role: null,
+	owner_has_startgg_key: true
+};
+
+const MOCK_PUBLISHED_OWNER_PROJECT = {
+	id: 'proj-published',
+	name: 'Published Owner Ranking',
+	game_id: 1,
+	game_name: 'Super Smash Bros. Melee',
+	created_at: '2026-01-01T00:00:00Z',
+	published: true,
+	user_role: 'owner',
+	owner_has_startgg_key: true
+};
+
 const MOCK_PLAYERS = [
 	{ id: 'player-1', project_id: 'proj-1', name: 'Alice', rank_position: 1, created_at: '2026-01-01T00:00:00Z', accounts: [] },
 	{ id: 'player-2', project_id: 'proj-1', name: 'Bob', rank_position: 2, created_at: '2026-01-01T00:00:00Z', accounts: [] },
@@ -284,7 +306,11 @@ function createMockServer() {
 		const projectMatch = path.match(/^\/projects\/([^/]+)$/);
 		if (projectMatch && req.method === 'GET') {
 			const projectId = projectMatch[1];
-			if (projectId === 'proj-viewer' || projectId === 'proj-viewer-tournaments') {
+			if (projectId === 'proj-guest') {
+				respond(res, 200, MOCK_GUEST_PROJECT);
+			} else if (projectId === 'proj-published') {
+				respond(res, 200, MOCK_PUBLISHED_OWNER_PROJECT);
+			} else if (projectId === 'proj-viewer' || projectId === 'proj-viewer-tournaments') {
 				respond(res, 200, { ...MOCK_VIEWER_PROJECT, id: projectId });
 			} else {
 				respond(res, 200, MOCK_PROJECTS[0]);
