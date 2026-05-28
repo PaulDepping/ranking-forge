@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, get, patch, post, put},
+    routing::{delete, get, put},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -77,7 +77,6 @@ pub async fn require_ranking_read_access(
         ranking_description: Option<String>,
         ranking_published: bool,
         ranking_created_at: DateTime<Utc>,
-        is_owner: Option<bool>,
         member_role: Option<MemberRole>,
     }
 
@@ -88,7 +87,6 @@ pub async fn require_ranking_read_access(
                   r.description AS ranking_description,
                   r.published AS ranking_published,
                   r.created_at AS ranking_created_at,
-                  (p.owner_id = $3) AS is_owner,
                   CASE WHEN pm.user_id IS NOT NULL THEN pm.role END AS "member_role: MemberRole"
            FROM projects p
            JOIN rankings r ON r.id = $2 AND r.project_id = p.id
@@ -541,7 +539,6 @@ pub fn router() -> Router<AppState> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::{routes, state::AppState};
     use axum::{
         Router,

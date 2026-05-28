@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT p.id, p.owner_id, p.name, p.game_id, p.game_name, p.created_at,\n                  r.id AS ranking_id, r.name AS ranking_name,\n                  r.description AS ranking_description,\n                  r.published AS ranking_published,\n                  r.created_at AS ranking_created_at,\n                  (p.owner_id = $3) AS is_owner,\n                  CASE WHEN pm.user_id IS NOT NULL THEN pm.role END AS \"member_role: MemberRole\"\n           FROM projects p\n           JOIN rankings r ON r.id = $2 AND r.project_id = p.id\n           LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $3\n           WHERE p.id = $1",
+  "query": "SELECT p.id, p.owner_id, p.name, p.game_id, p.game_name, p.created_at,\n                  r.id AS ranking_id, r.name AS ranking_name,\n                  r.description AS ranking_description,\n                  r.published AS ranking_published,\n                  r.created_at AS ranking_created_at,\n                  CASE WHEN pm.user_id IS NOT NULL THEN pm.role END AS \"member_role: MemberRole\"\n           FROM projects p\n           JOIN rankings r ON r.id = $2 AND r.project_id = p.id\n           LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $3\n           WHERE p.id = $1",
   "describe": {
     "columns": [
       {
@@ -60,11 +60,6 @@
       },
       {
         "ordinal": 11,
-        "name": "is_owner",
-        "type_info": "Bool"
-      },
-      {
-        "ordinal": 12,
         "name": "member_role: MemberRole",
         "type_info": {
           "Custom": {
@@ -98,9 +93,8 @@
       true,
       false,
       false,
-      null,
       null
     ]
   },
-  "hash": "870c5fc840f90a46c915a94c794cc83c100f8a1cb1e0a7f528d8f64f962d0bd7"
+  "hash": "c69191a31442f237b3d421fac3ea5c4836efad57a2e235e8d9f1318f74eb668f"
 }
