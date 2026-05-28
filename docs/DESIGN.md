@@ -28,9 +28,11 @@ Out of scope:
 5. The server queries all start.gg tournaments that any of those players have entered. I am shown a list of those tournaments and their relevant events, and can manually deselect any I do not want to count.
 6. I get an overview of that list of players: each player's individual wins and losses as separate lists (each sorted by upset factor), with the player list ordered by aggregate upset factor. I also get a head-to-head table of set records between each player.
 
-7. As a project owner I can invite collaborators by email. Collaborators can manage
-   players, trigger imports, and adjust settings, but cannot delete the project or
-   transfer ownership.
+7. As a project owner I can invite collaborators by email. Collaborators have two
+   roles: **Editors** can manage players, trigger imports, and toggle event inclusion.
+   **Viewers** have read-only access. Neither role can adjust project settings (name,
+   game, published flag), delete the project, or transfer ownership — those are
+   owner-only.
 
 8. I can mark the project as published so that anyone with the link can view the
    stats, head-to-head, ranking, and tournament pages without creating an account.
@@ -133,7 +135,7 @@ users
 
 ## API Overview
 
-See `openapi.yaml` for the full contract.
+See `backend/openapi.yaml` for the full contract.
 
 | Group             | Endpoints |
 |-------------------|-----------|
@@ -148,8 +150,8 @@ See `openapi.yaml` for the full contract.
 | Tournaments       | GET /projects/:id/tournaments |
 | Events            | PATCH /projects/:id/events/:eid (toggle included) |
 | Stats             | GET /projects/:id/stats; GET /projects/:id/stats/:player_id; GET /projects/:id/head-to-head; GET /projects/:id/head-to-head/:a/:b/sets |
-| Members           | GET/POST /projects/:id/members; PATCH/DELETE /projects/:id/members/:uid; POST /projects/:id/members/transfer-ownership |
-| Invite links      | GET/POST /projects/:id/invite-links; DELETE /projects/:id/invite-links/:lid; POST /invite/:token/accept |
+| Members           | GET/POST /projects/:id/members; PATCH/DELETE /projects/:id/members/:uid; POST /projects/:id/members/transfer-ownership *(not yet in openapi.yaml)* |
+| Invite links      | GET/POST /projects/:id/invite-links; DELETE /projects/:id/invite-links/:lid; POST /invite/:token/accept *(not yet in openapi.yaml)* |
 | Games             | GET /games?q= (proxies start.gg game search) |
 
 ## Upset Factor
