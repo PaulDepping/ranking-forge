@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, patch},
+    routing::{delete, get, patch},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -386,6 +386,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/{id}/tournament-entrants",
             get(crate::routes::players::list_tournament_entrants),
+        )
+        .route(
+            "/{id}/tournaments/{tid}",
+            delete(crate::routes::tournaments::delete_tournament),
         )
         .nest("/{id}/rankings", crate::routes::rankings::router())
         .nest("/{id}/members", crate::routes::members::router())

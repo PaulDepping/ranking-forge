@@ -536,6 +536,7 @@ pub fn router() -> Router<AppState> {
             delete(remove_ranking_player).patch(patch_ranking_player),
         )
         .route("/{rid}/ranking", put(reorder_ranking_players))
+        .nest("/{rid}", crate::routes::tournaments::router())
 }
 
 #[cfg(test)]

@@ -185,6 +185,8 @@ CREATE TABLE ranking_events (
     PRIMARY KEY (ranking_id, event_id)
 );
 
+CREATE INDEX ranking_events_event_id_idx ON ranking_events(event_id);
+
 CREATE TABLE entrants (
     id                  UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id            UUID    NOT NULL REFERENCES events(id) ON DELETE CASCADE,

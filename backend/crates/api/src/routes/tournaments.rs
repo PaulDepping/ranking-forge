@@ -1,7 +1,9 @@
 use axum::{
-    Json,
+    Json, Router,
     extract::{Path, State},
+    http::StatusCode,
     response::IntoResponse,
+    routing::{delete, get, patch},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -11,7 +13,7 @@ use uuid::Uuid;
 use crate::{
     error::{AppError, Result},
     routes::auth::{AuthUser, OptionalAuthUser},
-    routes::projects::{require_project_access, require_project_read_access},
+    routes::rankings::{RankingPath, require_ranking_access, require_ranking_read_access},
     state::AppState,
 };
 use common::models::UserRole;
@@ -110,16 +112,25 @@ pub struct HeadToHeadEntry {
 // ── Path param structs ────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
-pub struct ProjectEventPath {
-    pub id: Uuid,
-    pub eid: Uuid,
+pub struct RankingEventPath {
+    pub id: Uuid,  // project_id
+    pub rid: Uuid, // ranking_id
+    pub eid: Uuid, // event_id
 }
 
 #[derive(Deserialize)]
-pub struct H2HSetPath {
+pub struct RankingH2HPath {
     pub id: Uuid,
+    pub rid: Uuid,
     pub pid_a: Uuid,
     pub pid_b: Uuid,
+}
+
+#[derive(Deserialize)]
+pub struct RankingPlayerStatPath {
+    pub id: Uuid,
+    pub rid: Uuid,
+    pub player_id: Uuid,
 }
 
 #[derive(Serialize)]
@@ -167,9 +178,9 @@ struct SetRow {
 pub async fn list_tournaments(
     State(state): State<AppState>,
     OptionalAuthUser(user): OptionalAuthUser,
-    Path(project_id): Path<Uuid>,
+    Path(path): Path<RankingPath>,
 ) -> Result<impl IntoResponse> {
-    require_project_read_access(&state.db, project_id, user.map(|u| u.id)).await?;
+    require_ranking_read_access(&state.db, path.id, path.rid, user.map(|u| u.id)).await?;
 
     #[derive(Debug)]
     struct Row {
@@ -216,7 +227,7 @@ pub async fn list_tournaments(
             e.game_name,
             e.num_entrants,
             e.start_at      AS event_start_at,
-            pe.included,
+            re.included,
             e.event_type,
             ARRAY(
                 SELECT p.bracket_type
@@ -225,13 +236,13 @@ pub async fn list_tournaments(
                   AND p.bracket_type IS NOT NULL
                 ORDER BY p.phase_order ASC NULLS LAST
             )               AS "bracket_types!: Vec<String>"
-        FROM project_events pe
-        JOIN events      e ON e.id = pe.event_id
+        FROM ranking_events re
+        JOIN events      e ON e.id = re.event_id
         JOIN tournaments t ON t.id = e.tournament_id
-        WHERE pe.project_id = $1
+        WHERE re.ranking_id = $1
         ORDER BY t.start_at DESC NULLS LAST, t.name ASC, e.name ASC
         "#,
-        project_id,
+        path.rid,
     )
     .fetch_all(&state.db)
     .await?;
@@ -288,15 +299,15 @@ pub struct PatchEventBody {
 pub async fn patch_event(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
-    Path(path): Path<ProjectEventPath>,
+    Path(path): Path<RankingEventPath>,
     Json(body): Json<PatchEventBody>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, path.id, user.id, UserRole::Editor).await?;
+    require_ranking_access(&state.db, path.id, path.rid, user.id, UserRole::Editor).await?;
 
-    // Verify the event belongs to this project.
+    // Verify the event belongs to this ranking.
     sqlx::query!(
-        "SELECT project_id FROM project_events WHERE project_id = $1 AND event_id = $2",
-        path.id,
+        "SELECT ranking_id FROM ranking_events WHERE ranking_id = $1 AND event_id = $2",
+        path.rid,
         path.eid,
     )
     .fetch_optional(&state.db)
@@ -305,11 +316,11 @@ pub async fn patch_event(
 
     sqlx::query!(
         r#"
-        INSERT INTO project_events (project_id, event_id, included)
+        INSERT INTO ranking_events (ranking_id, event_id, included)
         VALUES ($1, $2, $3)
-        ON CONFLICT (project_id, event_id) DO UPDATE SET included = EXCLUDED.included
+        ON CONFLICT (ranking_id, event_id) DO UPDATE SET included = EXCLUDED.included
         "#,
-        path.id,
+        path.rid,
         path.eid,
         body.included,
     )
@@ -334,7 +345,7 @@ pub async fn patch_event(
         EventRow,
         r#"
         SELECT e.id, e.startgg_id, e.name, e.game_name, e.num_entrants,
-               e.start_at, pe.included, e.event_type,
+               e.start_at, re.included, e.event_type,
                ARRAY(
                    SELECT p.bracket_type
                    FROM phases p
@@ -343,10 +354,10 @@ pub async fn patch_event(
                    ORDER BY p.phase_order ASC NULLS LAST
                ) AS "bracket_types!: Vec<String>"
         FROM events e
-        JOIN project_events pe ON pe.event_id = e.id AND pe.project_id = $1
+        JOIN ranking_events re ON re.event_id = e.id AND re.ranking_id = $1
         WHERE e.id = $2
         "#,
-        path.id,
+        path.rid,
         path.eid,
     )
     .fetch_one(&state.db)
@@ -368,9 +379,9 @@ pub async fn patch_event(
 pub async fn get_stats(
     State(state): State<AppState>,
     OptionalAuthUser(user): OptionalAuthUser,
-    Path(project_id): Path<Uuid>,
+    Path(path): Path<RankingPath>,
 ) -> Result<impl IntoResponse> {
-    require_project_read_access(&state.db, project_id, user.map(|u| u.id)).await?;
+    require_ranking_read_access(&state.db, path.id, path.rid, user.map(|u| u.id)).await?;
 
     struct PlayerRow {
         id: Uuid,
@@ -379,8 +390,14 @@ pub async fn get_stats(
 
     let players = sqlx::query_as!(
         PlayerRow,
-        "SELECT id, name FROM players WHERE project_id = $1 ORDER BY rank_position ASC, created_at ASC",
-        project_id,
+        r#"
+        SELECT rp.player_id AS id, pl.name
+        FROM ranking_players rp
+        JOIN players pl ON pl.id = rp.player_id
+        WHERE rp.ranking_id = $1
+        ORDER BY rp.rank_position ASC, pl.created_at ASC
+        "#,
+        path.rid,
     )
     .fetch_all(&state.db)
     .await?;
@@ -420,19 +437,21 @@ pub async fn get_stats(
         FROM sets s
         JOIN entrants we ON we.id = s.winner_entrant_id
         JOIN entrants le ON le.id = s.loser_entrant_id
-        LEFT JOIN players wp ON wp.id = we.player_id AND wp.project_id = $1
-        LEFT JOIN players lp ON lp.id = le.player_id AND lp.project_id = $1
-        JOIN project_events pe ON pe.event_id = s.event_id AND pe.project_id = $1
+        LEFT JOIN ranking_players rwp ON rwp.player_id = we.player_id AND rwp.ranking_id = $1
+        LEFT JOIN players wp ON wp.id = rwp.player_id
+        LEFT JOIN ranking_players rlp ON rlp.player_id = le.player_id AND rlp.ranking_id = $1
+        LEFT JOIN players lp ON lp.id = rlp.player_id
+        JOIN ranking_events re ON re.event_id = s.event_id AND re.ranking_id = $1
         JOIN events e ON e.id = s.event_id
         JOIN tournaments t ON t.id = e.tournament_id
         LEFT JOIN phase_groups pg ON pg.id = s.phase_group_id
         LEFT JOIN phases ph ON ph.id = pg.phase_id
-        WHERE pe.included = true
+        WHERE re.included = true
           AND s.is_dq    = false
           AND s.has_placeholder = false
-          AND (wp.id IS NOT NULL OR lp.id IS NOT NULL)
+          AND (rwp.player_id IS NOT NULL OR rlp.player_id IS NOT NULL)
         "#,
-        project_id,
+        path.rid,
     )
     .fetch_all(&state.db)
     .await?;
@@ -542,14 +561,16 @@ pub async fn get_stats(
 pub async fn get_player_stats(
     State(state): State<AppState>,
     OptionalAuthUser(user): OptionalAuthUser,
-    Path((project_id, player_id)): Path<(Uuid, Uuid)>,
+    Path(path): Path<RankingPlayerStatPath>,
 ) -> Result<impl IntoResponse> {
-    require_project_read_access(&state.db, project_id, user.map(|u| u.id)).await?;
+    require_ranking_read_access(&state.db, path.id, path.rid, user.map(|u| u.id)).await?;
 
     let name: Option<String> = sqlx::query_scalar!(
-        "SELECT name FROM players WHERE id = $1 AND project_id = $2",
-        player_id,
-        project_id,
+        r#"SELECT pl.name FROM ranking_players rp
+           JOIN players pl ON pl.id = rp.player_id
+           WHERE rp.ranking_id = $1 AND rp.player_id = $2"#,
+        path.rid,
+        path.player_id,
     )
     .fetch_optional(&state.db)
     .await?;
@@ -590,21 +611,23 @@ pub async fn get_player_stats(
         FROM sets s
         JOIN entrants we ON we.id = s.winner_entrant_id
         JOIN entrants le ON le.id = s.loser_entrant_id
-        LEFT JOIN players wp ON wp.id = we.player_id AND wp.project_id = $1
-        LEFT JOIN players lp ON lp.id = le.player_id AND lp.project_id = $1
-        JOIN project_events pe ON pe.event_id = s.event_id AND pe.project_id = $1
+        LEFT JOIN ranking_players rwp ON rwp.player_id = we.player_id AND rwp.ranking_id = $1
+        LEFT JOIN players wp ON wp.id = rwp.player_id
+        LEFT JOIN ranking_players rlp ON rlp.player_id = le.player_id AND rlp.ranking_id = $1
+        LEFT JOIN players lp ON lp.id = rlp.player_id
+        JOIN ranking_events re ON re.event_id = s.event_id AND re.ranking_id = $1
         JOIN events e ON e.id = s.event_id
         JOIN tournaments t ON t.id = e.tournament_id
         LEFT JOIN phase_groups pg ON pg.id = s.phase_group_id
         LEFT JOIN phases ph ON ph.id = pg.phase_id
-        WHERE pe.included = true
+        WHERE re.included = true
           AND s.is_dq    = false
           AND s.has_placeholder = false
-          AND (wp.id IS NOT NULL OR lp.id IS NOT NULL)
+          AND (rwp.player_id IS NOT NULL OR rlp.player_id IS NOT NULL)
           AND (we.player_id = $2 OR le.player_id = $2)
         "#,
-        project_id,
-        player_id,
+        path.rid,
+        path.player_id,
     )
     .fetch_all(&state.db)
     .await?;
@@ -626,7 +649,7 @@ pub async fn get_player_stats(
         let loser_opp_id = row.loser_player_id.unwrap_or(row.loser_entrant_id);
         let winner_opp_id = row.winner_player_id.unwrap_or(row.winner_entrant_id);
 
-        if row.winner_player_id == Some(player_id) {
+        if row.winner_player_id == Some(path.player_id) {
             wins.push(SetRecord {
                 opponent_id: loser_opp_id,
                 opponent_name: row.loser_name,
@@ -652,7 +675,7 @@ pub async fn get_player_stats(
                 event_handle: row.event_handle.clone(),
             });
         }
-        if row.loser_player_id == Some(player_id) {
+        if row.loser_player_id == Some(path.player_id) {
             losses.push(SetRecord {
                 opponent_id: winner_opp_id,
                 opponent_name: row.winner_name,
@@ -684,7 +707,7 @@ pub async fn get_player_stats(
     losses.sort_by(|a, b| b.upset_factor.cmp(&a.upset_factor));
 
     Ok(Json(PlayerStatsResponse {
-        player_id,
+        player_id: path.player_id,
         name,
         wins,
         losses,
@@ -707,6 +730,7 @@ pub async fn get_player_tournaments(
     OptionalAuthUser(user): OptionalAuthUser,
     Path((project_id, player_id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse> {
+    use crate::routes::projects::require_project_read_access;
     require_project_read_access(&state.db, project_id, user.map(|u| u.id)).await?;
 
     let exists: Option<Uuid> = sqlx::query_scalar!(
@@ -784,9 +808,9 @@ pub async fn get_player_tournaments(
 pub async fn get_head_to_head(
     State(state): State<AppState>,
     OptionalAuthUser(user): OptionalAuthUser,
-    Path(project_id): Path<Uuid>,
+    Path(path): Path<RankingPath>,
 ) -> Result<impl IntoResponse> {
-    require_project_read_access(&state.db, project_id, user.map(|u| u.id)).await?;
+    require_ranking_read_access(&state.db, path.id, path.rid, user.map(|u| u.id)).await?;
 
     struct H2HRow {
         winner_player_id: Uuid,
@@ -804,15 +828,15 @@ pub async fn get_head_to_head(
         FROM sets s
         JOIN entrants we ON we.id = s.winner_entrant_id
         JOIN entrants le ON le.id = s.loser_entrant_id
-        JOIN players  wp ON wp.id = we.player_id AND wp.project_id = $1
-        JOIN players  lp ON lp.id = le.player_id AND lp.project_id = $1
-        JOIN project_events pe ON pe.event_id = s.event_id AND pe.project_id = $1
-        WHERE pe.included = true
+        JOIN ranking_players rwp ON rwp.player_id = we.player_id AND rwp.ranking_id = $1
+        JOIN ranking_players rlp ON rlp.player_id = le.player_id AND rlp.ranking_id = $1
+        JOIN ranking_events re ON re.event_id = s.event_id AND re.ranking_id = $1
+        WHERE re.included = true
           AND s.is_dq    = false
           AND s.has_placeholder = false
         GROUP BY we.player_id, le.player_id
         "#,
-        project_id,
+        path.rid,
     )
     .fetch_all(&state.db)
     .await?;
@@ -863,9 +887,9 @@ pub async fn get_head_to_head(
 pub async fn get_h2h_sets(
     State(state): State<AppState>,
     OptionalAuthUser(user): OptionalAuthUser,
-    Path(path): Path<H2HSetPath>,
+    Path(path): Path<RankingH2HPath>,
 ) -> Result<impl IntoResponse> {
-    require_project_read_access(&state.db, path.id, user.map(|u| u.id)).await?;
+    require_ranking_read_access(&state.db, path.id, path.rid, user.map(|u| u.id)).await?;
 
     struct H2HSetRow {
         winner_player_id: Uuid,
@@ -929,14 +953,16 @@ pub async fn get_h2h_sets(
         FROM sets s
         JOIN entrants we ON we.id = s.winner_entrant_id
         JOIN entrants le ON le.id = s.loser_entrant_id
-        JOIN players  wp ON wp.id = we.player_id AND wp.project_id = $1
-        JOIN players  lp ON lp.id = le.player_id AND lp.project_id = $1
+        JOIN ranking_players rwp ON rwp.player_id = we.player_id AND rwp.ranking_id = $1
+        JOIN players  wp ON wp.id = rwp.player_id
+        JOIN ranking_players rlp ON rlp.player_id = le.player_id AND rlp.ranking_id = $1
+        JOIN players  lp ON lp.id = rlp.player_id
         JOIN events   e  ON e.id  = s.event_id
         JOIN tournaments t ON t.id = e.tournament_id
-        JOIN project_events pe ON pe.event_id = s.event_id AND pe.project_id = $1
+        JOIN ranking_events re ON re.event_id = s.event_id AND re.ranking_id = $1
         LEFT JOIN phase_groups pg ON pg.id = s.phase_group_id
         LEFT JOIN phases ph ON ph.id = pg.phase_id
-        WHERE pe.included = true
+        WHERE re.included = true
           AND s.is_dq = false
           AND s.has_placeholder = false
           AND (
@@ -945,7 +971,7 @@ pub async fn get_h2h_sets(
           )
         ORDER BY s.completed_at DESC NULLS LAST
         "#,
-        path.id,
+        path.rid,
         path.pid_a,
         path.pid_b,
     )
@@ -1004,14 +1030,41 @@ pub async fn get_h2h_sets(
     Ok(Json(sets))
 }
 
+pub async fn delete_tournament(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path((project_id, tournament_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse> {
+    use crate::routes::projects::require_project_access;
+    require_project_access(&state.db, project_id, user.id, UserRole::Editor).await?;
+
+    sqlx::query!(
+        r#"
+        DELETE FROM ranking_events
+        WHERE event_id IN (
+            SELECT id FROM events WHERE tournament_id = $1
+        )
+        AND ranking_id IN (
+            SELECT id FROM rankings WHERE project_id = $2
+        )
+        "#,
+        tournament_id,
+        project_id,
+    )
+    .execute(&state.db)
+    .await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 
-pub fn router() -> axum::Router<AppState> {
-    use axum::routing::{get, patch};
-    axum::Router::new()
+pub fn router() -> Router<AppState> {
+    Router::new()
         .route("/tournaments", get(list_tournaments))
         .route("/events/{eid}", patch(patch_event))
         .route("/stats", get(get_stats))
+        .route("/stats/{player_id}", get(get_player_stats))
         .route("/head-to-head", get(get_head_to_head))
         .route("/head-to-head/{pid_a}/{pid_b}/sets", get(get_h2h_sets))
 }
