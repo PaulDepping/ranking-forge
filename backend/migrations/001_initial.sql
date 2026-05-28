@@ -21,25 +21,22 @@ CREATE TABLE sessions (
 
 CREATE INDEX sessions_user_id_idx ON sessions(user_id);
 
--- Project membership roles (owner is stored on ranking_projects.owner_id, not here)
 CREATE TYPE project_member_role AS ENUM ('editor', 'viewer');
 
--- Ranking projects
-CREATE TABLE ranking_projects (
+-- Projects (container for rankings, players, members)
+CREATE TABLE projects (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name        TEXT        NOT NULL,
     game_id     BIGINT,
     game_name   TEXT,
-    published   BOOLEAN     NOT NULL DEFAULT FALSE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX ranking_projects_owner_id_idx ON ranking_projects(owner_id);
+CREATE INDEX projects_owner_id_idx ON projects(owner_id);
 
--- Project membership (editors and viewers only; owner is in ranking_projects.owner_id)
 CREATE TABLE project_members (
-    project_id  UUID                NOT NULL REFERENCES ranking_projects(id) ON DELETE CASCADE,
+    project_id  UUID                NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     user_id     UUID                NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role        project_member_role NOT NULL,
     joined_at   TIMESTAMPTZ         NOT NULL DEFAULT NOW(),
@@ -48,10 +45,9 @@ CREATE TABLE project_members (
 
 CREATE INDEX project_members_user_id_idx ON project_members(user_id);
 
--- Invite links (editor or viewer only)
 CREATE TABLE project_invite_links (
     id          UUID                PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id  UUID                NOT NULL REFERENCES ranking_projects(id) ON DELETE CASCADE,
+    project_id  UUID                NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     role        project_member_role NOT NULL,
     created_by  UUID                NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     expires_at  TIMESTAMPTZ,
@@ -61,17 +57,38 @@ CREATE TABLE project_invite_links (
 
 CREATE INDEX project_invite_links_project_id_idx ON project_invite_links(project_id);
 
--- Players (project-scoped)
+-- Rankings (one or more per project; each is an independent ranking view)
+CREATE TABLE rankings (
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id  UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name        TEXT        NOT NULL,
+    description TEXT,
+    published   BOOLEAN     NOT NULL DEFAULT FALSE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX rankings_project_id_idx ON rankings(project_id);
+
+-- Players (project-scoped pool; rankings select a subset via ranking_players)
 CREATE TABLE players (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id    UUID        NOT NULL REFERENCES ranking_projects(id) ON DELETE CASCADE,
+    project_id    UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     name          TEXT        NOT NULL,
-    rank_position INTEGER     NOT NULL DEFAULT 0,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX players_project_id_idx ON players(project_id);
-CREATE INDEX players_project_id_rank_idx ON players(project_id, rank_position);
+
+-- Per-ranking player membership with ordering and notes
+CREATE TABLE ranking_players (
+    ranking_id    UUID    NOT NULL REFERENCES rankings(id) ON DELETE CASCADE,
+    player_id     UUID    NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    rank_position INTEGER NOT NULL DEFAULT 0,
+    notes         TEXT,
+    PRIMARY KEY (ranking_id, player_id)
+);
+
+CREATE INDEX ranking_players_player_id_idx ON ranking_players(player_id);
 
 -- start.gg accounts linked to players
 CREATE TABLE startgg_accounts (
@@ -85,9 +102,9 @@ CREATE TABLE startgg_accounts (
 );
 
 CREATE INDEX startgg_accounts_player_id_idx ON startgg_accounts(player_id);
-CREATE INDEX startgg_accounts_user_id_idx ON startgg_accounts(startgg_user_id);
+CREATE INDEX startgg_accounts_user_id_idx   ON startgg_accounts(startgg_user_id);
 
--- Tournaments (imported from start.gg, shared across projects)
+-- Tournaments (global, shared across all projects)
 CREATE TABLE tournaments (
     id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     startgg_id     BIGINT      NOT NULL UNIQUE,
@@ -109,7 +126,6 @@ CREATE TABLE tournaments (
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Events within tournaments
 CREATE TABLE events (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     tournament_id UUID        NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
@@ -128,10 +144,9 @@ CREATE TABLE events (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX events_start_at_idx ON events(start_at);
+CREATE INDEX events_start_at_idx      ON events(start_at);
 CREATE INDEX events_tournament_id_idx ON events(tournament_id);
 
--- Bracket phases within an event
 CREATE TABLE phases (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     startgg_id    BIGINT      NOT NULL UNIQUE,
@@ -147,7 +162,6 @@ CREATE TABLE phases (
 
 CREATE INDEX phases_event_id_idx ON phases(event_id);
 
--- Individual pools/brackets within a phase
 CREATE TABLE phase_groups (
     id                 UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     startgg_id         BIGINT      NOT NULL UNIQUE,
@@ -163,15 +177,14 @@ CREATE TABLE phase_groups (
 
 CREATE INDEX phase_groups_phase_id_idx ON phase_groups(phase_id);
 
--- Per-project event inclusion
-CREATE TABLE project_events (
-    project_id UUID    NOT NULL REFERENCES ranking_projects(id) ON DELETE CASCADE,
+-- Per-ranking event inclusion (imported by worker per ranking; default included)
+CREATE TABLE ranking_events (
+    ranking_id UUID    NOT NULL REFERENCES rankings(id) ON DELETE CASCADE,
     event_id   UUID    NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     included   BOOLEAN NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (project_id, event_id)
+    PRIMARY KEY (ranking_id, event_id)
 );
 
--- Entrants: one player's participation in one event
 CREATE TABLE entrants (
     id                  UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id            UUID    NOT NULL REFERENCES events(id) ON DELETE CASCADE,
@@ -185,11 +198,10 @@ CREATE TABLE entrants (
     UNIQUE (event_id, startgg_entrant_id)
 );
 
-CREATE INDEX entrants_event_id_idx ON entrants(event_id);
-CREATE INDEX entrants_player_id_idx ON entrants(player_id);
-CREATE INDEX entrants_startgg_user_id_idx ON entrants(startgg_user_id);
+CREATE INDEX entrants_event_id_idx          ON entrants(event_id);
+CREATE INDEX entrants_player_id_idx         ON entrants(player_id);
+CREATE INDEX entrants_startgg_user_id_idx   ON entrants(startgg_user_id);
 
--- Sets: match results
 CREATE TABLE sets (
     id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     event_id          UUID        NOT NULL REFERENCES events(id) ON DELETE CASCADE,
@@ -211,24 +223,25 @@ CREATE TABLE sets (
     UNIQUE (event_id, startgg_set_id)
 );
 
-CREATE INDEX sets_event_id_idx ON sets(event_id);
-CREATE INDEX sets_phase_group_id_idx ON sets(phase_group_id);
-CREATE INDEX sets_winner_entrant_id_idx ON sets(winner_entrant_id);
-CREATE INDEX sets_loser_entrant_id_idx ON sets(loser_entrant_id);
-CREATE INDEX sets_completed_at_idx ON sets(completed_at);
+CREATE INDEX sets_event_id_idx           ON sets(event_id);
+CREATE INDEX sets_phase_group_id_idx     ON sets(phase_group_id);
+CREATE INDEX sets_winner_entrant_id_idx  ON sets(winner_entrant_id);
+CREATE INDEX sets_loser_entrant_id_idx   ON sets(loser_entrant_id);
+CREATE INDEX sets_completed_at_idx       ON sets(completed_at);
 
--- Job queue for background worker
+-- Job queue
 CREATE TABLE jobs (
     id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     kind       job_kind    NOT NULL,
-    project_id UUID        NOT NULL REFERENCES ranking_projects(id) ON DELETE CASCADE,
+    project_id UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     params     JSONB       NOT NULL DEFAULT '{}',
     result     JSONB,
+    progress   JSONB,
     status     job_status  NOT NULL DEFAULT 'pending',
     error      TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX jobs_status_idx ON jobs(status) WHERE status IN ('pending', 'running');
+CREATE INDEX jobs_status_idx     ON jobs(status) WHERE status IN ('pending', 'running');
 CREATE INDEX jobs_project_id_idx ON jobs(project_id);
