@@ -41,12 +41,29 @@ pub struct Project {
     pub name: String,
     pub game_id: Option<i64>,
     pub game_name: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct Ranking {
+    pub id: Uuid,
+    pub project_id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
     pub published: bool,
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct RankingPlayer {
+    pub ranking_id: Uuid,
+    pub player_id: Uuid,
+    pub rank_position: i32,
+    pub notes: Option<String>,
+}
+
 /// DB-mapped role for project_members rows. Only editor and viewer — owner is
-/// stored as ranking_projects.owner_id.
+/// stored as projects.owner_id.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::Type, Serialize, Deserialize)]
 #[sqlx(type_name = "project_member_role", rename_all = "snake_case")]
 #[serde(rename_all = "lowercase")]
@@ -111,7 +128,6 @@ pub struct Player {
     pub id: Uuid,
     pub project_id: Uuid,
     pub name: String,
-    pub rank_position: i32,
     pub created_at: DateTime<Utc>,
 }
 
