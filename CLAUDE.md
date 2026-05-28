@@ -21,7 +21,7 @@ backend/          Rust workspace
   .sqlx/          Offline query cache (committed; required for SQLX_OFFLINE=true builds)
   openapi.yaml    Full REST API contract
 web/              SvelteKit frontend
-DESIGN.md         Architecture reference with full data model and API overview
+docs/             Architecture docs, route map, module map, ADRs
 ```
 
 ## Test scripts
@@ -163,3 +163,20 @@ SvelteKit + TypeScript in `web/`. See `web/CLAUDE.md` for frontend-specific guid
 Installed components: `alert`, `alert-dialog`, `badge`, `button`, `calendar`, `card`, `checkbox`, `collapsible`, `command`, `dialog`, `empty`, `input`, `label`, `popover`, `range-calendar`, `scroll-area`, `select`, `separator`, `skeleton`, `table`, `tabs`, `tooltip`. Install others as needed with `npx shadcn-svelte@latest add --yes --overwrite <name>`.
 
 **shadcn-svelte reference docs** are cached locally in `docs/shadcn-svelte/`. Index: `docs/shadcn-svelte.md`. Individual component docs: `docs/shadcn-svelte/docs/components/<name>.md`. Read the relevant file instead of fetching from the web.
+
+## Further reading
+
+- `docs/DESIGN.md` — architecture, data model, API overview, upset factor algorithm
+- `docs/routes.md` — SvelteKit route map with access control
+- `docs/modules.md` — backend crate and module map
+- `docs/adr/` — architecture decision records (the *why* behind key decisions)
+
+## Documentation maintenance
+
+When implementing any feature or making an architectural decision, update the relevant
+documentation as part of the same change — do not wait to be asked:
+
+- `docs/DESIGN.md` — if the data model, API surface, or overall architecture changes
+- `docs/routes.md` — if a SvelteKit route is added, removed, or its access control changes
+- `docs/modules.md` — if a new crate or significant module is added
+- `docs/adr/` — if a non-obvious architectural decision is made; add a new numbered ADR
