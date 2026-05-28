@@ -12,7 +12,6 @@ export interface Project {
   game_id: number | null;
   game_name: string | null;
   created_at: string;
-  published: boolean;
   user_role: "owner" | "editor" | "viewer" | null;
   owner_has_startgg_key: boolean;
 }
@@ -28,9 +27,25 @@ export interface Player {
   id: string;
   project_id: string;
   name: string;
-  rank_position: number;
   created_at: string;
   accounts: Account[];
+}
+
+export interface Ranking {
+  id: string;
+  project_id: string;
+  name: string;
+  description: string | null;
+  published: boolean;
+  created_at: string;
+  user_role: "owner" | "editor" | "viewer" | null;
+}
+
+export interface RankingPlayer {
+  player_id: string;
+  name: string;
+  rank_position: number;
+  notes: string | null;
 }
 
 export interface TournamentParticipant {

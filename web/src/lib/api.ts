@@ -22,7 +22,46 @@ export function makeApi(fetchFn: typeof fetch) {
     patch: (path: string, body: unknown) => req("PATCH", path, body),
     put: (path: string, body: unknown) => req("PUT", path, body),
     delete: (path: string) => req("DELETE", path),
-    putRanking: (projectId: string, playerIds: string[]) =>
-      req("PUT", `/projects/${projectId}/ranking`, { player_ids: playerIds }),
+    putRanking: (projectId: string, rankingId: string, playerIds: string[]) =>
+      req("PUT", `/projects/${projectId}/rankings/${rankingId}/ranking`, {
+        player_ids: playerIds,
+      }),
+    createRanking: (projectId: string, name: string, description?: string) =>
+      req("POST", `/projects/${projectId}/rankings`, { name, description }),
+    patchRanking: (
+      projectId: string,
+      rankingId: string,
+      body: { name?: string; description?: string; published?: boolean },
+    ) => req("PATCH", `/projects/${projectId}/rankings/${rankingId}`, body),
+    deleteRanking: (projectId: string, rankingId: string) =>
+      req("DELETE", `/projects/${projectId}/rankings/${rankingId}`),
+    addRankingPlayer: (
+      projectId: string,
+      rankingId: string,
+      playerId: string,
+    ) =>
+      req("POST", `/projects/${projectId}/rankings/${rankingId}/players`, {
+        player_id: playerId,
+      }),
+    removeRankingPlayer: (
+      projectId: string,
+      rankingId: string,
+      playerId: string,
+    ) =>
+      req(
+        "DELETE",
+        `/projects/${projectId}/rankings/${rankingId}/players/${playerId}`,
+      ),
+    patchRankingPlayer: (
+      projectId: string,
+      rankingId: string,
+      playerId: string,
+      notes: string | null,
+    ) =>
+      req(
+        "PATCH",
+        `/projects/${projectId}/rankings/${rankingId}/players/${playerId}`,
+        { notes },
+      ),
   };
 }
