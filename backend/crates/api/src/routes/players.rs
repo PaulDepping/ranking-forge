@@ -98,10 +98,10 @@ async fn list_players(
 
     let players = sqlx::query_as!(
         Player,
-        "SELECT id, project_id, name, rank_position, created_at
+        "SELECT id, project_id, name, created_at
          FROM players
          WHERE project_id = $1
-         ORDER BY rank_position ASC, created_at ASC",
+         ORDER BY created_at ASC",
         project_id,
     )
     .fetch_all(&state.db)
@@ -158,12 +158,9 @@ async fn add_player(
 
     let player = sqlx::query_as!(
         Player,
-        "INSERT INTO players (project_id, name, rank_position)
-         VALUES (
-             $1, $2,
-             (SELECT COALESCE(MAX(rank_position), 0) + 1 FROM players WHERE project_id = $1)
-         )
-         RETURNING id, project_id, name, rank_position, created_at",
+        "INSERT INTO players (project_id, name)
+         VALUES ($1, $2)
+         RETURNING id, project_id, name, created_at",
         project_id,
         body.name,
     )
@@ -290,11 +287,8 @@ async fn create_player_with_account(
     display_name: Option<&str>,
 ) -> crate::error::Result<Uuid> {
     let player = sqlx::query!(
-        "INSERT INTO players (project_id, name, rank_position)
-         VALUES (
-             $1, $2,
-             (SELECT COALESCE(MAX(rank_position), 0) + 1 FROM players WHERE project_id = $1)
-         )
+        "INSERT INTO players (project_id, name)
+         VALUES ($1, $2)
          RETURNING id",
         project_id,
         name,
@@ -599,7 +593,7 @@ async fn rename_player(
     let player = sqlx::query_as!(
         Player,
         "UPDATE players SET name = $1 WHERE id = $2 AND project_id = $3
-         RETURNING id, project_id, name, rank_position, created_at",
+         RETURNING id, project_id, name, created_at",
         body.name.trim(),
         path.pid,
         path.id,
@@ -629,65 +623,6 @@ fn normalize_handle(input: &str) -> String {
 fn normalize_tournament_handle(input: &str) -> String {
     let stripped = strip_startgg_url_prefix(input.trim()).trim_start_matches("tournament/");
     stripped.split('/').next().unwrap_or(stripped).to_string()
-}
-
-// ── Reorder players ───────────────────────────────────────────────────────────
-
-#[derive(Deserialize)]
-pub struct ReorderRequest {
-    pub player_ids: Vec<Uuid>,
-}
-
-pub async fn reorder_players(
-    State(state): State<AppState>,
-    AuthUser(user): AuthUser,
-    Path(project_id): Path<Uuid>,
-    Json(body): Json<ReorderRequest>,
-) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, project_id, user.id, UserRole::Editor).await?;
-
-    let existing_ids: Vec<Uuid> =
-        sqlx::query_scalar!("SELECT id FROM players WHERE project_id = $1", project_id,)
-            .fetch_all(&state.db)
-            .await?;
-
-    let existing_set: std::collections::HashSet<Uuid> = existing_ids.into_iter().collect();
-
-    if body.player_ids.len() != existing_set.len() {
-        return Err(AppError::UnprocessableEntity(
-            "player_ids must contain exactly all players in this project".into(),
-        ));
-    }
-
-    let input_set: std::collections::HashSet<Uuid> = body.player_ids.iter().copied().collect();
-    if input_set.len() != body.player_ids.len() {
-        return Err(AppError::UnprocessableEntity(
-            "player_ids contains duplicate ids".into(),
-        ));
-    }
-
-    for &pid in &body.player_ids {
-        if !existing_set.contains(&pid) {
-            return Err(AppError::UnprocessableEntity(
-                "player_ids contains an id not in this project".into(),
-            ));
-        }
-    }
-
-    let mut tx = state.db.begin().await?;
-    for (i, &player_id) in body.player_ids.iter().enumerate() {
-        sqlx::query!(
-            "UPDATE players SET rank_position = $1 WHERE id = $2 AND project_id = $3",
-            (i + 1) as i32,
-            player_id,
-            project_id,
-        )
-        .execute(&mut *tx)
-        .await?;
-    }
-    tx.commit().await?;
-
-    Ok(StatusCode::OK)
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
