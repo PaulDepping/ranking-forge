@@ -24,7 +24,7 @@ specific to either binary.
 | `src/upset.rs` | Pure upset-factor calculation: `seed_to_projected_round`, `set_upset_factor` |
 | `src/startgg/mod.rs` | `StartggClient` — the only permitted way to call start.gg |
 | `src/startgg/operations/` | Typed GraphQL operation structs and response deserialization |
-| `src/startgg/queries.rs` | Raw GraphQL query strings |
+| `src/startgg/queries.rs` | Raw GraphQL query strings and serde-annotated variable/response structs for each operation |
 | `src/error.rs` | Shared `Error` and `Result` types |
 
 ---
@@ -48,8 +48,10 @@ Axum HTTP server. Listens for browser requests, manages sessions, enqueues impor
 | `src/routes/invite_links.rs` | Invite link create/list/revoke, invite accept |
 | `src/routes/games.rs` | Proxies start.gg game search |
 | `src/routes/health.rs` | `GET /health` for Docker health checks |
-| `src/error.rs` | `ApiError` / `AppError` — converts internal errors to HTTP responses |
+| `src/error.rs` | `AppError` — converts internal errors to HTTP responses |
 | `src/config.rs` | Reads env vars into a typed config struct at startup |
+| `src/lib.rs` | Re-exports all submodules (`config`, `error`, `extractors`, `routes`, `state`) |
+| `src/main.rs` | Binary entry point: connects DB, runs migrations, wires CORS + tracing + request-ID middleware, binds TCP, serves with graceful shutdown |
 
 ---
 
@@ -60,7 +62,8 @@ Background process. Listens on the Postgres job queue and runs imports.
 | File | Owns |
 |---|---|
 | `src/import.rs` | Core import logic: fetch from start.gg, write tournaments/events/entrants/sets to DB |
-| `src/lib.rs` | Worker loop: `PgListener` wakeup → `jobs::claim` → `import::run` → mark done/failed |
+| `src/lib.rs` | Re-exports `pub mod import` |
+| `src/main.rs` | Binary entry point: connects DB, runs migrations, starts `PgListener`, event loop that drains pending jobs via `jobs::claim` → `import::run` → mark done/failed, handles SIGTERM/SIGINT with in-flight job cleanup, and runs hourly expired-session pruning |
 | `src/config.rs` | Worker env config (DATABASE_URL, STARTGG_API_KEY) |
 
 ---
