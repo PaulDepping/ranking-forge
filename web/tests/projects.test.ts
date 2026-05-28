@@ -291,3 +291,26 @@ test('non-wide pages keep centered max-w-5xl layout', async ({ page }) => {
 	await page.goto('/projects/proj-1/ranking');
 	await expect(page.locator('main')).toHaveClass(/max-w-5xl/);
 });
+
+// Guest (unauthenticated) tests — use base directly, no session cookie
+base('guest sees banner on published project', async ({ page }) => {
+	await page.goto('/projects/proj-guest/stats');
+	await expect(page.getByText("You're viewing a shared project")).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Sign up' })).toHaveAttribute('href', '/register');
+});
+
+base('guest sees "← Home" back link instead of "← Projects"', async ({ page }) => {
+	await page.goto('/projects/proj-guest/stats');
+	await expect(page.getByRole('link', { name: '← Home' })).toHaveAttribute('href', '/');
+	await expect(page.getByText('← Projects')).not.toBeVisible();
+});
+
+test('authenticated user does not see guest banner', async ({ page }) => {
+	await page.goto('/projects/proj-1/stats');
+	await expect(page.getByText("You're viewing a shared project")).not.toBeVisible();
+});
+
+test('authenticated user sees "← Projects" back link', async ({ page }) => {
+	await page.goto('/projects/proj-1/stats');
+	await expect(page.getByRole('link', { name: '← Projects' })).toHaveAttribute('href', '/projects');
+});
