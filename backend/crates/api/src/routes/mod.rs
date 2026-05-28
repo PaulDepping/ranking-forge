@@ -7,6 +7,7 @@ pub mod invite_links;
 pub mod members;
 pub mod players;
 pub mod projects;
+pub mod rankings;
 pub mod tournaments;
 
 use crate::state::AppState;

@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, patch, put},
+    routing::{get, patch},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -371,7 +371,6 @@ async fn delete_project(
 // ── Router ────────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
-    use crate::routes::tournaments as t;
     Router::new()
         .route("/", get(list_projects).post(create_project))
         .route(
@@ -388,19 +387,7 @@ pub fn router() -> Router<AppState> {
             "/{id}/tournament-entrants",
             get(crate::routes::players::list_tournament_entrants),
         )
-        .route("/{id}/tournaments", get(t::list_tournaments))
-        .route("/{id}/events/{eid}", patch(t::patch_event))
-        .route("/{id}/stats", get(t::get_stats))
-        .route("/{id}/stats/{player_id}", get(t::get_player_stats))
-        .route("/{id}/head-to-head", get(t::get_head_to_head))
-        .route(
-            "/{id}/head-to-head/{pid_a}/{pid_b}/sets",
-            get(t::get_h2h_sets),
-        )
-        .route(
-            "/{id}/ranking",
-            put(crate::routes::players::reorder_players),
-        )
+        .nest("/{id}/rankings", crate::routes::rankings::router())
         .nest("/{id}/members", crate::routes::members::router())
         .nest("/{id}/invite-links", crate::routes::invite_links::router())
 }
