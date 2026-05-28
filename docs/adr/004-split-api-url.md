@@ -14,8 +14,11 @@ Two env vars:
 - `PUBLIC_API_URL` — the browser-facing URL, used for client-side fetches
 - `INTERNAL_API_URL` — the Docker-internal URL, used for server-side `load` functions
 
-`src/lib/api.ts` selects the correct URL based on whether the code is running in the
-browser or on the server.
+Two separate API client modules handle the split:
+- `src/lib/api.ts` — client-side only; always reads `PUBLIC_API_URL`
+- `src/lib/server/api.ts` — server-side only; always reads `INTERNAL_API_URL`
+
+SvelteKit's `/server/` path convention prevents the server module from being imported in client code.
 
 ## Rationale
 
