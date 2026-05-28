@@ -1,3 +1,25 @@
+//! Upset-factor calculation for double-elimination events.
+//!
+//! ## Algorithm
+//!
+//! 1. Convert each entrant's seed to a *projected losers-round number* using
+//!    `seed_to_projected_round`. The table maps seed ranges to the losers round
+//!    that seed is expected to reach based on standard DE bracket tiers
+//!    (1st, 2nd, 3rd/4th, 5th, 7th, 9th, 13th, …).
+//!
+//! 2. Compute upset factor as:
+//!
+//!    ```text
+//!    upset_factor = loser_projected_round - winner_projected_round
+//!    ```
+//!
+//!    A **positive** value means the winner was seeded worse than expected — an upset.
+//!    **Zero** means the seeds were equal. **Negative** means the favourite won.
+//!
+//! NULL seeds (entrants not linked to a known player) are stored as `0` in the
+//! database and passed here as-is. `seed_to_projected_round(0)` returns `0`, so
+//! sets involving unlinked entrants produce conservative upset factors.
+
 /// Maps a seed to a projected losers-round number based on standard double-elimination
 /// placement tiers: 1st, 2nd, 3rd/4th, 5th, 7th, 9th, 13th, 17th, 25th, 33rd, ...
 ///
