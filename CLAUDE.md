@@ -113,7 +113,7 @@ Tests use `#[sqlx::test(migrations = "../../migrations")]` which spins up a real
 
 ### AppState
 
-`AppState` (`crates/api/src/state.rs`) holds `PgPool`, `StartggClient`, `session_secret`, and `cors_origin`. It is passed to the Axum router and accessed via `State<AppState>` in handlers.
+`AppState` (`crates/api/src/state.rs`) holds `PgPool`, `cors_origin`, and `startgg_base_url`. It is passed to the Axum router and accessed via `State<AppState>` in handlers. `StartggClient` is constructed on demand from `startgg_base_url`.
 
 ### AuthUser extractor
 
