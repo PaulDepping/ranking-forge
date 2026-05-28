@@ -16,9 +16,10 @@
 //!    A **positive** value means the winner was seeded worse than expected — an upset.
 //!    **Zero** means the seeds were equal. **Negative** means the favourite won.
 //!
-//! NULL seeds (entrants not linked to a known player) are stored as `0` in the
-//! database and passed here as-is. `seed_to_projected_round(0)` returns `0`, so
-//! sets involving unlinked entrants produce conservative upset factors.
+//! Sets where either entrant has a NULL seed (not linked to a known player) are
+//! excluded from upset-factor calculations by the callers: `set_upset_factor` is
+//! only invoked when both seeds are present, and the set is assigned UF = 0
+//! otherwise.
 
 /// Maps a seed to a projected losers-round number based on standard double-elimination
 /// placement tiers: 1st, 2nd, 3rd/4th, 5th, 7th, 9th, 13th, 17th, 25th, 33rd, ...
