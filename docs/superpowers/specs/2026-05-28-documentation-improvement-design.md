@@ -125,7 +125,18 @@ Six ADR files plus a `README.md` explaining the format. Each ADR has four sectio
 | `005-samesite-strict-cookie.md` | Why `SameSite=Strict` is safe for a cross-subdomain frontend/API setup |
 | `006-vitest-svelte-plugin.md` | Why Vitest uses `svelte()` + `conditions: ['browser']` instead of `sveltekit()` |
 
-### 5. Update `CLAUDE.md`
+### 5. Inline documentation for `upset.rs`
+
+The upset factor algorithm in `backend/crates/common/src/upset.rs` implements a multi-step mathematical conversion that is not derivable from function names alone:
+
+1. Seed → expected placement
+2. Placement → Top X bracket size
+3. Top X → projected losers round number
+4. Subtract loser's projected round from winner's projected round → upset factor
+
+Add step-by-step inline comments within the calculation function explaining what each conversion does and why. This is the one place in the codebase where the logic is mathematical enough that comments sit closer to the code than any external document can.
+
+### 6. Update `CLAUDE.md` — documentation pointers and maintenance rule
 
 Add a "Further reading" section pointing to the new docs:
 
@@ -140,9 +151,23 @@ Add a "Further reading" section pointing to the new docs:
 
 Update the existing `DESIGN.md` reference to point to `docs/DESIGN.md`.
 
+Add a "Documentation maintenance" rule so that documentation stays in sync with the codebase automatically, without requiring the user to ask:
+
+```
+## Documentation maintenance
+
+When implementing any feature or making an architectural decision, update the relevant
+documentation as part of the same change:
+
+- `docs/DESIGN.md` — if the data model, API surface, or overall architecture changes
+- `docs/routes.md` — if a SvelteKit route is added, removed, or its access control changes
+- `docs/modules.md` — if a new crate or significant module is added
+- `docs/adr/` — if a non-obvious architectural decision is made; add a new numbered ADR file
+```
+
 ## Out of scope
 
 - Updating per-feature spec or plan documents in `docs/superpowers/`
-- Adding inline code comments to source files
+- Broad inline comment pass across the codebase (only `upset.rs` is in scope)
 - API reference documentation beyond what exists in `openapi.yaml`
 - Frontend component documentation
