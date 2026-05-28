@@ -21,13 +21,12 @@ worker listens with `LISTEN jobs` (via sqlx `PgListener`) and claims work with
 - **Instant wakeup.** `NOTIFY/LISTEN` wakes the worker immediately — no polling.
 - **Horizontal scaling.** Multiple worker containers each independently claim jobs;
   `SKIP LOCKED` prevents double-processing without any coordination layer.
-- **Transactional enqueue.** A job can be enqueued inside the same database transaction
-  as the change that triggers it, so a rolled-back request never enqueues a phantom job.
 
 ## Consequences
 
 - All job state is in Postgres — inspectable and queryable with standard SQL.
 - Adding a new job type is a code change only; no queue configuration needed.
-- If a worker crashes mid-job, the job stays in `running` state. Worker startup rescans
-  for stale running jobs and retries them.
+- If a worker crashes mid-job, the job stays in `running` state indefinitely — there is
+  no automatic recovery. Graceful shutdown (SIGTERM/SIGINT) marks in-flight jobs `failed`
+  so they can be retried on the next run.
 - Throughput is bounded by Postgres NOTIFY rate, which is not a concern at this scale.
