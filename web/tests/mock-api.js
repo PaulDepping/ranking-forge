@@ -11,7 +11,6 @@ const MOCK_PROJECTS = [
 		game_id: 1,
 		game_name: 'Super Smash Bros. Melee',
 		created_at: '2026-01-01T00:00:00Z',
-		published: false,
 		user_role: 'owner',
 		owner_has_startgg_key: true
 	}
@@ -23,7 +22,6 @@ const MOCK_VIEWER_PROJECT = {
 	game_id: 1,
 	game_name: 'Super Smash Bros. Melee',
 	created_at: '2026-01-01T00:00:00Z',
-	published: true,
 	user_role: 'viewer',
 	owner_has_startgg_key: true
 };
@@ -34,7 +32,6 @@ const MOCK_GUEST_PROJECT = {
 	game_id: 1,
 	game_name: 'Super Smash Bros. Melee',
 	created_at: '2026-01-01T00:00:00Z',
-	published: true,
 	user_role: null,
 	owner_has_startgg_key: true
 };
@@ -45,15 +42,30 @@ const MOCK_PUBLISHED_OWNER_PROJECT = {
 	game_id: 1,
 	game_name: 'Super Smash Bros. Melee',
 	created_at: '2026-01-01T00:00:00Z',
-	published: true,
 	user_role: 'owner',
 	owner_has_startgg_key: true
 };
 
+const MOCK_RANKINGS = {
+	'proj-1': [{ id: 'rank-1', project_id: 'proj-1', name: 'Main Ranking', description: null, published: false, created_at: '2026-01-01T00:00:00Z', user_role: 'owner' }],
+	'proj-viewer': [{ id: 'rank-viewer', project_id: 'proj-viewer', name: 'Main Ranking', description: null, published: true, created_at: '2026-01-01T00:00:00Z', user_role: 'viewer' }],
+	'proj-viewer-tournaments': [{ id: 'rank-viewer', project_id: 'proj-viewer-tournaments', name: 'Main Ranking', description: null, published: true, created_at: '2026-01-01T00:00:00Z', user_role: 'viewer' }],
+	'proj-guest': [{ id: 'rank-guest', project_id: 'proj-guest', name: 'Public Ranking', description: null, published: true, created_at: '2026-01-01T00:00:00Z', user_role: null }],
+	'proj-published': [{ id: 'rank-published', project_id: 'proj-published', name: 'Published Ranking', description: null, published: true, created_at: '2026-01-01T00:00:00Z', user_role: 'owner' }],
+	'proj-tournaments': [{ id: 'rank-tournaments', project_id: 'proj-tournaments', name: 'Main Ranking', description: null, published: false, created_at: '2026-01-01T00:00:00Z', user_role: 'owner' }],
+	'proj-failed': [],
+};
+
 const MOCK_PLAYERS = [
-	{ id: 'player-1', project_id: 'proj-1', name: 'Alice', rank_position: 1, created_at: '2026-01-01T00:00:00Z', accounts: [] },
-	{ id: 'player-2', project_id: 'proj-1', name: 'Bob', rank_position: 2, created_at: '2026-01-01T00:00:00Z', accounts: [] },
-	{ id: 'player-3', project_id: 'proj-1', name: 'Charlie', rank_position: 3, created_at: '2026-01-01T00:00:00Z', accounts: [] }
+	{ id: 'player-1', project_id: 'proj-1', name: 'Alice', created_at: '2026-01-01T00:00:00Z', accounts: [] },
+	{ id: 'player-2', project_id: 'proj-1', name: 'Bob', created_at: '2026-01-01T00:00:00Z', accounts: [] },
+	{ id: 'player-3', project_id: 'proj-1', name: 'Charlie', created_at: '2026-01-01T00:00:00Z', accounts: [] }
+];
+
+const MOCK_RANKING_PLAYERS = [
+	{ player_id: 'player-1', name: 'Alice', rank_position: 1, notes: null },
+	{ player_id: 'player-2', name: 'Bob', rank_position: 2, notes: null },
+	{ player_id: 'player-3', name: 'Charlie', rank_position: 3, notes: null },
 ];
 
 const MOCK_ENTRANTS = {
@@ -318,6 +330,98 @@ function createMockServer() {
 			return;
 		}
 
+		const rankingsMatch = path.match(/^\/projects\/([^/]+)\/rankings$/);
+		if (rankingsMatch) {
+			const projectId = rankingsMatch[1];
+			if (req.method === 'GET') {
+				respond(res, 200, MOCK_RANKINGS[projectId] ?? []);
+				return;
+			}
+			if (req.method === 'POST') {
+				const body = await readBody(req);
+				respond(res, 201, { id: 'rank-new', project_id: projectId, name: body?.name ?? 'New Ranking', description: body?.description ?? null, published: false, created_at: new Date().toISOString(), user_role: 'owner' });
+				return;
+			}
+		}
+
+		const rankingItemMatch = path.match(/^\/projects\/([^/]+)\/rankings\/([^/]+)$/);
+		if (rankingItemMatch && req.method === 'GET') {
+			const projectId = rankingItemMatch[1];
+			const rankingId = rankingItemMatch[2];
+			const rankings = MOCK_RANKINGS[projectId] ?? [];
+			const ranking = rankings.find(r => r.id === rankingId);
+			if (ranking) {
+				respond(res, 200, ranking);
+			} else {
+				respond(res, 404, { message: 'Not found' });
+			}
+			return;
+		}
+
+		const rankingPlayersMatch = path.match(/^\/projects\/([^/]+)\/rankings\/([^/]+)\/players$/);
+		if (rankingPlayersMatch) {
+			if (req.method === 'GET') {
+				respond(res, 200, MOCK_RANKING_PLAYERS);
+				return;
+			}
+			if (req.method === 'POST') {
+				respond(res, 201, {});
+				return;
+			}
+		}
+
+		const rankingReorderMatch = path.match(/^\/projects\/([^/]+)\/rankings\/([^/]+)\/ranking$/);
+		if (rankingReorderMatch && req.method === 'PUT') {
+			respond(res, 200, {});
+			return;
+		}
+
+		const rankingTournamentsMatch = path.match(/^\/projects\/([^/]+)\/rankings\/([^/]+)\/tournaments$/);
+		if (rankingTournamentsMatch && req.method === 'GET') {
+			const projectId = rankingTournamentsMatch[1];
+			const hasTournaments = projectId === 'proj-tournaments' || projectId === 'proj-viewer-tournaments';
+			respond(res, 200, hasTournaments ? MOCK_TOURNAMENTS : []);
+			return;
+		}
+
+		const rankingPlayerStatsMatch = path.match(/^\/projects\/([^/]+)\/rankings\/([^/]+)\/stats\/([^/]+)$/);
+		if (rankingPlayerStatsMatch && req.method === 'GET') {
+			respond(res, 200, MOCK_PLAYER_STATS);
+			return;
+		}
+
+		const rankingStatsMatch = path.match(/^\/projects\/([^/]+)\/rankings\/([^/]+)\/stats$/);
+		if (rankingStatsMatch && req.method === 'GET') {
+			respond(res, 200, MOCK_STATS);
+			return;
+		}
+
+		const rankingH2hMatch = path.match(/^\/projects\/([^/]+)\/rankings\/([^/]+)\/head-to-head$/);
+		if (rankingH2hMatch && req.method === 'GET') {
+			respond(res, 200, MOCK_H2H);
+			return;
+		}
+
+		const rankingH2hSetsMatch = path.match(/^\/projects\/([^/]+)\/rankings\/([^/]+)\/head-to-head\/([^/]+)\/([^/]+)\/sets$/);
+		if (rankingH2hSetsMatch && req.method === 'GET') {
+			respond(res, 200, [
+				{ ...MOCK_SET_BASE, opponent_id: rankingH2hSetsMatch[4], opponent_name: 'Bob', upset_factor: 2, is_win: true },
+			]);
+			return;
+		}
+
+		const rankingEventMatch = path.match(/^\/projects\/([^/]+)\/rankings\/([^/]+)\/events\/([^/]+)$/);
+		if (rankingEventMatch && req.method === 'PATCH') {
+			respond(res, 200, {});
+			return;
+		}
+
+		const tournamentDeleteMatch = path.match(/^\/projects\/([^/]+)\/tournaments\/([^/]+)$/);
+		if (tournamentDeleteMatch && req.method === 'DELETE') {
+			respond(res, 204, null);
+			return;
+		}
+
 		const playersMatch = path.match(/^\/projects\/([^/]+)\/players$/);
 		if (playersMatch && req.method === 'GET') {
 			respond(res, 200, MOCK_PLAYERS);
@@ -383,12 +487,6 @@ function createMockServer() {
 			return;
 		}
 
-		const rankingMatch = path.match(/^\/projects\/([^/]+)\/ranking$/);
-		if (rankingMatch && req.method === 'PUT') {
-			respond(res, 200, {});
-			return;
-		}
-
 		const importMatch = path.match(/^\/projects\/([^/]+)\/import$/);
 		if (importMatch) {
 			const projectId = importMatch[1];
@@ -402,37 +500,10 @@ function createMockServer() {
 			}
 		}
 
-		const tournamentsMatch = path.match(/^\/projects\/([^/]+)\/tournaments$/);
-		if (tournamentsMatch && req.method === 'GET') {
-			const projectId = tournamentsMatch[1];
-			const hasTournaments = projectId === 'proj-tournaments' || projectId === 'proj-viewer-tournaments';
-			respond(res, 200, hasTournaments ? MOCK_TOURNAMENTS : []);
-			return;
-		}
-
+		// Project-scoped player stats (used by player detail page)
 		const playerStatsMatch = path.match(/^\/projects\/([^/]+)\/stats\/([^/]+)$/);
 		if (playerStatsMatch && req.method === 'GET') {
 			respond(res, 200, MOCK_PLAYER_STATS);
-			return;
-		}
-
-		const statsMatch = path.match(/^\/projects\/([^/]+)\/stats$/);
-		if (statsMatch && req.method === 'GET') {
-			respond(res, 200, MOCK_STATS);
-			return;
-		}
-
-		const h2hMatch = path.match(/^\/projects\/([^/]+)\/head-to-head$/);
-		if (h2hMatch && req.method === 'GET') {
-			respond(res, 200, MOCK_H2H);
-			return;
-		}
-
-		const h2hSetsMatch = path.match(/^\/projects\/([^/]+)\/head-to-head\/([^/]+)\/([^/]+)\/sets$/);
-		if (h2hSetsMatch && req.method === 'GET') {
-			respond(res, 200, [
-				{ ...MOCK_SET_BASE, opponent_id: h2hSetsMatch[3], opponent_name: 'Bob', upset_factor: 2, is_win: true },
-			]);
 			return;
 		}
 

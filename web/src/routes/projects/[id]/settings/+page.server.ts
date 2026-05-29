@@ -36,20 +36,6 @@ export const actions: Actions = {
     return { project: await res.json() };
   },
 
-  publish: async ({ params, locals, request }) => {
-    const data = await request.formData();
-    const published = data.get("published") === "true";
-    const { api } = locals;
-    const res = await api.patch(`/projects/${params.id}`, { published });
-    if (!res.ok) {
-      const body = await res
-        .json()
-        .catch(() => ({ message: "Failed to update" }));
-      return fail(res.status, { publishError: body.message });
-    }
-    return { project: await res.json() };
-  },
-
   addMember: async ({ params, locals, request }) => {
     const data = await request.formData();
     const email = ((data.get("email") as string) ?? "").trim();

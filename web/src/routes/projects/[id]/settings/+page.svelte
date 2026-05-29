@@ -2,7 +2,6 @@
   import { untrack } from "svelte";
   import { enhance } from "$app/forms";
   import { invalidateAll } from "$app/navigation";
-  import { page } from "$app/state";
   import { Button } from "$lib/components/ui/button";
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
@@ -20,20 +19,6 @@
 
   let deleteDialogOpen = $state(false);
   let deleteFormEl = $state<HTMLFormElement | null>(null);
-
-  let copied = $state(false);
-
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(
-        `${page.url.origin}/projects/${data.project.id}`,
-      );
-    } catch {
-      // clipboard not available (e.g. headless browser), still show feedback
-    }
-    copied = true;
-    setTimeout(() => (copied = false), 2000);
-  }
 
   let addMemberRole = $state<"editor" | "viewer">("editor");
   let createLinkRole = $state<"editor" | "viewer">("editor");
@@ -67,49 +52,6 @@
     </form>
     {#if form?.renameError}
       <p class="text-sm text-destructive">{form.renameError}</p>
-    {/if}
-  </div>
-
-  <Separator />
-
-  <!-- Publish -->
-  <div class="space-y-3">
-    <h2 class="text-lg font-semibold">Publish</h2>
-    <p class="text-sm text-muted-foreground">
-      {#if data.project.published}
-        This project is publicly visible. Anyone with the link can view stats,
-        H2H, and rankings.
-      {:else}
-        This project is private. Only members can view it.
-      {/if}
-    </p>
-    {#if data.project.published}
-      <div class="flex gap-2">
-        <Input
-          readonly
-          value="{page.url.origin}/projects/{data.project.id}"
-          class="flex-1 font-mono text-sm"
-        />
-        <Button type="button" variant="outline" onclick={copyLink}>
-          {copied ? "Copied!" : "Copy link"}
-        </Button>
-      </div>
-    {/if}
-    <form method="POST" action="?/publish" use:enhance>
-      <input
-        type="hidden"
-        name="published"
-        value={data.project.published ? "false" : "true"}
-      />
-      <Button
-        type="submit"
-        variant={data.project.published ? "outline" : "default"}
-      >
-        {data.project.published ? "Unpublish" : "Publish project"}
-      </Button>
-    </form>
-    {#if form?.publishError}
-      <p class="text-sm text-destructive">{form.publishError}</p>
     {/if}
   </div>
 

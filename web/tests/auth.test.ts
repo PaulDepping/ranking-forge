@@ -84,7 +84,7 @@ test('viewer visiting /import is redirected to login with return URL', async ({ 
 
 test('visiting project root as non-editor redirects to ranking', async ({ page }) => {
 	await page.goto('/projects/proj-viewer');
-	await expect(page).toHaveURL('/projects/proj-viewer/ranking');
+	await expect(page).toHaveURL('/projects/proj-viewer/rankings/rank-viewer/ranking');
 });
 
 test('login page with ?redirect= passes destination via hidden input', async ({ page }) => {

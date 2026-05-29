@@ -38,7 +38,7 @@ test('player detail page shows stats and tournament history', async ({ page }) =
 });
 
 test('stats page player name links to detail page', async ({ page }) => {
-	await page.goto('/projects/proj-1/stats');
+	await page.goto('/projects/proj-1/rankings/rank-1/stats');
 	await page.getByRole('link', { name: 'Alice' }).first().click();
 	await expect(page).toHaveURL(/\/projects\/proj-1\/players\/player-1/);
 });

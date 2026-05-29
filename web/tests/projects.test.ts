@@ -28,16 +28,22 @@ test('projects list has a link to create a new project', async ({ page }) => {
 
 test('project layout shows tab navigation', async ({ page }) => {
 	await page.goto('/projects/proj-1/players');
+	await expect(page.getByRole('tab', { name: 'Rankings' })).toBeVisible();
 	await expect(page.getByRole('tab', { name: 'Players' })).toBeVisible();
 	await expect(page.getByRole('tab', { name: 'Import' })).toBeVisible();
+	await expect(page.getByRole('tab', { name: 'Settings' })).toBeVisible();
+});
+
+test('ranking layout shows tab navigation', async ({ page }) => {
+	await page.goto('/projects/proj-1/rankings/rank-1/ranking');
 	await expect(page.getByRole('tab', { name: 'Tournaments' })).toBeVisible();
 	await expect(page.getByRole('tab', { name: 'Stats' })).toBeVisible();
 	await expect(page.getByRole('tab', { name: 'H2H' })).toBeVisible();
-	await expect(page.getByRole('tab', { name: 'Ranking' })).toBeVisible();
+	await expect(page.getByRole('tab', { name: 'Ranking', exact: true })).toBeVisible();
 });
 
 test('h2h page renders the player grid', async ({ page }) => {
-	await page.goto('/projects/proj-1/h2h');
+	await page.goto('/projects/proj-1/rankings/rank-1/h2h');
 	// Player names appear in headers and row labels
 	await expect(page.getByText('Alice').first()).toBeVisible();
 	await expect(page.getByText('Bob').first()).toBeVisible();
@@ -47,7 +53,7 @@ test('h2h page renders the player grid', async ({ page }) => {
 });
 
 test('stats page renders player rankings', async ({ page }) => {
-	await page.goto('/projects/proj-1/stats');
+	await page.goto('/projects/proj-1/rankings/rank-1/stats');
 	// Player names appear as card headers (and also inside set rows, so use first())
 	await expect(page.getByText('Alice').first()).toBeVisible();
 	await expect(page.getByText('Bob').first()).toBeVisible();
@@ -63,7 +69,7 @@ test('import page shows trigger button', async ({ page }) => {
 });
 
 test('tournaments page shows empty state before import', async ({ page }) => {
-	await page.goto('/projects/proj-1/tournaments');
+	await page.goto('/projects/proj-1/rankings/rank-1/tournaments');
 	await expect(page.getByText('No tournaments yet')).toBeVisible();
 	await expect(
 		page.getByText('Run an import to pull in tournaments from start.gg.')
@@ -85,7 +91,7 @@ test('retry button transitions import status to pending', async ({ page }) => {
 });
 
 test('tournaments filter panel has Clear filters button that resets search', async ({ page }) => {
-	await page.goto('/projects/proj-tournaments/tournaments');
+	await page.goto('/projects/proj-tournaments/rankings/rank-tournaments/tournaments');
 	await page.waitForLoadState('networkidle');
 	// Open filter panel
 	await page.getByRole('button', { name: /Filters & Actions/ }).click();
@@ -133,7 +139,7 @@ test('player row has Edit button; clicking it shows inline input', async ({ page
 });
 
 test('ranking page shows all players with drag handles', async ({ page }) => {
-	await page.goto('/projects/proj-1/ranking');
+	await page.goto('/projects/proj-1/rankings/rank-1/ranking');
 	await expect(page.getByText('Alice')).toBeVisible();
 	await expect(page.getByText('Bob')).toBeVisible();
 	await expect(page.getByText('Charlie')).toBeVisible();
@@ -142,13 +148,13 @@ test('ranking page shows all players with drag handles', async ({ page }) => {
 });
 
 test('ranking page shows win/loss stats', async ({ page }) => {
-	await page.goto('/projects/proj-1/ranking');
+	await page.goto('/projects/proj-1/rankings/rank-1/ranking');
 	// Alice: 1W 1L → 50%
 	await expect(page.getByText('1W · 1L').first()).toBeVisible();
 });
 
 test('ranking page save button enables after rank number edit', async ({ page }) => {
-	await page.goto('/projects/proj-1/ranking');
+	await page.goto('/projects/proj-1/rankings/rank-1/ranking');
 	await page.waitForLoadState('networkidle');
 	// Click rank 1 button to edit Alice's position
 	await page.getByRole('button', { name: '1' }).click();
@@ -224,7 +230,7 @@ test('From tournament tab: selections persist across tab switches', async ({ pag
 });
 
 test('ranking page hides edit controls for viewer role', async ({ page }) => {
-	await page.goto('/projects/proj-viewer/ranking');
+	await page.goto('/projects/proj-viewer/rankings/rank-viewer/ranking');
 	await expect(page.getByText('Alice')).toBeVisible();
 	// No Save button
 	await expect(page.getByRole('button', { name: 'Save' })).not.toBeVisible();
@@ -235,14 +241,14 @@ test('ranking page hides edit controls for viewer role', async ({ page }) => {
 });
 
 test('ranking page shows edit controls for owner role', async ({ page }) => {
-	await page.goto('/projects/proj-1/ranking');
+	await page.goto('/projects/proj-1/rankings/rank-1/ranking');
 	await expect(page.getByRole('button', { name: 'Save' })).toBeVisible();
 	await expect(page.locator('text=⠿').first()).toBeVisible();
 	await expect(page.getByRole('button', { name: '1' })).toBeVisible();
 });
 
 test('tournaments page hides checkboxes and bulk actions for viewer role', async ({ page }) => {
-	await page.goto('/projects/proj-viewer-tournaments/tournaments');
+	await page.goto('/projects/proj-viewer-tournaments/rankings/rank-viewer/tournaments');
 	await page.waitForLoadState('networkidle');
 	await expect(page.getByText('Genesis 10')).toBeVisible();
 	// No checkboxes in event rows
@@ -256,7 +262,7 @@ test('tournaments page hides checkboxes and bulk actions for viewer role', async
 });
 
 test('tournaments page shows checkboxes and bulk actions for owner role', async ({ page }) => {
-	await page.goto('/projects/proj-tournaments/tournaments');
+	await page.goto('/projects/proj-tournaments/rankings/rank-tournaments/tournaments');
 	await page.waitForLoadState('networkidle');
 	await expect(page.getByRole('checkbox').first()).toBeVisible();
 	await page.getByRole('button', { name: /Filters & Actions/ }).click();
@@ -278,63 +284,40 @@ base('new project page shows callout when user has no start.gg API key', async (
 });
 
 test('h2h page uses full-width layout', async ({ page }) => {
-	await page.goto('/projects/proj-1/h2h');
+	await page.goto('/projects/proj-1/rankings/rank-1/h2h');
 	await expect(page.locator('main')).not.toHaveClass(/max-w-5xl/);
 });
 
 test('stats page uses full-width layout', async ({ page }) => {
-	await page.goto('/projects/proj-1/stats');
+	await page.goto('/projects/proj-1/rankings/rank-1/stats');
 	await expect(page.locator('main')).not.toHaveClass(/max-w-5xl/);
 });
 
 test('non-wide pages keep centered max-w-5xl layout', async ({ page }) => {
-	await page.goto('/projects/proj-1/ranking');
+	await page.goto('/projects/proj-1/rankings/rank-1/ranking');
 	await expect(page.locator('main')).toHaveClass(/max-w-5xl/);
 });
 
 // Guest (unauthenticated) tests — use base directly, no session cookie
 base('guest sees banner on published project', async ({ page }) => {
-	await page.goto('/projects/proj-guest/stats');
+	await page.goto('/projects/proj-guest/rankings/rank-guest/stats');
 	await expect(page.getByText("You're viewing a shared project")).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Sign up' })).toHaveAttribute('href', '/register');
 });
 
 base('guest sees "← Home" back link instead of "← Projects"', async ({ page }) => {
-	await page.goto('/projects/proj-guest/stats');
+	await page.goto('/projects/proj-guest/rankings/rank-guest/stats');
 	await expect(page.getByRole('link', { name: '← Home' })).toHaveAttribute('href', '/');
 	await expect(page.getByText('← Projects')).not.toBeVisible();
 });
 
 test('authenticated user does not see guest banner', async ({ page }) => {
-	await page.goto('/projects/proj-1/stats');
+	await page.goto('/projects/proj-1/rankings/rank-1/stats');
 	await expect(page.getByText("You're viewing a shared project")).not.toBeVisible();
 });
 
 test('authenticated user sees "← Projects" back link', async ({ page }) => {
-	await page.goto('/projects/proj-1/stats');
+	await page.goto('/projects/proj-1/rankings/rank-1/stats');
 	await expect(page.getByRole('link', { name: '← Projects' })).toHaveAttribute('href', '/projects');
 });
 
-test('settings shows copy-link input and button when project is published', async ({ page }) => {
-	await page.goto('/projects/proj-published/settings');
-	const urlInput = page.locator('input[readonly]');
-	await expect(urlInput).toBeVisible();
-	await expect(urlInput).toHaveValue(/proj-published/);
-	await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible();
-});
-
-test('settings does not show copy-link when project is not published', async ({ page }) => {
-	await page.goto('/projects/proj-1/settings');
-	await expect(page.locator('input[readonly]')).not.toBeVisible();
-	await expect(page.getByRole('button', { name: 'Copy link' })).not.toBeVisible();
-});
-
-test('copy link button changes to Copied! after click', async ({ page, context }) => {
-	await context.grantPermissions(['clipboard-write']);
-	await page.goto('/projects/proj-published/settings');
-	await page.waitForLoadState('networkidle');
-	await page.getByRole('button', { name: 'Copy link' }).click();
-	await expect(page.getByRole('button', { name: 'Copied!' })).toBeVisible({ timeout: 1000 });
-	// Reverts after 2 seconds
-	await expect(page.getByRole('button', { name: 'Copy link' })).toBeVisible({ timeout: 4000 });
-});
