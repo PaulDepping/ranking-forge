@@ -8,17 +8,37 @@
   let { data }: { data: PageData } = $props();
   const api = makeApi(fetch);
 
+  let errorMsg = $state<string | null>(null);
+
   const rankingPlayerIds = $derived(
     new Set(data.rankingPlayers.map((rp) => rp.player_id)),
   );
 
   async function addPlayer(playerId: string) {
-    await api.addRankingPlayer(data.project.id, data.ranking.id, playerId);
+    errorMsg = null;
+    const res = await api.addRankingPlayer(
+      data.project.id,
+      data.ranking.id,
+      playerId,
+    );
+    if (!res.ok) {
+      errorMsg = "Failed to add player";
+      return;
+    }
     await invalidateAll();
   }
 
   async function removePlayer(playerId: string) {
-    await api.removeRankingPlayer(data.project.id, data.ranking.id, playerId);
+    errorMsg = null;
+    const res = await api.removeRankingPlayer(
+      data.project.id,
+      data.ranking.id,
+      playerId,
+    );
+    if (!res.ok) {
+      errorMsg = "Failed to remove player";
+      return;
+    }
     await invalidateAll();
   }
 </script>
@@ -69,4 +89,7 @@
       </div>
     </div>
   </div>
+  {#if errorMsg}
+    <p class="mt-2 text-sm text-destructive">{errorMsg}</p>
+  {/if}
 </div>

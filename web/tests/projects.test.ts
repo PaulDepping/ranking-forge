@@ -40,6 +40,7 @@ test('ranking layout shows tab navigation', async ({ page }) => {
 	await expect(page.getByRole('tab', { name: 'Stats' })).toBeVisible();
 	await expect(page.getByRole('tab', { name: 'H2H' })).toBeVisible();
 	await expect(page.getByRole('tab', { name: 'Ranking', exact: true })).toBeVisible();
+	await expect(page.getByRole('tab', { name: 'Players' }).first()).toBeVisible();
 });
 
 test('h2h page renders the player grid', async ({ page }) => {
@@ -227,6 +228,15 @@ test('From tournament tab: selections persist across tab switches', async ({ pag
 	// Switch to Melee Singles tab — Mang0 should still be checked
 	await page.getByRole('tab', { name: 'Melee Singles' }).click();
 	await expect(page.getByText('1 selected')).toBeVisible();
+});
+
+test('ranking player editor shows project pool and ranking players', async ({ page }) => {
+	await page.goto('/projects/proj-1/rankings/rank-1/players');
+	await page.waitForLoadState('networkidle');
+	await expect(page.getByText('Project pool')).toBeVisible();
+	await expect(page.getByText('In this ranking')).toBeVisible();
+	// Players appear in the pool
+	await expect(page.getByText('Alice').first()).toBeVisible();
 });
 
 test('ranking page hides edit controls for viewer role', async ({ page }) => {
