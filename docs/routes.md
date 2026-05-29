@@ -14,7 +14,7 @@ Two guards enforce access control across all routes:
 
 "Owner/member" means the route is accessible to the project owner and all project
 members (collaborators). "Published: guest" means unauthenticated users can also
-access it when the project's `published` flag is `true`.
+access it when the ranking's `published` flag is `true`.
 
 ## Routes
 
@@ -28,12 +28,15 @@ access it when the project's `published` flag is `true`.
 | `/invite/[token]` | Public | Accept a collaboration invite link |
 | `/projects` | Authenticated | List projects owned by or shared with the current user |
 | `/projects/new` | Authenticated | Create a new project |
-| `/projects/[id]` | Owner/member (published: guest) | Project overview — editors and owners land on /players; viewers and guests land on /ranking |
-| `/projects/[id]/stats` | Owner/member (published: guest) | Per-player win/loss lists sorted by upset factor |
-| `/projects/[id]/h2h` | Owner/member (published: guest) | Head-to-head set record matrix |
-| `/projects/[id]/ranking` | Owner/member (published: guest) | Players ordered by aggregate upset factor |
-| `/projects/[id]/tournaments` | Owner/member (published: guest) | Tournament list with include/exclude toggles |
-| `/projects/[id]/settings` | Owner only | Project name, game, published flag, member management |
-| `/projects/[id]/(editor)/import` | Owner/member | Trigger a start.gg import; view current job status |
-| `/projects/[id]/(editor)/players` | Owner/member | Add, remove, and link players |
-| `/projects/[id]/(editor)/players/[player_id]` | Owner/member | Edit one player's display name and start.gg accounts |
+| `/projects/[id]` | Owner/member (published: guest via any ranking) | Lists rankings; redirects to single ranking if only one |
+| `/projects/[id]/rankings/new` | Owner/editor | Create a new ranking in this project |
+| `/projects/[id]/settings` | Owner only | Project name, game, member management, invite links |
+| `/projects/[id]/(editor)/import` | Owner/editor | Trigger a start.gg import; view current job status |
+| `/projects/[id]/(editor)/players` | Owner/editor | Add, remove, and link players in the project player pool |
+| `/projects/[id]/(editor)/players/[player_id]` | Owner/editor | Edit one player's display name and start.gg accounts |
+| `/projects/[id]/rankings/[rid]` | Owner/member (published: guest) | Ranking overview; redirects editors to /players, viewers/guests to /ranking |
+| `/projects/[id]/rankings/[rid]/ranking` | Owner/member (published: guest) | Players ordered by aggregate upset factor |
+| `/projects/[id]/rankings/[rid]/stats` | Owner/member (published: guest) | Per-player win/loss lists sorted by upset factor |
+| `/projects/[id]/rankings/[rid]/h2h` | Owner/member (published: guest) | Head-to-head set record matrix |
+| `/projects/[id]/rankings/[rid]/tournaments` | Owner/member (published: guest) | Tournament list with per-ranking include/exclude toggles; delete tournament |
+| `/projects/[id]/rankings/[rid]/(editor)/players` | Owner/editor | Manage which project players are in this ranking; set rank position and notes |

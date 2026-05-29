@@ -9,7 +9,7 @@ This platform serves a common use case in the smash scene: helping TOs and other
 RankingForge is a multi-user platform for smash-scene power rankings. Features:
 
 - Project ownership and collaboration (members, invite links)
-- Public project sharing — guests can view published projects without an account
+- Public ranking sharing — guests can view published rankings without an account
 - Per-user start.gg API keys
 - Tournament import from start.gg with per-event filtering
 - Upset-factor statistics, head-to-head set records, and ranking views
@@ -29,12 +29,12 @@ Out of scope:
 6. I get an overview of that list of players: each player's individual wins and losses as separate lists (each sorted by upset factor), with the player list ordered by aggregate upset factor. I also get a head-to-head table of set records between each player.
 
 7. As a project owner I can invite collaborators by email. Collaborators have two
-   roles: **Editors** can manage players, trigger imports, and toggle event inclusion.
-   **Viewers** have read-only access. Neither role can adjust project settings (name,
-   game, published flag), delete the project, or transfer ownership — those are
+   roles: **Editors** can manage players, trigger imports, toggle event inclusion, and
+   manage rankings. **Viewers** have read-only access. Neither role can adjust project
+   settings (name, game), delete the project, or transfer ownership — those are
    owner-only.
 
-8. I can mark the project as published so that anyone with the link can view the
+8. I can mark a ranking as published so that anyone with the link can view the
    stats, head-to-head, ranking, and tournament pages without creating an account.
 
 ## Architecture
@@ -113,23 +113,29 @@ Route protection lives in `src/hooks.server.ts`: calls `GET /auth/me` on every r
 
 ```
 users
-  └── ranking_projects
-        ├── players
+  └── projects (renamed from ranking_projects)
+        ├── project_members
+        ├── project_invite_links
+        ├── players (pool)
         │     └── startgg_accounts       (0..n per player)
         ├── jobs                          (import queue)
-        └── project_events               (included/excluded per project)
-              └── events
-                    └── tournament
-                    └── entrants          (player + seed per event)
-                          └── sets        (winner / loser entrant pairs)
+        └── rankings (NEW)
+              ├── ranking_players        (ranking_id, player_id, rank_position, notes)
+              └── ranking_events         (ranking_id, event_id, included)
+                    └── events
+                          └── tournament
+                          └── entrants   (player + seed per event)
+                                └── sets (winner / loser entrant pairs)
 ```
 
 ### Key Relationships
 
-- A **player** belongs to exactly one **ranking_project**.
+- A **player** belongs to exactly one **project** (the project-level player pool).
 - A player has zero or more **startgg_accounts** (identified by start.gg user ID and slug).
 - **tournaments** and **events** are imported from start.gg and shared across projects.
-- **project_events** is a join table with an `included` flag (default `true`) for per-project event deselection.
+- A **ranking** belongs to exactly one **project**. Rankings independently select a subset of the project's player pool via **ranking_players** (which also stores per-player `rank_position` and `notes`) and control event inclusion via **ranking_events**.
+- **ranking_events** is a join table with an `included` flag (default `true`) for per-ranking event deselection. It replaces the old `project_events` table.
+- The `published` flag lives on each **ranking** (not the project). A guest can read a project if any of its rankings is published.
 - **entrants** represent one player's participation in one event. `player_id` is nullable — entrants whose start.gg user ID doesn't match any known startgg_account are stored but not linked.
 - **sets** record the winner and loser entrant for each match. Scores are not stored (not needed for upset factor).
 
@@ -141,15 +147,17 @@ See `backend/openapi.yaml` for the full contract.
 |-------------------|-----------|
 | Auth              | POST /auth/register, /auth/login, /auth/logout; GET /auth/me |
 | Account           | PATCH /account/profile; PATCH /account/password; PUT/DELETE /account/startgg-key; DELETE /account |
-| Projects          | GET/POST /projects; GET/PATCH/DELETE /projects/:id (`published` flag toggles guest access) |
-| Players           | CRUD on /projects/:id/players |
-| Ranking           | PUT /projects/:id/ranking (reorder players) |
+| Projects          | GET/POST /projects; GET/PATCH/DELETE /projects/:id |
+| Players           | CRUD on /projects/:id/players; POST /projects/:id/players/bulk; POST /projects/:id/players/by-handles |
 | start.gg accounts | POST/DELETE /projects/:id/players/:pid/accounts |
 | Import            | POST/GET /projects/:id/import |
 | Tournament entrants | GET /projects/:id/tournament-entrants |
-| Tournaments       | GET /projects/:id/tournaments |
-| Events            | PATCH /projects/:id/events/:eid (toggle included) |
-| Stats             | GET /projects/:id/stats; GET /projects/:id/stats/:player_id; GET /projects/:id/head-to-head; GET /projects/:id/head-to-head/:a/:b/sets |
+| Tournaments       | GET /projects/:id/tournaments (project-scope list); DELETE /projects/:id/tournaments/:tid |
+| Rankings CRUD     | GET/POST /projects/:id/rankings; GET/PATCH/DELETE /projects/:id/rankings/:rid |
+| Ranking players   | GET/POST /projects/:id/rankings/:rid/players; PATCH/DELETE /projects/:id/rankings/:rid/players/:pid; PUT /projects/:id/rankings/:rid/ranking (reorder) |
+| Ranking tournaments | GET /projects/:id/rankings/:rid/tournaments |
+| Events            | PATCH /projects/:id/rankings/:rid/events/:eid (toggle included, per-ranking) |
+| Stats             | GET /projects/:id/rankings/:rid/stats; GET /projects/:id/rankings/:rid/stats/:player_id; GET /projects/:id/rankings/:rid/head-to-head; GET /projects/:id/rankings/:rid/head-to-head/:a/:b/sets |
 | Members           | GET/POST /projects/:id/members; PATCH/DELETE /projects/:id/members/:uid; POST /projects/:id/members/transfer-ownership *(not yet in openapi.yaml)* |
 | Invite links      | GET/POST /projects/:id/invite-links; DELETE /projects/:id/invite-links/:lid; POST /invite/:token/accept *(not yet in openapi.yaml)* |
 | Games             | GET /games?q= (proxies start.gg game search) |
@@ -172,7 +180,7 @@ The common smash-community algorithm is:
 
 A positive result means the lower-seeded player performed better than expected (an upset).
 
-`GET /projects/:id/stats` returns each player's wins and losses as separate lists of individual set records, each record carrying its own upset factor. Within each list the sets are sorted by upset factor descending (biggest upsets first). The outer player list is ordered by aggregate upset factor (sum of all the player's wins' upset factors) descending.
+`GET /projects/:id/rankings/:rid/stats` returns each player's wins and losses as separate lists of individual set records, each record carrying its own upset factor. Within each list the sets are sorted by upset factor descending (biggest upsets first). The outer player list is ordered by aggregate upset factor (sum of all the player's wins' upset factors) descending. Only sets from included events where both players are members of the ranking are counted.
 
 ## Infrastructure
 

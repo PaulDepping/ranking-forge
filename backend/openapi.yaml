@@ -59,6 +59,50 @@ components:
           type: boolean
           description: True if the project owner has a start.gg API key configured
 
+    Ranking:
+      type: object
+      required: [id, project_id, name, published, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        published:
+          type: boolean
+          description: When true, guests can view this ranking without an account
+        created_at:
+          type: string
+          format: date-time
+        user_role:
+          type: string
+          nullable: true
+          description: The authenticated user's role on this ranking's project (owner/editor/viewer); null for guests
+
+    RankingPlayer:
+      type: object
+      required: [player_id, name]
+      properties:
+        player_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        rank_position:
+          type: integer
+          nullable: true
+          description: Manual rank position set by editors; null if not yet ranked
+        notes:
+          type: string
+          nullable: true
+          description: Free-text notes about this player in the context of this ranking
+
     Player:
       type: object
       required: [id, project_id, name, created_at, accounts]
@@ -920,49 +964,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /projects/{project_id}/ranking:
-    parameters:
-      - name: project_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-
-    put:
-      summary: Reorder all players in a project
-      description: >
-        Replaces the full ranking order for the project. The request must include
-        every player in the project exactly once. Positions are assigned as
-        array index + 1.
-      tags: [Players]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [player_ids]
-              properties:
-                player_ids:
-                  type: array
-                  items:
-                    type: string
-                    format: uuid
-                  description: Ordered list of all player IDs in the project.
-      responses:
-        '200':
-          description: Ranking updated
-          content:
-            application/json:
-              schema:
-                type: object
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
+  # Ranking reorder is now at /projects/{project_id}/rankings/{ranking_id}/ranking — see Rankings section below
 
   /projects/{project_id}/tournament-entrants:
     parameters:
@@ -1073,9 +1075,46 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  # ── Tournaments / Events ─────────────────────────────────────────────────────
+  # ── Tournaments (project-level) ───────────────────────────────────────────────
 
-  /projects/{project_id}/tournaments:
+  /projects/{project_id}/tournaments/{tournament_id}:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: tournament_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    delete:
+      summary: Delete a tournament from the project
+      description: >
+        Removes the tournament and all its events/entrants/sets from this project.
+        Requires editor or owner role.
+      tags: [Tournaments]
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Forbidden (viewer role)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Rankings ──────────────────────────────────────────────────────────────────
+
+  /projects/{project_id}/rankings:
     parameters:
       - name: project_id
         in: path
@@ -1085,10 +1124,320 @@ paths:
           format: uuid
 
     get:
-      summary: List tournaments and their events for this project
+      summary: List all rankings in a project
+      tags: [Rankings]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ranking'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      summary: Create a new ranking in a project
+      tags: [Rankings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                description:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ranking'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/rankings/{ranking_id}:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: ranking_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: Get a ranking by ID
+      tags: [Rankings]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ranking'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update a ranking's name, description, or published flag
+      tags: [Rankings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                description:
+                  type: string
+                  nullable: true
+                published:
+                  type: boolean
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ranking'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+    delete:
+      summary: Delete a ranking
+      tags: [Rankings]
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Ranking players ───────────────────────────────────────────────────────────
+
+  /projects/{project_id}/rankings/{ranking_id}/players:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: ranking_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: List players in a ranking
+      tags: [Rankings]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RankingPlayer'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      summary: Add a project player to a ranking
+      tags: [Rankings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [player_id]
+              properties:
+                player_id:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Player added to ranking
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RankingPlayer'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /projects/{project_id}/rankings/{ranking_id}/players/{player_id}:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: ranking_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: player_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    patch:
+      summary: Update a ranking player's rank_position or notes
+      tags: [Rankings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rank_position:
+                  type: integer
+                  nullable: true
+                notes:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RankingPlayer'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Remove a player from a ranking
+      tags: [Rankings]
+      responses:
+        '204':
+          description: Removed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/rankings/{ranking_id}/ranking:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: ranking_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    put:
+      summary: Reorder all players in a ranking
+      description: >
+        Replaces the full ranking order for this ranking. The request must include
+        every player in the ranking exactly once. Positions are assigned as
+        array index + 1.
+      tags: [Rankings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [player_ids]
+              properties:
+                player_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  description: Ordered list of all player IDs in the ranking.
+      responses:
+        '200':
+          description: Ranking order updated
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  # ── Ranking tournaments / events / stats ──────────────────────────────────────
+
+  /projects/{project_id}/rankings/{ranking_id}/tournaments:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: ranking_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: List tournaments and their events for this ranking
       description: >
         Each event includes an `included` flag showing whether it counts toward
-        stats. All events default to included after import.
+        this ranking's stats. All events default to included after import.
       tags: [Tournaments]
       responses:
         '200':
@@ -1104,9 +1453,15 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /projects/{project_id}/events/{event_id}:
+  /projects/{project_id}/rankings/{ranking_id}/events/{event_id}:
     parameters:
       - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: ranking_id
         in: path
         required: true
         schema:
@@ -1120,7 +1475,7 @@ paths:
           format: uuid
 
     patch:
-      summary: Toggle whether an event is included in this project's stats
+      summary: Toggle whether an event is included in this ranking's stats
       tags: [Tournaments]
       requestBody:
         required: true
@@ -1146,7 +1501,7 @@ paths:
 
   # ── Stats ────────────────────────────────────────────────────────────────────
 
-  /projects/{project_id}/stats:
+  /projects/{project_id}/rankings/{ranking_id}/stats:
     parameters:
       - name: project_id
         in: path
@@ -1154,12 +1509,18 @@ paths:
         schema:
           type: string
           format: uuid
+      - name: ranking_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
 
     get:
-      summary: Get player stats ordered by win rate (descending)
+      summary: Get player stats for a ranking ordered by aggregate upset factor (descending)
       description: >
         Only counts sets from included events where both the winner and loser
-        are tracked players in this project.
+        are members of this ranking.
       tags: [Stats]
       responses:
         '200':
@@ -1175,9 +1536,15 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /projects/{project_id}/stats/{player_id}:
+  /projects/{project_id}/rankings/{ranking_id}/stats/{player_id}:
     parameters:
       - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: ranking_id
         in: path
         required: true
         schema:
@@ -1191,10 +1558,10 @@ paths:
           format: uuid
 
     get:
-      summary: Get stats for a single player
+      summary: Get stats for a single player within a ranking
       description: >
-        Same semantics as GET /projects/{project_id}/stats but scoped to one player.
-        Returns a single PlayerStats object rather than an array.
+        Same semantics as GET /projects/{project_id}/rankings/{ranking_id}/stats
+        but scoped to one player. Returns a single PlayerStats object rather than an array.
       tags: [Stats]
       responses:
         '200':
@@ -1208,7 +1575,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /projects/{project_id}/head-to-head:
+  /projects/{project_id}/rankings/{ranking_id}/head-to-head:
     parameters:
       - name: project_id
         in: path
@@ -1216,9 +1583,15 @@ paths:
         schema:
           type: string
           format: uuid
+      - name: ranking_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
 
     get:
-      summary: Get head-to-head set records between all tracked players
+      summary: Get head-to-head set records between all players in a ranking
       tags: [Stats]
       responses:
         '200':
@@ -1234,9 +1607,15 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /projects/{project_id}/head-to-head/{pid_a}/{pid_b}/sets:
+  /projects/{project_id}/rankings/{ranking_id}/head-to-head/{pid_a}/{pid_b}/sets:
     parameters:
       - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: ranking_id
         in: path
         required: true
         schema:
@@ -1256,7 +1635,7 @@ paths:
           format: uuid
 
     get:
-      summary: Get all sets between two players from pid_a's perspective
+      summary: Get all sets between two players from pid_a's perspective within a ranking
       tags: [Stats]
       responses:
         '200':

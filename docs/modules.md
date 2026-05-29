@@ -40,10 +40,11 @@ Axum HTTP server. Listens for browser requests, manages sessions, enqueues impor
 | `src/routes/mod.rs` | Top-level router wiring all route groups together |
 | `src/routes/auth.rs` | Register, login, logout, `/auth/me`; also defines `AuthUser` and `OptionalAuthUser` extractors |
 | `src/routes/account.rs` | Profile update, password change, start.gg API key, account deletion |
-| `src/routes/projects.rs` | Project CRUD; also mounts players, import, tournaments, members, invite-links sub-routers |
-| `src/routes/players.rs` | Player CRUD, start.gg account linking, tournament entrant listing |
+| `src/routes/projects.rs` | Project CRUD; also mounts players, import, rankings, members, invite-links sub-routers; tournament delete (`DELETE /{id}/tournaments/{tid}`) |
+| `src/routes/players.rs` | Player CRUD, start.gg account linking, tournament entrant listing; `published` is no longer on the project |
 | `src/routes/import.rs` | Import trigger (rate-limited POST) and status GET |
-| `src/routes/tournaments.rs` | Tournament/event listing, event include/exclude toggle, stats, H2H, ranking |
+| `src/routes/rankings.rs` | Rankings CRUD; ranking player membership (add/remove/reorder/notes); `require_ranking_access` and `require_ranking_read_access` helpers; nests `tournaments::router()` for ranking-scoped tournament/stats/H2H endpoints |
+| `src/routes/tournaments.rs` | All handlers are ranking-scoped (nested under `/{rid}` by `rankings::router()`): tournament/event listing, per-ranking event include/exclude toggle, stats, H2H, ranking order, and tournament delete |
 | `src/routes/members.rs` | Collaborator management (add, change role, remove, transfer ownership) |
 | `src/routes/invite_links.rs` | Invite link create/list/revoke, invite accept |
 | `src/routes/games.rs` | Proxies start.gg game search |
