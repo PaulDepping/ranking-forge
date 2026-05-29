@@ -65,6 +65,17 @@ async fn post_json(client: &Client, uri: &str, session_id: &str, body: Value) ->
         .unwrap_or_else(|e| panic!("POST {uri} response body was not JSON: {e}"))
 }
 
+async fn post_no_body(client: &Client, uri: &str, session_id: &str, body: Value) {
+    let resp = client
+        .post(format!("{}{uri}", api_url()))
+        .header("cookie", format!("session_id={session_id}"))
+        .json(&body)
+        .send()
+        .await
+        .unwrap_or_else(|e| panic!("POST {uri} failed: {e}"));
+    assert!(resp.status().is_success(), "POST {uri} returned {}", resp.status());
+}
+
 async fn get_json(client: &Client, uri: &str, session_id: &str) -> Value {
     client
         .get(format!("{}{uri}", api_url()))
@@ -135,6 +146,7 @@ async fn smoke_import_roundtrip() {
         .to_string();
 
     // 5. Add two Hannover players with their start.gg accounts
+    let mut player_ids: Vec<String> = Vec::new();
     for (name, slug) in [("Player1", PLAYER1_SLUG), ("Player2", PLAYER2_SLUG)] {
         let player = post_json(
             &client,
@@ -152,6 +164,29 @@ async fn smoke_import_roundtrip() {
             &format!("/projects/{project_id}/players/{player_id}/accounts"),
             &session_id,
             json!({ "handle": slug }),
+        )
+        .await;
+        player_ids.push(player_id);
+    }
+
+    // 5b. Create a ranking and add both players to it
+    let ranking = post_json(
+        &client,
+        &format!("/projects/{project_id}/rankings"),
+        &session_id,
+        json!({ "name": "Topology Smoke Ranking" }),
+    )
+    .await;
+    let ranking_id = ranking["id"]
+        .as_str()
+        .expect("ranking.id missing")
+        .to_string();
+    for player_id in &player_ids {
+        post_no_body(
+            &client,
+            &format!("/projects/{project_id}/rankings/{ranking_id}/players"),
+            &session_id,
+            json!({ "player_id": player_id }),
         )
         .await;
     }
@@ -204,7 +239,7 @@ async fn smoke_import_roundtrip() {
     // 8. Assert at least one known Hannover Weekly is in the tournament list
     let tournaments = get_json(
         &client,
-        &format!("/projects/{project_id}/tournaments"),
+        &format!("/projects/{project_id}/rankings/{ranking_id}/tournaments"),
         &session_id,
     )
     .await;
@@ -227,7 +262,7 @@ async fn smoke_import_roundtrip() {
     // 9. Assert at least one set is recorded in stats
     let stats = get_json(
         &client,
-        &format!("/projects/{project_id}/stats"),
+        &format!("/projects/{project_id}/rankings/{ranking_id}/stats"),
         &session_id,
     )
     .await;
