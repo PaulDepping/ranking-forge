@@ -10,7 +10,12 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   if (sessionId) {
     const res = await event.locals.api.get("/auth/me");
-    event.locals.user = res.ok ? await res.json() : null;
+    if (res.ok) {
+      event.locals.user = await res.json();
+    } else {
+      event.cookies.delete("session_id", { path: "/" });
+      event.locals.user = null;
+    }
   } else {
     event.locals.user = null;
     const isPublic =
