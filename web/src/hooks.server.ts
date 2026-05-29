@@ -8,15 +8,13 @@ export const handle: Handle = async ({ event, resolve }) => {
   const sessionId = event.cookies.get("session_id");
   event.locals.api = makeServerApi(event.fetch, sessionId);
 
-  let staleSession = false;
-
   if (sessionId) {
     const res = await event.locals.api.get("/auth/me");
     if (res.ok) {
       event.locals.user = await res.json();
     } else {
-      staleSession = true;
-      event.locals.user = null;
+      event.cookies.delete("session_id", { path: "/" });
+      redirect(303, pathname + event.url.search);
     }
   } else {
     event.locals.user = null;
@@ -30,14 +28,5 @@ export const handle: Handle = async ({ event, resolve }) => {
     }
   }
 
-  const response = await resolve(event);
-
-  if (staleSession) {
-    response.headers.append(
-      "set-cookie",
-      "session_id=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict",
-    );
-  }
-
-  return response;
+  return resolve(event);
 };
