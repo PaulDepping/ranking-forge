@@ -24,11 +24,60 @@
     data.project.user_role === "editor" || data.project.user_role === "owner",
   );
 
-  // Local copy for optimistic toggle updates; synced when server data changes
   let tournaments = $state(untrack(() => [...data.tournaments]));
+  let savedTournaments = $state(untrack(() => [...data.tournaments]));
   $effect(() => {
+    savedTournaments = [...data.tournaments];
     tournaments = [...data.tournaments];
   });
+
+  const hasPendingChanges = $derived(
+    tournaments.some((t, ti) =>
+      t.events.some(
+        (e, ei) => e.included !== savedTournaments[ti]?.events[ei]?.included,
+      ),
+    ),
+  );
+
+  let saving = $state(false);
+
+  async function saveChanges() {
+    saving = true;
+    const api = makeApi(fetch);
+    const changes: { event_id: string; included: boolean }[] = [];
+    for (const t of tournaments) {
+      for (const e of t.events) {
+        const saved = savedTournaments
+          .flatMap((st) => st.events)
+          .find((se) => se.id === e.id);
+        if (saved && saved.included !== e.included) {
+          changes.push({ event_id: e.id, included: e.included });
+        }
+      }
+    }
+    if (changes.length === 0) {
+      saving = false;
+      return;
+    }
+    const res = await api.put(
+      `/projects/${data.project.id}/rankings/${data.ranking.id}/events`,
+      changes,
+    );
+    saving = false;
+    if (res.ok) {
+      savedTournaments = tournaments.map((t) => ({
+        ...t,
+        events: [...t.events],
+      }));
+    }
+  }
+
+  function discardChanges() {
+    tournaments = savedTournaments.map((t) => ({
+      ...t,
+      events: [...t.events],
+    }));
+  }
 
   // Filter state
   let filterOpen = $state(false);
@@ -129,28 +178,6 @@
     resetBracketFilter();
   }
 
-  async function toggleEvent(
-    projectId: string,
-    rankingId: string,
-    eventId: string,
-    included: boolean,
-  ) {
-    const api = makeApi(fetch);
-    const res = await api.patch(
-      `/projects/${projectId}/rankings/${rankingId}/events/${eventId}`,
-      { included },
-    );
-    if (!res.ok) return;
-
-    const updated = await res.json();
-    tournaments = tournaments.map((t) => ({
-      ...t,
-      events: t.events.map((e) =>
-        e.id === updated.event_id ? { ...e, included: updated.included } : e,
-      ),
-    }));
-  }
-
   function tournamentVisible(t: Tournament): boolean {
     if (venueFilter === "online" && !t.online) return false;
     if (venueFilter === "offline" && t.online) return false;
@@ -229,39 +256,25 @@
     ],
   );
 
-  async function bulkSetIncluded(included: boolean) {
+  function bulkSetIncluded(included: boolean) {
     const toChange = visibleTournaments
       .flatMap((t) => t.events)
       .filter((e) => e.included !== included);
-
     if (toChange.length === 0) return;
-
-    // Optimistic update so checkboxes reflect the change immediately
     const idSet = new Set(toChange.map((e) => e.id));
     tournaments = tournaments.map((t) => ({
       ...t,
       events: t.events.map((e) => (idSet.has(e.id) ? { ...e, included } : e)),
     }));
-
-    await Promise.all(
-      toChange.map((e) =>
-        toggleEvent(data.project.id, data.ranking.id, e.id, included),
-      ),
-    );
   }
 
-  function handleToggle(
-    projectId: string,
-    rankingId: string,
-    event: TournamentEvent,
-  ) {
+  function handleToggle(event: TournamentEvent) {
     tournaments = tournaments.map((t) => ({
       ...t,
       events: t.events.map((e) =>
         e.id === event.id ? { ...e, included: !e.included } : e,
       ),
     }));
-    toggleEvent(projectId, rankingId, event.id, !event.included);
   }
 
   // Delete tournament
@@ -630,6 +643,24 @@
       </Dialog.Content>
     </Dialog.Root>
 
+    {#if canEdit && hasPendingChanges}
+      <div
+        class="flex items-center justify-between rounded-md border border-amber-500/40 bg-amber-950/20 px-4 py-2"
+      >
+        <span class="text-sm text-amber-400"
+          >You have unsaved changes to event inclusion.</span
+        >
+        <div class="flex gap-2">
+          <Button variant="outline" size="sm" onclick={discardChanges}
+            >Discard</Button
+          >
+          <Button size="sm" onclick={saveChanges} disabled={saving}>
+            {saving ? "Saving…" : "Save"}
+          </Button>
+        </div>
+      </div>
+    {/if}
+
     <!-- Tournament list — iterate visibleTournaments -->
     {#if visibleTournaments.length === 0}
       <Empty.Root>
@@ -695,8 +726,7 @@
                   {#if canEdit}
                     <Checkbox
                       checked={event.included}
-                      onCheckedChange={() =>
-                        handleToggle(data.project.id, data.ranking.id, event)}
+                      onCheckedChange={() => handleToggle(event)}
                     />
                   {/if}
                 </Label>
