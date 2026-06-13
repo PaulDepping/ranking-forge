@@ -1,5 +1,5 @@
 -- Enums
-CREATE TYPE job_kind AS ENUM ('import_tournaments');
+CREATE TYPE job_kind AS ENUM ('import_tournaments', 'compute_ranking');
 CREATE TYPE job_status AS ENUM ('pending', 'running', 'done', 'failed');
 
 -- Users and sessions
@@ -59,12 +59,16 @@ CREATE INDEX project_invite_links_project_id_idx ON project_invite_links(project
 
 -- Rankings (one or more per project; each is an independent ranking view)
 CREATE TABLE rankings (
-    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id  UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    name        TEXT        NOT NULL,
-    description TEXT,
-    published   BOOLEAN     NOT NULL DEFAULT FALSE,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id                      UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id              UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name                    TEXT        NOT NULL,
+    description             TEXT,
+    published               BOOLEAN     NOT NULL DEFAULT FALSE,
+    algorithm               TEXT,
+    algorithm_config        JSONB       NOT NULL DEFAULT '{}',
+    include_external_results BOOLEAN    NOT NULL DEFAULT FALSE,
+    result_sort             TEXT        NOT NULL DEFAULT 'upset_factor',
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX rankings_project_id_idx ON rankings(project_id);
@@ -230,6 +234,36 @@ CREATE INDEX sets_phase_group_id_idx     ON sets(phase_group_id);
 CREATE INDEX sets_winner_entrant_id_idx  ON sets(winner_entrant_id);
 CREATE INDEX sets_loser_entrant_id_idx   ON sets(loser_entrant_id);
 CREATE INDEX sets_completed_at_idx       ON sets(completed_at);
+
+-- Pre-computed per-ranking set list (populated by compute_ranking job)
+-- Contains only sets where both players are ranking members and the event is included.
+-- The stats and H2H endpoints read from this table instead of joining the full set graph.
+CREATE TABLE ranking_set_results (
+    ranking_id       UUID        NOT NULL REFERENCES rankings(id) ON DELETE CASCADE,
+    set_id           UUID        NOT NULL REFERENCES sets(id)     ON DELETE CASCADE,
+    winner_player_id UUID        NOT NULL REFERENCES players(id),
+    loser_player_id  UUID        NOT NULL REFERENCES players(id),
+    event_id         UUID        NOT NULL REFERENCES events(id),
+    upset_factor     FLOAT,
+    completed_at     TIMESTAMPTZ,
+    PRIMARY KEY (ranking_id, set_id)
+);
+
+CREATE INDEX ranking_set_results_winner_idx ON ranking_set_results(ranking_id, winner_player_id);
+CREATE INDEX ranking_set_results_loser_idx  ON ranking_set_results(ranking_id, loser_player_id);
+
+-- Per-player algorithm scores (only for algorithmic rankings)
+CREATE TABLE ranking_player_scores (
+    ranking_id      UUID        NOT NULL REFERENCES rankings(id) ON DELETE CASCADE,
+    player_id       UUID        NOT NULL REFERENCES players(id)  ON DELETE CASCADE,
+    computed_rating FLOAT       NOT NULL,
+    display_data    JSONB       NOT NULL DEFAULT '{}',
+    algorithm_state JSONB       NOT NULL DEFAULT '{}',
+    computed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (ranking_id, player_id)
+);
+
+CREATE INDEX ranking_player_scores_player_id_idx ON ranking_player_scores(player_id);
 
 -- Job queue
 CREATE TABLE jobs (
