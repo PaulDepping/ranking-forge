@@ -1,3 +1,4 @@
+pub mod algorithms;
 pub mod db;
 pub mod error;
 pub mod jobs;

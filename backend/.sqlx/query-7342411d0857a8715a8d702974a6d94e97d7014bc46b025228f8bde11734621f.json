@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT p.id, p.owner_id, p.name, p.game_id, p.game_name, p.created_at,\n                  r.id AS ranking_id, r.name AS ranking_name,\n                  r.description AS ranking_description,\n                  r.published AS ranking_published,\n                  r.created_at AS ranking_created_at,\n                  CASE WHEN pm.user_id IS NOT NULL THEN pm.role END AS \"member_role: MemberRole\"\n           FROM projects p\n           JOIN rankings r ON r.id = $2 AND r.project_id = p.id\n           LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $3\n           WHERE p.id = $1",
+  "query": "SELECT p.id, p.owner_id, p.name, p.game_id, p.game_name, p.created_at,\n                  r.id AS ranking_id, r.name AS ranking_name,\n                  r.description AS ranking_description,\n                  r.published AS ranking_published,\n                  r.algorithm AS ranking_algorithm,\n                  r.algorithm_config AS ranking_algorithm_config,\n                  r.include_external_results AS ranking_include_external_results,\n                  r.result_sort AS ranking_result_sort,\n                  r.created_at AS ranking_created_at,\n                  CASE WHEN pm.user_id IS NOT NULL THEN pm.role END AS \"member_role: MemberRole\"\n           FROM projects p\n           JOIN rankings r ON r.id = $2 AND r.project_id = p.id\n           LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $3\n           WHERE p.id = $1",
   "describe": {
     "columns": [
       {
@@ -55,11 +55,31 @@
       },
       {
         "ordinal": 10,
+        "name": "ranking_algorithm",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "ranking_algorithm_config",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 12,
+        "name": "ranking_include_external_results",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 13,
+        "name": "ranking_result_sort",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
         "name": "ranking_created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 11,
+        "ordinal": 15,
         "name": "member_role: MemberRole",
         "type_info": {
           "Custom": {
@@ -92,9 +112,13 @@
       false,
       true,
       false,
+      true,
+      false,
+      false,
+      false,
       false,
       null
     ]
   },
-  "hash": "c69191a31442f237b3d421fac3ea5c4836efad57a2e235e8d9f1318f74eb668f"
+  "hash": "7342411d0857a8715a8d702974a6d94e97d7014bc46b025228f8bde11734621f"
 }

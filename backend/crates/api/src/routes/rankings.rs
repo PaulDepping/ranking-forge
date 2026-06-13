@@ -47,7 +47,8 @@ pub async fn require_ranking_access(
     let (project, role) = require_project_access(db, project_id, user_id, min_role).await?;
     let ranking = sqlx::query_as!(
         Ranking,
-        "SELECT id, project_id, name, description, published, created_at
+        "SELECT id, project_id, name, description, published,
+                algorithm, algorithm_config, include_external_results, result_sort, created_at
          FROM rankings WHERE id = $1 AND project_id = $2",
         ranking_id,
         project_id,
@@ -76,6 +77,10 @@ pub async fn require_ranking_read_access(
         ranking_name: String,
         ranking_description: Option<String>,
         ranking_published: bool,
+        ranking_algorithm: Option<String>,
+        ranking_algorithm_config: serde_json::Value,
+        ranking_include_external_results: bool,
+        ranking_result_sort: String,
         ranking_created_at: DateTime<Utc>,
         member_role: Option<MemberRole>,
     }
@@ -86,6 +91,10 @@ pub async fn require_ranking_read_access(
                   r.id AS ranking_id, r.name AS ranking_name,
                   r.description AS ranking_description,
                   r.published AS ranking_published,
+                  r.algorithm AS ranking_algorithm,
+                  r.algorithm_config AS ranking_algorithm_config,
+                  r.include_external_results AS ranking_include_external_results,
+                  r.result_sort AS ranking_result_sort,
                   r.created_at AS ranking_created_at,
                   CASE WHEN pm.user_id IS NOT NULL THEN pm.role END AS "member_role: MemberRole"
            FROM projects p
@@ -114,6 +123,10 @@ pub async fn require_ranking_read_access(
         name: row.ranking_name,
         description: row.ranking_description,
         published: row.ranking_published,
+        algorithm: row.ranking_algorithm,
+        algorithm_config: row.ranking_algorithm_config,
+        include_external_results: row.ranking_include_external_results,
+        result_sort: row.ranking_result_sort,
         created_at: row.ranking_created_at,
     };
 
@@ -219,7 +232,8 @@ async fn list_rankings(
 
     let rankings = sqlx::query_as!(
         Ranking,
-        "SELECT id, project_id, name, description, published, created_at
+        "SELECT id, project_id, name, description, published,
+                algorithm, algorithm_config, include_external_results, result_sort, created_at
          FROM rankings WHERE project_id = $1 ORDER BY created_at ASC",
         project_id,
     )
@@ -251,7 +265,8 @@ async fn create_ranking(
         Ranking,
         "INSERT INTO rankings (project_id, name, description)
          VALUES ($1, $2, $3)
-         RETURNING id, project_id, name, description, published, created_at",
+         RETURNING id, project_id, name, description, published,
+                   algorithm, algorithm_config, include_external_results, result_sort, created_at",
         project_id,
         body.name.trim(),
         body.description.as_deref(),
@@ -323,7 +338,8 @@ async fn patch_ranking(
         Ranking,
         "UPDATE rankings SET name = $1, description = $2, published = $3
          WHERE id = $4
-         RETURNING id, project_id, name, description, published, created_at",
+         RETURNING id, project_id, name, description, published,
+                   algorithm, algorithm_config, include_external_results, result_sort, created_at",
         new_name,
         body.description
             .as_deref()
