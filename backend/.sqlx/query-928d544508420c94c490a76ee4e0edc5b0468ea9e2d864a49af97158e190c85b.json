@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            s.id            AS set_id,\n            we.player_id    AS \"winner_player_id!: Uuid\",\n            le.player_id    AS \"loser_player_id!: Uuid\",\n            s.event_id,\n            we.seed         AS winner_seed,\n            le.seed         AS loser_seed,\n            s.completed_at\n        FROM sets s\n        JOIN entrants we ON we.id = s.winner_entrant_id\n        JOIN entrants le ON le.id = s.loser_entrant_id\n        JOIN ranking_players rwp ON rwp.player_id = we.player_id AND rwp.ranking_id = $1\n        JOIN ranking_players rlp ON rlp.player_id = le.player_id AND rlp.ranking_id = $1\n        JOIN ranking_events re ON re.event_id = s.event_id AND re.ranking_id = $1\n        WHERE re.included       = true\n          AND s.is_dq           = false\n          AND s.has_placeholder = false\n          AND we.player_id IS NOT NULL\n          AND le.player_id IS NOT NULL\n        ORDER BY s.completed_at ASC NULLS LAST\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "set_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "winner_player_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "loser_player_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "event_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "winner_seed",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "loser_seed",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "completed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "928d544508420c94c490a76ee4e0edc5b0468ea9e2d864a49af97158e190c85b"
+}

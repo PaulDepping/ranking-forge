@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT u.startgg_api_key FROM projects rp\n                         JOIN users u ON u.id = rp.owner_id\n                         WHERE rp.id = $1",
+  "query": "SELECT u.startgg_api_key FROM projects rp\n                                 JOIN users u ON u.id = rp.owner_id\n                                 WHERE rp.id = $1",
   "describe": {
     "columns": [
       {
@@ -18,5 +18,5 @@
       true
     ]
   },
-  "hash": "fe9360c6d688b78586d2d4c934c4ae13bbdddc3001781b6cd3cae3147a51a526"
+  "hash": "6ed91a24732d3a4aaffd89ed706b633c1445e8b7792fac2f6733ea7f5ae6a990"
 }

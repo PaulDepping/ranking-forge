@@ -5,6 +5,7 @@ use tokio::signal::unix::{SignalKind, signal};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
+mod compute;
 mod config;
 mod import;
 use config::Config;
@@ -77,56 +78,81 @@ async fn main() {
                     let pool2 = pool.clone();
                     let project_id = job.project_id;
                     let job_id = job.id;
-                    let import_params = common::jobs::ImportParams::from_job(&job);
 
-                    let api_key = match sqlx::query_scalar!(
-                        "SELECT u.startgg_api_key FROM projects rp
-                         JOIN users u ON u.id = rp.owner_id
-                         WHERE rp.id = $1",
-                        project_id,
-                    )
-                    .fetch_optional(&pool)
-                    .await
-                    {
-                        Ok(Some(Some(key))) => key,
-                        Ok(_) => {
-                            tracing::error!(%job_id, %project_id, "project owner has no start.gg API key");
-                            let _ = common::jobs::mark_failed(
-                                &pool,
-                                job_id,
-                                "Project owner has no start.gg API key configured",
+                    let handle = match job.kind.as_str() {
+                        "import_tournaments" => {
+                            let import_params = common::jobs::ImportParams::from_job(&job);
+                            let api_key = match sqlx::query_scalar!(
+                                "SELECT u.startgg_api_key FROM projects rp
+                                 JOIN users u ON u.id = rp.owner_id
+                                 WHERE rp.id = $1",
+                                project_id,
                             )
-                            .await;
-                            continue;
+                            .fetch_optional(&pool)
+                            .await
+                            {
+                                Ok(Some(Some(key))) => key,
+                                Ok(_) => {
+                                    tracing::error!(%job_id, %project_id, "project owner has no start.gg API key");
+                                    let _ = common::jobs::mark_failed(
+                                        &pool,
+                                        job_id,
+                                        "Project owner has no start.gg API key configured",
+                                    )
+                                    .await;
+                                    continue;
+                                }
+                                Err(e) => {
+                                    tracing::error!(%e, %job_id, "failed to look up owner API key");
+                                    let _ = common::jobs::mark_failed(&pool, job_id, &e.to_string()).await;
+                                    continue;
+                                }
+                            };
+                            let startgg = common::startgg::StartggClient::new(api_key);
+                            tracing::info!(%job_id, %project_id, "starting import");
+                            tokio::spawn(async move {
+                                match import::run(&pool2, &startgg, project_id, job_id, import_params).await {
+                                    Ok(()) => {
+                                        tracing::info!(%job_id, "import complete");
+                                        if let Err(e) = common::jobs::mark_done(&pool2, job_id).await {
+                                            tracing::error!(%e, %job_id, "failed to mark job done");
+                                        }
+                                    }
+                                    Err(e) => {
+                                        tracing::error!(%e, %job_id, "import failed");
+                                        if let Err(e2) = common::jobs::mark_failed(&pool2, job_id, &e.to_string()).await {
+                                            tracing::error!(%e2, %job_id, "failed to mark job failed");
+                                        }
+                                    }
+                                }
+                            })
                         }
-                        Err(e) => {
-                            tracing::error!(%e, %job_id, "failed to look up owner API key");
-                            let _ = common::jobs::mark_failed(&pool, job_id, &e.to_string()).await;
+                        "compute_ranking" => {
+                            let params = common::jobs::ComputeRankingParams::from_job(&job);
+                            tracing::info!(%job_id, ranking_id = %params.ranking_id, "starting compute_ranking");
+                            tokio::spawn(async move {
+                                match compute::run(&pool2, params.ranking_id).await {
+                                    Ok(()) => {
+                                        tracing::info!(%job_id, "compute_ranking complete");
+                                        if let Err(e) = common::jobs::mark_done(&pool2, job_id).await {
+                                            tracing::error!(%e, %job_id, "failed to mark job done");
+                                        }
+                                    }
+                                    Err(e) => {
+                                        tracing::error!(%e, %job_id, "compute_ranking failed");
+                                        if let Err(e2) = common::jobs::mark_failed(&pool2, job_id, &e.to_string()).await {
+                                            tracing::error!(%e2, %job_id, "failed to mark job failed");
+                                        }
+                                    }
+                                }
+                            })
+                        }
+                        kind => {
+                            tracing::warn!(%job_id, %kind, "unknown job kind, marking failed");
+                            let _ = common::jobs::mark_failed(&pool, job_id, &format!("unknown job kind: {kind}")).await;
                             continue;
                         }
                     };
-
-                    let startgg = common::startgg::StartggClient::new(api_key);
-                    tracing::info!(%job_id, %project_id, "starting import");
-                    let handle = tokio::spawn(async move {
-                        match import::run(&pool2, &startgg, project_id, job_id, import_params).await
-                        {
-                            Ok(()) => {
-                                tracing::info!(%job_id, "import complete");
-                                if let Err(e) = common::jobs::mark_done(&pool2, job_id).await {
-                                    tracing::error!(%e, %job_id, "failed to mark job done");
-                                }
-                            }
-                            Err(e) => {
-                                tracing::error!(%e, %job_id, "import failed");
-                                if let Err(e2) =
-                                    common::jobs::mark_failed(&pool2, job_id, &e.to_string()).await
-                                {
-                                    tracing::error!(%e2, %job_id, "failed to mark job failed");
-                                }
-                            }
-                        }
-                    });
                     in_flight.push((job_id, handle));
                 }
                 Ok(None) => break,

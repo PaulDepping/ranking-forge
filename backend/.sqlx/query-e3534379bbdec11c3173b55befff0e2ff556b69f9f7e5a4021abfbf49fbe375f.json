@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO ranking_player_scores\n                (ranking_id, player_id, computed_rating, display_data, algorithm_state)\n            VALUES ($1, $2, $3, $4, $5)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Float8",
+        "Jsonb",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e3534379bbdec11c3173b55befff0e2ff556b69f9f7e5a4021abfbf49fbe375f"
+}

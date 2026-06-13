@@ -122,6 +122,19 @@ pub async fn run(
         tracing::info!(%project_id, "initial ranking seeded by winrate");
     }
 
+    let ranking_ids: Vec<Uuid> = sqlx::query_scalar!(
+        "SELECT id FROM rankings WHERE project_id = $1",
+        project_id,
+    )
+    .fetch_all(pool)
+    .await?;
+
+    for rid in ranking_ids {
+        if let Err(e) = common::jobs::enqueue_compute_ranking(pool, project_id, rid).await {
+            tracing::warn!(%e, %rid, "failed to enqueue compute_ranking after import");
+        }
+    }
+
     Ok(())
 }
 

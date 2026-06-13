@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT algorithm, algorithm_config, include_external_results\n           FROM rankings WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "algorithm",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "algorithm_config",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 2,
+        "name": "include_external_results",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "388079cfc71d88dc8a7efb8cf8a0ad69fa29071ccb80c2f4fad168b3f1cf0514"
+}
