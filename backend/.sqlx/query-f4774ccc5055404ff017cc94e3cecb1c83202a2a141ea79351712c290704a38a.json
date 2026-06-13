@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO jobs (kind, project_id, params, status)\n           VALUES ('compute_ranking', $1, $2, 'pending')\n           RETURNING id, kind::text AS \"kind!\", project_id, params, result, progress,\n                     status::text AS \"status!\", error, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "kind!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "project_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "params",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "result",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 5,
+        "name": "progress",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 6,
+        "name": "status!",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "error",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      false,
+      null,
+      false,
+      false,
+      true,
+      true,
+      null,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "f4774ccc5055404ff017cc94e3cecb1c83202a2a141ea79351712c290704a38a"
+}

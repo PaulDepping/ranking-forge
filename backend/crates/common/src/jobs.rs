@@ -41,6 +41,43 @@ pub async fn enqueue(
     Ok(job)
 }
 
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct ComputeRankingParams {
+    pub ranking_id: Uuid,
+}
+
+impl ComputeRankingParams {
+    pub fn from_job(job: &Job) -> Self {
+        serde_json::from_value(job.params.clone()).unwrap_or_default()
+    }
+}
+
+pub async fn enqueue_compute_ranking(
+    pool: &PgPool,
+    project_id: Uuid,
+    ranking_id: Uuid,
+) -> Result<Job, sqlx::Error> {
+    let params_json =
+        serde_json::to_value(&ComputeRankingParams { ranking_id }).unwrap_or_default();
+    let job = sqlx::query_as!(
+        Job,
+        r#"INSERT INTO jobs (kind, project_id, params, status)
+           VALUES ('compute_ranking', $1, $2, 'pending')
+           RETURNING id, kind::text AS "kind!", project_id, params, result, progress,
+                     status::text AS "status!", error, created_at, updated_at"#,
+        project_id,
+        params_json,
+    )
+    .fetch_one(pool)
+    .await?;
+
+    sqlx::query!("SELECT pg_notify('jobs', $1)", job.id.to_string())
+        .execute(pool)
+        .await?;
+
+    Ok(job)
+}
+
 pub async fn latest_for_project(
     pool: &PgPool,
     project_id: Uuid,
@@ -264,5 +301,25 @@ mod tests {
         .unwrap();
         assert_eq!(row.algorithm.as_deref(), Some("elo"));
         assert_eq!(row.result_sort, "upset_factor");
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn enqueue_compute_ranking_creates_job(pool: PgPool) {
+        let project_id = setup_project(&pool).await;
+        let ranking_id: Uuid = sqlx::query_scalar!(
+            "INSERT INTO rankings (project_id, name) VALUES ($1, 'Test') RETURNING id",
+            project_id,
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        let job = enqueue_compute_ranking(&pool, project_id, ranking_id)
+            .await
+            .unwrap();
+        assert_eq!(job.kind, "compute_ranking");
+
+        let params = ComputeRankingParams::from_job(&job);
+        assert_eq!(params.ranking_id, ranking_id);
     }
 }
