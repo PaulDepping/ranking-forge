@@ -26,6 +26,8 @@ Sub-project A is fully specified and ready to implement. Sub-project B is specif
 - Adding a new algorithm in future requires zero schema changes.
 - Calculation state, display state, and algorithm configuration are kept strictly separate.
 - Stats views (wins/losses lists) can optionally be sorted by global player rating instead of upset factor — applies to both manual and algorithmic rankings, falls back to upset factor if global data is unavailable.
+- Event inclusion changes on the tournaments page are batched: the user accumulates toggles locally and submits them all at once via a save button, triggering a single recompute instead of one per toggle.
+- Stats (wins/losses lists) and H2H set records are pre-computed and stored when ranking data changes, not recalculated at runtime on every page load.
 
 ### Schema Changes
 
@@ -71,6 +73,30 @@ Three concerns kept strictly separate:
 | `algorithm_state` | Internal state for incremental recomputation | Worker only |
 
 `ranking_players.rank_position` remains the source of truth for manual rankings and is not written for algorithmic rankings.
+
+#### New table: `ranking_set_results`
+
+Pre-computed per-ranking set list. Populated by the `compute_ranking` job for **all** rankings (manual and algorithmic). The stats and H2H endpoints read directly from this table rather than re-joining the full set graph at runtime.
+
+```sql
+CREATE TABLE ranking_set_results (
+    ranking_id       UUID        NOT NULL REFERENCES rankings(id) ON DELETE CASCADE,
+    set_id           UUID        NOT NULL REFERENCES sets(id)     ON DELETE CASCADE,
+    winner_player_id UUID        NOT NULL REFERENCES players(id),
+    loser_player_id  UUID        NOT NULL REFERENCES players(id),
+    event_id         UUID        NOT NULL REFERENCES events(id),
+    upset_factor     FLOAT,
+    completed_at     TIMESTAMPTZ,
+    PRIMARY KEY (ranking_id, set_id)
+);
+
+CREATE INDEX ranking_set_results_winner_idx ON ranking_set_results(ranking_id, winner_player_id);
+CREATE INDEX ranking_set_results_loser_idx  ON ranking_set_results(ranking_id, loser_player_id);
+```
+
+This table contains only sets where both the winner and loser are members of `ranking_players` and the event is included (`ranking_events.included = true`). DQ sets are excluded. Upset factor is computed once at write time using the existing algorithm.
+
+H2H counts are derived from this table at query time (`GROUP BY winner_player_id, loser_player_id, COUNT(*)`) — no separate H2H table is needed since the GROUP BY is cheap on the pre-filtered set.
 
 Example values per algorithm:
 
@@ -131,23 +157,35 @@ Follows Glishman's Glicko-2 algorithm. Players start at `μ=0, φ=2.014523 (RD=3
 
 ### Job System
 
-New `job_kind` variant: `compute_ranking`.
+New `job_kind` variant: `compute_ranking`. This applies to **all** rankings — manual and algorithmic — since every ranking now has pre-computed set results to maintain.
 
 The `compute_ranking` job is enqueued automatically by the API when:
-- An `import_tournaments` job completes for a project (enqueue one job per algorithmic ranking in the project)
-- An event's `included` flag is toggled on a ranking with `algorithm IS NOT NULL`
-- A player is added to or removed from an algorithmic ranking
-- `include_external_results` is toggled on a ranking
+- An `import_tournaments` job completes for a project (one job per ranking in the project)
+- A bulk event inclusion save is submitted (see Batch Event Save below)
+- A player is added to or removed from a ranking
+- `include_external_results` is toggled on an algorithmic ranking
 
 The API also exposes a manual trigger (editor/owner only).
 
-The worker processes a `compute_ranking` job as follows:
-1. Load all sets for included events in the ranking, joined against `ranking_players` to identify which players are ranked members, in `completed_at` ascending order.
-2. If `include_external_results = true`, join `global_player_ratings` on `startgg_user_id` for each external opponent encountered. Populate `winner_global_rating` / `loser_global_rating` on `ScoredSet` where available.
-3. Call `registry.get(algorithm)?.compute(config, sets)`.
-4. Upsert `ranking_player_scores` — wipe all existing rows for the ranking, then insert new results in one transaction.
+The worker processes a `compute_ranking` job in two phases:
 
-Manual rankings never receive a `compute_ranking` job.
+**Phase 1 — set results (all rankings):**
+1. Load all sets from included events where both the winner and loser are ranking members, in `completed_at` ascending order. Exclude DQ sets.
+2. Compute upset factor for each set using the existing algorithm.
+3. Wipe and rewrite `ranking_set_results` for the ranking in one transaction.
+
+**Phase 2 — algorithm scores (algorithmic rankings only):**
+4. If `include_external_results = true`, join `global_player_ratings` via `startgg_user_id` for each external opponent in the included event set. Populate `winner_global_rating` / `loser_global_rating` on `ScoredSet` where available.
+5. Call `registry.get(algorithm)?.compute(config, sets)`.
+6. Wipe and rewrite `ranking_player_scores` for the ranking in one transaction.
+
+### Batch Event Save
+
+The existing `PATCH /projects/:id/rankings/:rid/events/:eid` endpoint (single-event toggle) is **replaced** by a bulk endpoint:
+
+`PUT /projects/:id/rankings/:rid/events` — accepts an array of `{event_id, included}` pairs representing the full desired inclusion state. Writes all changes atomically, then enqueues a single `compute_ranking` job. Returns 202 Accepted.
+
+The frontend accumulates inclusion toggles locally on the tournaments page without making any API calls. A save button submits the full changed state in one request. A discard button reverts local changes to the last saved state. This prevents multiple rapid recompute jobs from queuing up when the user is making bulk adjustments.
 
 ### API Changes
 
@@ -156,17 +194,19 @@ Manual rankings never receive a `compute_ranking` job.
 | POST | `/projects/:id/rankings` | Accept `algorithm`, `algorithm_config`, `include_external_results`, `result_sort` |
 | PATCH | `/projects/:id/rankings/:rid` | Accept same fields |
 | POST | `/projects/:id/rankings/:rid/recompute` | New — enqueues `compute_ranking` job; 202 Accepted |
+| PUT | `/projects/:id/rankings/:rid/events` | New — bulk event inclusion save; replaces per-event PATCH |
 | GET | `/projects/:id/rankings/:rid/ranking` | For algorithmic rankings: ordered by `computed_rating DESC`; response includes `display_data` per player |
-| GET | `/projects/:id/rankings/:rid/stats` | `result_sort` setting applied server-side; stats response includes `display_data` when algorithmic |
+| GET | `/projects/:id/rankings/:rid/stats` | Reads from `ranking_set_results`; `result_sort` applied server-side; includes `display_data` when algorithmic |
 | GET | `/projects/:id/rankings/:rid/stats/:pid` | Same |
+| GET | `/projects/:id/rankings/:rid/head-to-head` | Reads from `ranking_set_results` (GROUP BY pair); no runtime set join |
 
 The ranking list response (`GET /projects/:id/rankings`) includes `algorithm` and `result_sort` so the frontend can render algorithm labels and sort indicators.
 
 ### Unchanged
 
 - `ranking_players` and its `rank_position` field — untouched for manual rankings.
-- All existing stats, H2H, and tournament endpoints — unaffected.
-- Upset factor calculation — unchanged; still the default sort and still shown in stats.
+- Upset factor calculation logic — unchanged; computed at write time into `ranking_set_results` rather than at read time.
+- The `PATCH /projects/:id/rankings/:rid/events/:eid` endpoint is removed; all event inclusion changes go through the new bulk `PUT` endpoint.
 
 ---
 
