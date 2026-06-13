@@ -139,6 +139,24 @@ users
 - **entrants** represent one player's participation in one event. `player_id` is nullable — entrants whose start.gg user ID doesn't match any known startgg_account are stored but not linked.
 - **sets** record the winner and loser entrant for each match. Scores are not stored (not needed for upset factor).
 
+### ranking_set_results
+Pre-computed per-ranking set list, populated by the `compute_ranking` worker job. Contains only sets where both players are ranking members and the event is included (non-DQ, non-placeholder). The stats and H2H endpoints read from this table instead of computing at runtime via complex JOINs.
+
+### ranking_player_scores
+Per-player algorithm scores, populated by Phase 2 of the `compute_ranking` job (only for algorithmic rankings). Stores `computed_rating` (ordering float), `display_data` (JSONB for UI display, e.g. `{"rating": 1543, "rd": 120}`), and `algorithm_state` (JSONB for internal incremental state).
+
+## Ranking Algorithms
+
+Rankings can be manual (players ordered by `rank_position`) or algorithmic (Elo, Glicko-2). The `algorithm` column on the `rankings` table selects the algorithm; `algorithm_config` holds algorithm-specific parameters (e.g. `{"k_factor": 32}` for Elo).
+
+The `compute_ranking` worker job runs in two phases:
+1. **Phase 1** (all rankings): builds `ranking_set_results` — a pre-filtered, pre-computed set list
+2. **Phase 2** (algorithmic rankings only): runs the algorithm and writes `ranking_player_scores`
+
+A compute job is enqueued automatically after imports, after bulk event inclusion changes, and after player additions or removals.
+
+The `AlgorithmRegistry` in `common::algorithms` maps algorithm names to implementations. To add a new algorithm, implement `RankingAlgorithm` and register it in `AlgorithmRegistry::new()`.
+
 ## API Overview
 
 See `backend/openapi.yaml` for the full contract.
@@ -154,9 +172,10 @@ See `backend/openapi.yaml` for the full contract.
 | Tournament entrants | GET /projects/:id/tournament-entrants |
 | Tournaments       | GET /projects/:id/tournaments (project-scope list); DELETE /projects/:id/tournaments/:tid |
 | Rankings CRUD     | GET/POST /projects/:id/rankings; GET/PATCH/DELETE /projects/:id/rankings/:rid |
-| Ranking players   | GET/POST /projects/:id/rankings/:rid/players; PATCH/DELETE /projects/:id/rankings/:rid/players/:pid; PUT /projects/:id/rankings/:rid/ranking (reorder) |
+| Ranking players   | GET/POST /projects/:id/rankings/:rid/players; PATCH/DELETE /projects/:id/rankings/:rid/players/:pid; GET /projects/:id/rankings/:rid/ranking (computed order); PUT /projects/:id/rankings/:rid/ranking (reorder manual) |
 | Ranking tournaments | GET /projects/:id/rankings/:rid/tournaments |
-| Events            | PATCH /projects/:id/rankings/:rid/events/:eid (toggle included, per-ranking) |
+| Events            | PUT /projects/:id/rankings/:rid/events (bulk set inclusion, enqueues compute_ranking) |
+| Recompute         | POST /projects/:id/rankings/:rid/recompute (manually trigger ranking recompute) |
 | Stats             | GET /projects/:id/rankings/:rid/stats; GET /projects/:id/rankings/:rid/stats/:player_id; GET /projects/:id/rankings/:rid/head-to-head; GET /projects/:id/rankings/:rid/head-to-head/:a/:b/sets |
 | Members           | GET/POST /projects/:id/members; PATCH/DELETE /projects/:id/members/:uid; POST /projects/:id/members/transfer-ownership *(not yet in openapi.yaml)* |
 | Invite links      | GET/POST /projects/:id/invite-links; DELETE /projects/:id/invite-links/:lid; POST /invite/:token/accept *(not yet in openapi.yaml)* |

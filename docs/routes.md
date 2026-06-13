@@ -35,8 +35,9 @@ access it when the ranking's `published` flag is `true`.
 | `/projects/[id]/(editor)/players` | Owner/editor | Add, remove, and link players in the project player pool |
 | `/projects/[id]/(editor)/players/[player_id]` | Owner/editor | Edit one player's display name and start.gg accounts |
 | `/projects/[id]/rankings/[rid]` | Owner/member (published: guest) | Ranking overview; redirects editors to /players, viewers/guests to /ranking |
-| `/projects/[id]/rankings/[rid]/ranking` | Owner/member (published: guest) | Players ordered by aggregate upset factor |
+| `/projects/[id]/rankings/[rid]/ranking` | Owner/member (published: guest) | Players ordered by computed_rating (algorithmic) or rank_position (manual); calls `GET /projects/:id/rankings/:rid/ranking` |
 | `/projects/[id]/rankings/[rid]/stats` | Owner/member (published: guest) | Per-player win/loss lists sorted by upset factor |
 | `/projects/[id]/rankings/[rid]/h2h` | Owner/member (published: guest) | Head-to-head set record matrix |
-| `/projects/[id]/rankings/[rid]/tournaments` | Owner/member (published: guest) | Tournament list with per-ranking include/exclude toggles; delete tournament |
+| `/projects/[id]/rankings/[rid]/tournaments` | Owner/member (published: guest) | Tournament list with per-ranking include/exclude toggles (save-button, bulk `PUT /events`); delete tournament |
 | `/projects/[id]/rankings/[rid]/(editor)/players` | Owner/editor | Manage which project players are in this ranking; set rank position and notes |
+| `/projects/[id]/rankings/[rid]/(editor)/recompute` | Owner/editor | Manually trigger a ranking recompute via `POST /projects/:id/rankings/:rid/recompute` |

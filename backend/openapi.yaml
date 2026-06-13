@@ -84,6 +84,19 @@ components:
           type: string
           nullable: true
           description: The authenticated user's role on this ranking's project (owner/editor/viewer); null for guests
+        algorithm:
+          type: string
+          nullable: true
+          description: Algorithm name ("elo", "glicko2", or null for manual)
+        algorithm_config:
+          type: object
+          description: Algorithm-specific configuration (e.g. k_factor for Elo)
+        include_external_results:
+          type: boolean
+          default: false
+        result_sort:
+          type: string
+          default: upset_factor
 
     RankingPlayer:
       type: object
@@ -439,6 +452,47 @@ components:
           type: string
         display_name:
           type: string
+          nullable: true
+
+    RankingPlayerScore:
+      type: object
+      properties:
+        ranking_id:
+          type: string
+          format: uuid
+        player_id:
+          type: string
+          format: uuid
+        computed_rating:
+          type: number
+        display_data:
+          type: object
+          description: Algorithm-specific display data (e.g. {"rating": 1543, "rd": 120})
+        algorithm_state:
+          type: object
+          description: Internal algorithm state for incremental updates
+        computed_at:
+          type: string
+          format: date-time
+
+    ComputedRankingPlayer:
+      type: object
+      properties:
+        player_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        rank_position:
+          type: integer
+        notes:
+          type: string
+          nullable: true
+        computed_rating:
+          type: number
+          nullable: true
+        display_data:
+          type: object
           nullable: true
 
   responses:
@@ -1381,6 +1435,30 @@ paths:
           type: string
           format: uuid
 
+    get:
+      summary: Get players in computed ranking order
+      tags: [Rankings]
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: ranking_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Players ordered by computed_rating (algorithmic) or rank_position (manual)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ComputedRankingPlayer'
+        '404':
+          description: Not found
+
     put:
       summary: Reorder all players in a ranking
       description: >
@@ -1453,51 +1531,66 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /projects/{project_id}/rankings/{ranking_id}/events/{event_id}:
-    parameters:
-      - name: project_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - name: ranking_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - name: event_id
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-
-    patch:
-      summary: Toggle whether an event is included in this ranking's stats
-      tags: [Tournaments]
+  /projects/{project_id}/rankings/{ranking_id}/events:
+    put:
+      summary: Bulk set event inclusion
+      tags: [Rankings]
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: ranking_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [included]
-              properties:
-                included:
-                  type: boolean
+              type: array
+              items:
+                type: object
+                required: [event_id, included]
+                properties:
+                  event_id:
+                    type: string
+                    format: uuid
+                  included:
+                    type: boolean
       responses:
-        '200':
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProjectEvent'
+        '202':
+          description: Accepted — compute_ranking job enqueued
         '401':
-          $ref: '#/components/responses/Unauthorized'
-        '404':
-          $ref: '#/components/responses/NotFound'
+          description: Unauthorized
+        '403':
+          description: Forbidden
+
+  /projects/{project_id}/rankings/{ranking_id}/recompute:
+    post:
+      summary: Manually trigger ranking recompute
+      tags: [Rankings]
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: ranking_id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '202':
+          description: Accepted — compute_ranking job enqueued
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
 
   # ── Stats ────────────────────────────────────────────────────────────────────
 
