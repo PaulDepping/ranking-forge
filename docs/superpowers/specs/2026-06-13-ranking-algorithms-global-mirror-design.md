@@ -201,14 +201,12 @@ The new `crawler` binary in RankingForge should port the scraper logic from `hci
 All global tables use UUID primary keys for consistency with the rest of the database. Start.gg native IDs are stored as `BIGINT` natural keys with `UNIQUE NOT NULL` constraints, indexed for upsert operations.
 
 ```sql
--- Videogame reference: intentionally uses BIGINT PK (the start.gg game ID directly).
--- This matches the existing schema convention where game_id is stored as BIGINT throughout
--- (projects.game_id, events.game_id, global_events.game_id). Using UUID here would require
--- a translation layer with no benefit since game IDs are stable and globally unique.
 CREATE TABLE global_games (
-    id        BIGINT  PRIMARY KEY,
-    name      TEXT    NOT NULL
+    id          UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+    startgg_id  BIGINT  NOT NULL UNIQUE,
+    name        TEXT    NOT NULL
 );
+CREATE INDEX global_games_startgg_id_idx ON global_games(startgg_id);
 
 -- Global player registry, keyed by start.gg user ID
 CREATE TABLE global_players (
@@ -247,7 +245,7 @@ CREATE TABLE global_events (
     id            UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
     startgg_id    BIGINT  NOT NULL UNIQUE,
     tournament_id UUID    NOT NULL REFERENCES global_tournaments(id) ON DELETE CASCADE,
-    game_id       BIGINT  REFERENCES global_games(id),
+    game_id       UUID    REFERENCES global_games(id),
     name          TEXT    NOT NULL,
     slug          TEXT,
     start_at      TIMESTAMPTZ,
@@ -318,14 +316,14 @@ CREATE INDEX global_sets_completed_at_idx      ON global_sets(completed_at);
 -- Computed global ratings per player per game
 CREATE TABLE global_player_ratings (
     player_id       UUID    NOT NULL REFERENCES global_players(id) ON DELETE CASCADE,
-    game_id         BIGINT  NOT NULL REFERENCES global_games(id),
+    game_id         UUID    NOT NULL REFERENCES global_games(id),
     computed_rating FLOAT   NOT NULL,
     display_data    JSONB   NOT NULL DEFAULT '{}',
     algorithm_state JSONB   NOT NULL DEFAULT '{}',
     computed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (player_id, game_id)
 );
-CREATE INDEX global_player_ratings_game_id_idx ON global_player_ratings(game_id);
+CREATE INDEX global_player_ratings_game_id_idx  ON global_player_ratings(game_id);
 
 -- Crawler resumption state (one row per named checkpoint)
 CREATE TABLE crawler_checkpoints (
