@@ -167,15 +167,15 @@ The `compute_ranking` job is enqueued automatically by the API when:
 
 The API also exposes a manual trigger (editor/owner only).
 
-The worker processes a `compute_ranking` job in two phases:
+The worker processes a `compute_ranking` job in two phases. The phases are logically independent — Phase 2 reads from the raw `sets` table directly, not from `ranking_set_results`. They share the same trigger events and the same underlying DB query, so running them sequentially in one job avoids duplicating that I/O. A separate job per phase would gain nothing and would require every trigger site to know whether to enqueue one or two jobs based on the ranking's algorithm field.
 
 **Phase 1 — set results (all rankings):**
 1. Load all sets from included events where both the winner and loser are ranking members, in `completed_at` ascending order. Exclude DQ sets.
 2. Compute upset factor for each set using the existing algorithm.
 3. Wipe and rewrite `ranking_set_results` for the ranking in one transaction.
 
-**Phase 2 — algorithm scores (algorithmic rankings only):**
-4. If `include_external_results = true`, join `global_player_ratings` via `startgg_user_id` for each external opponent in the included event set. Populate `winner_global_rating` / `loser_global_rating` on `ScoredSet` where available.
+**Phase 2 — algorithm scores (algorithmic rankings only; skipped for manual rankings):**
+4. Load the same filtered set list from the raw `sets` table (independent of Phase 1's output). If `include_external_results = true`, additionally include sets against non-members and join `global_player_ratings` via `startgg_user_id` to populate `winner_global_rating` / `loser_global_rating` on each `ScoredSet`.
 5. Call `registry.get(algorithm)?.compute(config, sets)`.
 6. Wipe and rewrite `ranking_player_scores` for the ranking in one transaction.
 
