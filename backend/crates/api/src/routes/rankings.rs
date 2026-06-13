@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, get, put},
+    routing::{delete, get, post},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -163,6 +163,10 @@ pub async fn require_ranking_read_access(
 struct CreateRankingRequest {
     name: String,
     description: Option<String>,
+    algorithm: Option<String>,
+    algorithm_config: Option<serde_json::Value>,
+    include_external_results: Option<bool>,
+    result_sort: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -170,6 +174,9 @@ struct PatchRankingRequest {
     name: Option<String>,
     description: Option<String>,
     published: Option<bool>,
+    algorithm_config: Option<serde_json::Value>,
+    include_external_results: Option<bool>,
+    result_sort: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -179,6 +186,10 @@ struct RankingResponse {
     name: String,
     description: Option<String>,
     published: bool,
+    algorithm: Option<String>,
+    algorithm_config: serde_json::Value,
+    include_external_results: bool,
+    result_sort: String,
     created_at: DateTime<Utc>,
     user_role: Option<UserRole>,
 }
@@ -191,6 +202,10 @@ impl RankingResponse {
             name: r.name,
             description: r.description,
             published: r.published,
+            algorithm: r.algorithm,
+            algorithm_config: r.algorithm_config,
+            include_external_results: r.include_external_results,
+            result_sort: r.result_sort,
             created_at: r.created_at,
             user_role: role,
         }
@@ -261,15 +276,22 @@ async fn create_ranking(
         ));
     }
 
+    let config = body.algorithm_config.clone().unwrap_or_else(|| serde_json::json!({}));
+    let result_sort = body.result_sort.as_deref().unwrap_or("upset_factor").to_string();
+
     let ranking = sqlx::query_as!(
         Ranking,
-        "INSERT INTO rankings (project_id, name, description)
-         VALUES ($1, $2, $3)
+        "INSERT INTO rankings (project_id, name, description, algorithm, algorithm_config, include_external_results, result_sort)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING id, project_id, name, description, published,
                    algorithm, algorithm_config, include_external_results, result_sort, created_at",
         project_id,
         body.name.trim(),
         body.description.as_deref(),
+        body.algorithm.as_deref(),
+        config,
+        body.include_external_results.unwrap_or(false),
+        result_sort,
     )
     .fetch_one(&state.db)
     .await?;
@@ -336,15 +358,22 @@ async fn patch_ranking(
 
     let updated = sqlx::query_as!(
         Ranking,
-        "UPDATE rankings SET name = $1, description = $2, published = $3
-         WHERE id = $4
+        "UPDATE rankings
+         SET name                     = $1,
+             description              = $2,
+             published                = $3,
+             algorithm_config         = COALESCE($4, algorithm_config),
+             include_external_results = COALESCE($5, include_external_results),
+             result_sort              = COALESCE($6, result_sort)
+         WHERE id = $7
          RETURNING id, project_id, name, description, published,
                    algorithm, algorithm_config, include_external_results, result_sort, created_at",
         new_name,
-        body.description
-            .as_deref()
-            .or(ranking.description.as_deref()),
+        body.description.as_deref().or(ranking.description.as_deref()),
         body.published.unwrap_or(ranking.published),
+        body.algorithm_config.as_ref(),
+        body.include_external_results,
+        body.result_sort.as_deref(),
         path.rid,
     )
     .fetch_one(&state.db)
@@ -363,6 +392,108 @@ async fn delete_ranking(
         .execute(&state.db)
         .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn recompute_ranking(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path(path): Path<RankingPath>,
+) -> Result<impl IntoResponse> {
+    let (project, _, _) =
+        require_ranking_access(&state.db, path.id, path.rid, user.id, UserRole::Editor).await?;
+    common::jobs::enqueue_compute_ranking(&state.db, project.id, path.rid).await?;
+    Ok(StatusCode::ACCEPTED)
+}
+
+#[derive(Serialize)]
+struct ComputedRankingPlayerResponse {
+    player_id: Uuid,
+    name: String,
+    rank_position: i32,
+    notes: Option<String>,
+    computed_rating: Option<f64>,
+    display_data: Option<serde_json::Value>,
+}
+
+async fn get_computed_ranking(
+    State(state): State<AppState>,
+    OptionalAuthUser(user): OptionalAuthUser,
+    Path(path): Path<RankingPath>,
+) -> Result<impl IntoResponse> {
+    let (_, ranking, _) =
+        require_ranking_read_access(&state.db, path.id, path.rid, user.map(|u| u.id)).await?;
+
+    if ranking.algorithm.is_some() {
+        struct Row {
+            player_id: Uuid,
+            name: String,
+            rank_position: i32,
+            notes: Option<String>,
+            computed_rating: Option<f64>,
+            display_data: Option<serde_json::Value>,
+        }
+        let rows = sqlx::query_as!(
+            Row,
+            r#"
+            SELECT rp.player_id, pl.name, rp.rank_position, rp.notes,
+                   rps.computed_rating, rps.display_data
+            FROM ranking_players rp
+            JOIN players pl ON pl.id = rp.player_id
+            LEFT JOIN ranking_player_scores rps ON rps.ranking_id = $1 AND rps.player_id = rp.player_id
+            WHERE rp.ranking_id = $1
+            ORDER BY rps.computed_rating DESC NULLS LAST, pl.created_at ASC
+            "#,
+            path.rid,
+        )
+        .fetch_all(&state.db)
+        .await?;
+
+        let resp: Vec<ComputedRankingPlayerResponse> = rows
+            .into_iter()
+            .map(|r| ComputedRankingPlayerResponse {
+                player_id: r.player_id,
+                name: r.name,
+                rank_position: r.rank_position,
+                notes: r.notes,
+                computed_rating: r.computed_rating,
+                display_data: r.display_data,
+            })
+            .collect();
+        Ok(Json(resp))
+    } else {
+        struct Row {
+            player_id: Uuid,
+            name: String,
+            rank_position: i32,
+            notes: Option<String>,
+        }
+        let rows = sqlx::query_as!(
+            Row,
+            r#"
+            SELECT rp.player_id, pl.name, rp.rank_position, rp.notes
+            FROM ranking_players rp
+            JOIN players pl ON pl.id = rp.player_id
+            WHERE rp.ranking_id = $1
+            ORDER BY rp.rank_position ASC, pl.created_at ASC
+            "#,
+            path.rid,
+        )
+        .fetch_all(&state.db)
+        .await?;
+
+        let resp: Vec<ComputedRankingPlayerResponse> = rows
+            .into_iter()
+            .map(|r| ComputedRankingPlayerResponse {
+                player_id: r.player_id,
+                name: r.name,
+                rank_position: r.rank_position,
+                notes: r.notes,
+                computed_rating: None,
+                display_data: None,
+            })
+            .collect();
+        Ok(Json(resp))
+    }
 }
 
 // ── Ranking player membership ─────────────────────────────────────────────────
@@ -441,6 +572,7 @@ async fn add_ranking_player(
     .execute(&state.db)
     .await?;
 
+    let _ = common::jobs::enqueue_compute_ranking(&state.db, path.id, path.rid).await;
     Ok(StatusCode::CREATED)
 }
 
@@ -460,6 +592,7 @@ async fn remove_ranking_player(
     if result.rows_affected() == 0 {
         return Err(AppError::NotFound);
     }
+    let _ = common::jobs::enqueue_compute_ranking(&state.db, path.id, path.rid).await;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -549,7 +682,11 @@ pub fn router() -> Router<AppState> {
             "/{rid}/players/{pid}",
             delete(remove_ranking_player).patch(patch_ranking_player),
         )
-        .route("/{rid}/ranking", put(reorder_ranking_players))
+        .route(
+            "/{rid}/ranking",
+            get(get_computed_ranking).put(reorder_ranking_players),
+        )
+        .route("/{rid}/recompute", post(recompute_ranking))
         .nest("/{rid}", crate::routes::tournaments::router())
 }
 

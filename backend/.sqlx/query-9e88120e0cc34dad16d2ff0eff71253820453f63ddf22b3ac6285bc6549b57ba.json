@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO rankings (project_id, name, description)\n         VALUES ($1, $2, $3)\n         RETURNING id, project_id, name, description, published,\n                   algorithm, algorithm_config, include_external_results, result_sort, created_at",
+  "query": "UPDATE rankings\n         SET name                     = $1,\n             description              = $2,\n             published                = $3,\n             algorithm_config         = COALESCE($4, algorithm_config),\n             include_external_results = COALESCE($5, include_external_results),\n             result_sort              = COALESCE($6, result_sort)\n         WHERE id = $7\n         RETURNING id, project_id, name, description, published,\n                   algorithm, algorithm_config, include_external_results, result_sort, created_at",
   "describe": {
     "columns": [
       {
@@ -56,9 +56,13 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
         "Text",
-        "Text"
+        "Text",
+        "Bool",
+        "Jsonb",
+        "Bool",
+        "Text",
+        "Uuid"
       ]
     },
     "nullable": [
@@ -74,5 +78,5 @@
       false
     ]
   },
-  "hash": "f16a2c70e3898b63538a8e4ab8168391819cdd6aaded2c827280dcdf10c9f867"
+  "hash": "9e88120e0cc34dad16d2ff0eff71253820453f63ddf22b3ac6285bc6549b57ba"
 }

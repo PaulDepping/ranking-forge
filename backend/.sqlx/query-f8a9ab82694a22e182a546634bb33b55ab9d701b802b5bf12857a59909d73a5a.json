@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT rp.player_id, pl.name, rp.rank_position, rp.notes,\n                   rps.computed_rating, rps.display_data\n            FROM ranking_players rp\n            JOIN players pl ON pl.id = rp.player_id\n            LEFT JOIN ranking_player_scores rps ON rps.ranking_id = $1 AND rps.player_id = rp.player_id\n            WHERE rp.ranking_id = $1\n            ORDER BY rps.computed_rating DESC NULLS LAST, pl.created_at ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "player_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "rank_position",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "computed_rating",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 5,
+        "name": "display_data",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "f8a9ab82694a22e182a546634bb33b55ab9d701b802b5bf12857a59909d73a5a"
+}

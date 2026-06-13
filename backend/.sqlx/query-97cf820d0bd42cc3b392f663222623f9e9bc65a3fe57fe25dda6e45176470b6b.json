@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT rp.player_id, pl.name, rp.rank_position, rp.notes\n            FROM ranking_players rp\n            JOIN players pl ON pl.id = rp.player_id\n            WHERE rp.ranking_id = $1\n            ORDER BY rp.rank_position ASC, pl.created_at ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "player_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "rank_position",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "notes",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "97cf820d0bd42cc3b392f663222623f9e9bc65a3fe57fe25dda6e45176470b6b"
+}
