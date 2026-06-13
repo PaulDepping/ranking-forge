@@ -51,7 +51,21 @@ pub struct Ranking {
     pub name: String,
     pub description: Option<String>,
     pub published: bool,
+    pub algorithm: Option<String>,
+    pub algorithm_config: serde_json::Value,
+    pub include_external_results: bool,
+    pub result_sort: String,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, sqlx::FromRow, Serialize)]
+pub struct RankingPlayerScore {
+    pub ranking_id: Uuid,
+    pub player_id: Uuid,
+    pub computed_rating: f64,
+    pub display_data: serde_json::Value,
+    pub algorithm_state: serde_json::Value,
+    pub computed_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow, Serialize)]

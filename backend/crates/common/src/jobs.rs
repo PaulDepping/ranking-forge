@@ -241,4 +241,28 @@ mod tests {
         assert_eq!(progress["step"], 2);
         assert_eq!(progress["total"], 7);
     }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn ranking_has_algorithm_fields(pool: PgPool) {
+        let project_id = setup_project(&pool).await;
+        let ranking_id: Uuid = sqlx::query_scalar!(
+            "INSERT INTO rankings (project_id, name, algorithm, algorithm_config, result_sort)
+             VALUES ($1, 'Elo Test', 'elo', '{\"k_factor\": 32}', 'upset_factor')
+             RETURNING id",
+            project_id,
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        let row = sqlx::query!(
+            r#"SELECT algorithm, result_sort FROM rankings WHERE id = $1"#,
+            ranking_id,
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(row.algorithm.as_deref(), Some("elo"));
+        assert_eq!(row.result_sort, "upset_factor");
+    }
 }
