@@ -33,7 +33,7 @@ access it when the ranking's `published` flag is `true`.
 | `/projects/[id]/settings` | Owner only | Project name, game, member management, invite links |
 | `/projects/[id]/(editor)/import` | Owner/editor | Trigger a start.gg import; view current job status |
 | `/projects/[id]/(editor)/players` | Owner/editor | Add, remove, and link players in the project player pool |
-| `/projects/[id]/(editor)/players/[player_id]` | Owner/editor | Edit one player's display name and start.gg accounts |
+| `/projects/[id]/rankings/[rid]/players/[player_id]` | Owner/member (published: guest) | Per-ranking player stats: wins, losses, and tournament history scoped to the ranking's included events |
 | `/projects/[id]/rankings/[rid]` | Owner/member (published: guest) | Ranking overview; redirects editors to /players, viewers/guests to /ranking |
 | `/projects/[id]/rankings/[rid]/ranking` | Owner/member (published: guest) | Players ordered by computed_rating (algorithmic) or rank_position (manual); calls `GET /projects/:id/rankings/:rid/ranking` |
 | `/projects/[id]/rankings/[rid]/stats` | Owner/member (published: guest) | Per-player win/loss lists sorted by upset factor |

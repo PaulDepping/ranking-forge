@@ -1673,6 +1673,47 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /projects/{project_id}/rankings/{ranking_id}/players/{player_id}/tournaments:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: ranking_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: player_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: Get a player's tournament history for a ranking
+      description: >
+        Returns tournaments where the player competed in events included in the
+        specified ranking. Returns 404 if the player is not in the ranking.
+      tags: [Stats]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TournamentAttendance'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /projects/{project_id}/rankings/{ranking_id}/head-to-head:
     parameters:
       - name: project_id
