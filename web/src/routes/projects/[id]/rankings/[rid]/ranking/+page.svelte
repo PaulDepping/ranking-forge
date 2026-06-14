@@ -147,7 +147,7 @@
     if (!isAlgorithmic || computedOrder.length === 0) return null;
     const computedIndex = computedOrder.indexOf(playerId);
     if (computedIndex === -1) return null;
-    return computedIndex - currentIndex;
+    return currentIndex - computedIndex;
   }
 
   function wlRecord(s: PlayerStats | undefined): string {
