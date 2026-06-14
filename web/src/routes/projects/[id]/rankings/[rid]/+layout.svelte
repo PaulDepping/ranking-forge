@@ -83,7 +83,10 @@
     </div>
   </div>
 
-  <Tabs.Root value={currentTab} onValueChange={(v) => v !== undefined && goto(tabHref(v))}>
+  <Tabs.Root
+    value={currentTab}
+    onValueChange={(v) => v !== undefined && goto(tabHref(v))}
+  >
     <div class="px-4">
       <Tabs.List>
         {#each tabs as tab (tab.href)}

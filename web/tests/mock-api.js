@@ -63,9 +63,9 @@ const MOCK_PLAYERS = [
 ];
 
 const MOCK_RANKING_PLAYERS = [
-	{ player_id: 'player-1', name: 'Alice', rank_position: 1, notes: null },
-	{ player_id: 'player-2', name: 'Bob', rank_position: 2, notes: null },
-	{ player_id: 'player-3', name: 'Charlie', rank_position: 3, notes: null },
+	{ player_id: 'player-1', name: 'Alice', rank_position: 1, notes: null, computed_rating: null, display_data: null },
+	{ player_id: 'player-2', name: 'Bob', rank_position: 2, notes: null, computed_rating: null, display_data: null },
+	{ player_id: 'player-3', name: 'Charlie', rank_position: 3, notes: null, computed_rating: null, display_data: null },
 ];
 
 const MOCK_ENTRANTS = {
@@ -389,9 +389,9 @@ function createMockServer() {
 		}
 
 		const rankingReorderMatch = path.match(/^\/projects\/([^/]+)\/rankings\/([^/]+)\/ranking$/);
-		if (rankingReorderMatch && req.method === 'PUT') {
-			respond(res, 200, {});
-			return;
+		if (rankingReorderMatch) {
+			if (req.method === 'GET') { respond(res, 200, MOCK_RANKING_PLAYERS); return; }
+			if (req.method === 'PUT') { respond(res, 200, {}); return; }
 		}
 
 		const rankingTournamentsMatch = path.match(/^\/projects\/([^/]+)\/rankings\/([^/]+)\/tournaments$/);
