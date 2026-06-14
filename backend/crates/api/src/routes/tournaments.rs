@@ -960,6 +960,91 @@ pub async fn delete_tournament(
     Ok(StatusCode::NO_CONTENT)
 }
 
+pub async fn get_ranking_player_tournaments(
+    State(state): State<AppState>,
+    OptionalAuthUser(user): OptionalAuthUser,
+    Path(path): Path<RankingPlayerStatPath>,
+) -> Result<impl IntoResponse> {
+    require_ranking_read_access(&state.db, path.id, path.rid, user.map(|u| u.id)).await?;
+
+    let exists: Option<Uuid> = sqlx::query_scalar!(
+        "SELECT player_id FROM ranking_players WHERE ranking_id = $1 AND player_id = $2",
+        path.rid,
+        path.player_id,
+    )
+    .fetch_optional(&state.db)
+    .await?;
+    if exists.is_none() {
+        return Err(AppError::NotFound);
+    }
+
+    struct Row {
+        tournament_name: String,
+        tournament_slug: String,
+        event_name: String,
+        placement: Option<i32>,
+        num_entrants: Option<i32>,
+        start_at: Option<DateTime<Utc>>,
+        online: bool,
+        city: Option<String>,
+        addr_state: Option<String>,
+        country_code: Option<String>,
+    }
+
+    let rows = sqlx::query_as!(
+        Row,
+        r#"
+        SELECT
+            t.name              AS tournament_name,
+            t.handle            AS tournament_slug,
+            e.name              AS event_name,
+            ent.final_placement AS "placement?: i32",
+            e.num_entrants      AS "num_entrants?: i32",
+            t.start_at,
+            t.online,
+            t.city,
+            t.addr_state,
+            t.country_code
+        FROM entrants ent
+        JOIN events e ON e.id = ent.event_id
+        JOIN ranking_events re ON re.event_id = e.id
+                               AND re.ranking_id = $2
+                               AND re.included = true
+        JOIN tournaments t ON t.id = e.tournament_id
+        WHERE ent.player_id = $3
+          AND ent.player_id IN (
+              SELECT pl.id FROM players pl WHERE pl.project_id = $1
+          )
+        ORDER BY t.start_at DESC NULLS LAST
+        "#,
+        path.id,
+        path.rid,
+        path.player_id,
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let resp: Vec<TournamentAttendance> = rows
+        .into_iter()
+        .map(|r| TournamentAttendance {
+            tournament_name: r.tournament_name,
+            tournament_slug: r.tournament_slug,
+            event_name: r.event_name,
+            placement: r.placement,
+            num_entrants: r.num_entrants,
+            start_at: r.start_at,
+            location: compute_location(
+                r.online,
+                r.city.as_deref(),
+                r.addr_state.as_deref(),
+                r.country_code.as_deref(),
+            ),
+        })
+        .collect();
+
+    Ok(Json(resp))
+}
+
 // ── Router ────────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
@@ -968,6 +1053,7 @@ pub fn router() -> Router<AppState> {
         .route("/events", axum::routing::put(put_events))
         .route("/stats", get(get_stats))
         .route("/stats/{player_id}", get(get_player_stats))
+        .route("/players/{player_id}/tournaments", get(get_ranking_player_tournaments))
         .route("/head-to-head", get(get_head_to_head))
         .route("/head-to-head/{pid_a}/{pid_b}/sets", get(get_h2h_sets))
 }

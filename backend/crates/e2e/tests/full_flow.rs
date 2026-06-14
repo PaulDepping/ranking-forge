@@ -1230,3 +1230,56 @@ async fn import_no_game_filter_flow(pool: PgPool) {
         Some("Super Smash Bros. Melee")
     );
 }
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn test_ranking_player_tournaments(pool: PgPool) {
+    let app = make_app(pool.clone(), "http://unused");
+    let cookie = register(&app, "alice", "pass1234").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
+
+    let resp = post_json(&app, "/projects", &cookie, json!({"name": "Test"})).await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let project_id = read_json(resp).await["id"].as_str().unwrap().to_string();
+
+    let ranking_id = create_ranking(&app, &cookie, &project_id, "Season 1").await;
+
+    let resp = post_json(
+        &app,
+        &format!("/projects/{project_id}/players"),
+        &cookie,
+        json!({"name": "Mango"}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let player_id = read_json(resp).await["id"].as_str().unwrap().to_string();
+
+    add_player_to_ranking(&app, &cookie, &project_id, &ranking_id, &player_id).await;
+
+    // Player in ranking → 200 with empty list (no import run)
+    let resp = get_req(
+        &app,
+        &format!("/projects/{project_id}/rankings/{ranking_id}/players/{player_id}/tournaments"),
+        &cookie,
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(read_json(resp).await, json!([]));
+
+    // Player exists in project but not in this ranking → 404
+    let resp = post_json(
+        &app,
+        &format!("/projects/{project_id}/players"),
+        &cookie,
+        json!({"name": "Armada"}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let other_id = read_json(resp).await["id"].as_str().unwrap().to_string();
+    let resp = get_req(
+        &app,
+        &format!("/projects/{project_id}/rankings/{ranking_id}/players/{other_id}/tournaments"),
+        &cookie,
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
