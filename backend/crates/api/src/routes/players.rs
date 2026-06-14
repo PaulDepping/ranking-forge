@@ -222,7 +222,7 @@ async fn link_account(
     let startgg = StartggClient::new_with_base_url(api_key, state.startgg_base_url.clone());
 
     let sg_user = startgg
-        .user_by_slug(&handle)
+        .user_by_slug(&format!("user/{handle}"))
         .await?
         .ok_or_else(|| AppError::UnprocessableEntity("user not found on start.gg".into()))?;
 
@@ -412,7 +412,7 @@ pub async fn add_players_by_handles(
         let handle = normalize_handle(&raw_handle);
 
         // Resolve on start.gg
-        let sg_user = match startgg.user_by_slug(&handle).await {
+        let sg_user = match startgg.user_by_slug(&format!("user/{handle}")).await {
             Ok(Some(u)) => u,
             Ok(None) => {
                 results.push(ByHandlesResult {

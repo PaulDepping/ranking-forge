@@ -159,7 +159,7 @@ async fn set_startgg_api_key(pool: &PgPool, cookie: &str, api_key: &str) {
 fn mount_import_mocks(mock: &wiremock::MockServer) -> impl std::future::Future<Output = ()> + '_ {
     async move {
         Mock::given(method("POST"))
-            .and(body_string_contains("\"mango\""))
+            .and(body_string_contains("user/mango"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": { "user": { "id": 12345_i64, "player": { "gamerTag": "Mango" } } }
             })))
@@ -167,7 +167,7 @@ fn mount_import_mocks(mock: &wiremock::MockServer) -> impl std::future::Future<O
             .await;
 
         Mock::given(method("POST"))
-            .and(body_string_contains("\"armada\""))
+            .and(body_string_contains("user/armada"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "data": { "user": { "id": 67890_i64, "player": { "gamerTag": "Armada" } } }
             })))
@@ -319,18 +319,18 @@ fn mount_import_mocks(mock: &wiremock::MockServer) -> impl std::future::Future<O
 async fn full_import_flow(pool: PgPool) {
     let mock = MockServer::start().await;
 
-    // user_by_slug("mango") — handle is normalized before the start.gg call
+    // user_by_slug("user/mango")
     Mock::given(method("POST"))
-        .and(body_string_contains("\"mango\""))
+        .and(body_string_contains("user/mango"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "data": { "user": { "id": 12345_i64, "player": { "gamerTag": "Mango" } } }
         })))
         .mount(&mock)
         .await;
 
-    // user_by_slug("armada") — handle is normalized before the start.gg call
+    // user_by_slug("user/armada")
     Mock::given(method("POST"))
-        .and(body_string_contains("\"armada\""))
+        .and(body_string_contains("user/armada"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "data": { "user": { "id": 67890_i64, "player": { "gamerTag": "Armada" } } }
         })))
@@ -1029,9 +1029,9 @@ async fn import_skips_sort_if_already_ranked(pool: PgPool) {
 async fn import_no_game_filter_flow(pool: PgPool) {
     let mock = MockServer::start().await;
 
-    // user_by_slug("mango")
+    // user_by_slug("user/mango")
     Mock::given(method("POST"))
-        .and(body_string_contains("\"mango\""))
+        .and(body_string_contains("user/mango"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "data": { "user": { "id": 12345_i64, "player": { "gamerTag": "Mango" } } }
         })))
