@@ -61,7 +61,7 @@ components:
 
     Ranking:
       type: object
-      required: [id, project_id, name, published, created_at]
+      required: [id, project_id, name, published, created_at, player_count]
       properties:
         id:
           type: string
@@ -97,6 +97,10 @@ components:
         result_sort:
           type: string
           default: upset_factor
+        player_count:
+          type: integer
+          minimum: 0
+          description: Number of players in this ranking
 
     RankingPlayer:
       type: object
