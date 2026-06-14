@@ -9,6 +9,7 @@
     currentPlayerName: string;
     onClose: () => void;
     projectId?: string;
+    rankingId?: string;
     opponentPlayerId?: string;
   }
 
@@ -18,6 +19,7 @@
     currentPlayerName,
     onClose,
     projectId,
+    rankingId,
     opponentPlayerId,
   }: Props = $props();
 
@@ -42,8 +44,8 @@
       {@const phase = phaseLabel(set)}
       <Dialog.Header>
         <Dialog.Title
-          >{currentPlayerName} vs {#if projectId && opponentPlayerId}<a
-              href="/projects/{projectId}/players/{opponentPlayerId}"
+          >{currentPlayerName} vs {#if projectId && rankingId && opponentPlayerId}<a
+              href="/projects/{projectId}/rankings/{rankingId}/players/{opponentPlayerId}"
               class="hover:underline"
               onclick={() => onClose()}>{set.opponent_name}</a
             >{:else}{set.opponent_name}{/if}</Dialog.Title
