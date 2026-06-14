@@ -70,7 +70,7 @@ fn compute_location(
 
 #[derive(Serialize)]
 pub struct SetRecord {
-    pub opponent_id: Uuid,
+    pub opponent_id: Option<Uuid>,
     pub opponent_name: String,
     pub upset_factor: i64,
     pub winner_score: Option<i16>,
@@ -311,21 +311,19 @@ pub async fn get_stats(
     .fetch_all(&state.db)
     .await?;
 
-    struct RsrRow {
-        winner_player_id: Uuid,
-        loser_player_id: Uuid,
-        upset_factor: Option<f64>,
-        completed_at: Option<DateTime<Utc>>,
+    struct SetRow {
+        winner_player_id: Option<Uuid>,
         winner_name: String,
+        winner_seed: Option<i32>,
+        loser_player_id: Option<Uuid>,
         loser_name: String,
+        loser_seed: Option<i32>,
         winner_score: Option<i16>,
         loser_score: Option<i16>,
         round_name: Option<String>,
         is_dq: bool,
         vod_url: Option<String>,
         startgg_set_id: i64,
-        winner_seed: Option<i32>,
-        loser_seed: Option<i32>,
         winner_placement: Option<i32>,
         loser_placement: Option<i32>,
         event_name: String,
@@ -339,26 +337,25 @@ pub async fn get_stats(
         country_code: Option<String>,
         phase_name: Option<String>,
         pool_identifier: Option<String>,
+        completed_at: Option<DateTime<Utc>>,
     }
 
     let rows = sqlx::query_as!(
-        RsrRow,
+        SetRow,
         r#"
         SELECT
-            rsr.winner_player_id                AS "winner_player_id!: Uuid",
-            rsr.loser_player_id                 AS "loser_player_id!: Uuid",
-            rsr.upset_factor,
-            rsr.completed_at,
-            wp.name                             AS winner_name,
-            lp.name                             AS loser_name,
+            we.player_id                        AS "winner_player_id?: Uuid",
+            COALESCE(wp.name, we.display_name)  AS "winner_name!",
+            we.seed                             AS winner_seed,
+            le.player_id                        AS "loser_player_id?: Uuid",
+            COALESCE(lp.name, le.display_name)  AS "loser_name!",
+            le.seed                             AS loser_seed,
             s.winner_score,
             s.loser_score,
             s.round_name,
             s.is_dq,
             s.vod_url,
             s.startgg_set_id,
-            we.seed                             AS winner_seed,
-            le.seed                             AS loser_seed,
             we.final_placement                  AS winner_placement,
             le.final_placement                  AS loser_placement,
             e.name                              AS event_name,
@@ -371,18 +368,24 @@ pub async fn get_stats(
             t.addr_state,
             t.country_code,
             ph.name                             AS "phase_name?: String",
-            pg.display_identifier               AS "pool_identifier?: String"
-        FROM ranking_set_results rsr
-        JOIN sets s ON s.id = rsr.set_id
-        JOIN players wp ON wp.id = rsr.winner_player_id
-        JOIN players lp ON lp.id = rsr.loser_player_id
+            pg.display_identifier               AS "pool_identifier?: String",
+            s.completed_at
+        FROM sets s
         JOIN entrants we ON we.id = s.winner_entrant_id
         JOIN entrants le ON le.id = s.loser_entrant_id
-        JOIN events e ON e.id = rsr.event_id
+        JOIN ranking_events re ON re.event_id = s.event_id AND re.ranking_id = $1
+        JOIN events e ON e.id = s.event_id
         JOIN tournaments t ON t.id = e.tournament_id
+        LEFT JOIN ranking_players rwp ON rwp.player_id = we.player_id AND rwp.ranking_id = $1
+        LEFT JOIN players wp ON wp.id = rwp.player_id
+        LEFT JOIN ranking_players rlp ON rlp.player_id = le.player_id AND rlp.ranking_id = $1
+        LEFT JOIN players lp ON lp.id = rlp.player_id
         LEFT JOIN phase_groups pg ON pg.id = s.phase_group_id
         LEFT JOIN phases ph ON ph.id = pg.phase_id
-        WHERE rsr.ranking_id = $1
+        WHERE re.included = true
+          AND s.is_dq = false
+          AND s.has_placeholder = false
+          AND (rwp.player_id IS NOT NULL OR rlp.player_id IS NOT NULL)
         "#,
         path.rid,
     )
@@ -396,14 +399,17 @@ pub async fn get_stats(
         .collect();
 
     for row in rows {
-        let uf = row.upset_factor.unwrap_or(0.0).round() as i64;
+        let uf = match (row.winner_seed, row.loser_seed) {
+            (Some(ws), Some(ls)) => set_upset_factor(ws, ls) as i64,
+            _ => 0,
+        };
         let location = compute_location(
             row.online,
             row.city.as_deref(),
             row.addr_state.as_deref(),
             row.country_code.as_deref(),
         );
-        let make_record = |opponent_id: Uuid, opponent_name: String| SetRecord {
+        let make_record = |opponent_id: Option<Uuid>, opponent_name: String| SetRecord {
             opponent_id,
             opponent_name,
             upset_factor: uf,
@@ -427,11 +433,15 @@ pub async fn get_stats(
             num_entrants: row.num_entrants,
             event_handle: row.event_handle.clone(),
         };
-        if let Some(entry) = stats.get_mut(&row.winner_player_id) {
-            entry.1.push(make_record(row.loser_player_id, row.loser_name.clone()));
+        if let Some(winner_id) = row.winner_player_id {
+            if let Some(entry) = stats.get_mut(&winner_id) {
+                entry.1.push(make_record(row.loser_player_id, row.loser_name.clone()));
+            }
         }
-        if let Some(entry) = stats.get_mut(&row.loser_player_id) {
-            entry.2.push(make_record(row.winner_player_id, row.winner_name.clone()));
+        if let Some(loser_id) = row.loser_player_id {
+            if let Some(entry) = stats.get_mut(&loser_id) {
+                entry.2.push(make_record(row.winner_player_id, row.winner_name.clone()));
+            }
         }
     }
 
@@ -473,21 +483,19 @@ pub async fn get_player_stats(
     .await?;
     let name = name.ok_or(AppError::NotFound)?;
 
-    struct RsrRow {
-        winner_player_id: Uuid,
-        loser_player_id: Uuid,
-        upset_factor: Option<f64>,
-        completed_at: Option<DateTime<Utc>>,
+    struct SetRow {
+        winner_player_id: Option<Uuid>,
         winner_name: String,
+        winner_seed: Option<i32>,
+        loser_player_id: Option<Uuid>,
         loser_name: String,
+        loser_seed: Option<i32>,
         winner_score: Option<i16>,
         loser_score: Option<i16>,
         round_name: Option<String>,
         is_dq: bool,
         vod_url: Option<String>,
         startgg_set_id: i64,
-        winner_seed: Option<i32>,
-        loser_seed: Option<i32>,
         winner_placement: Option<i32>,
         loser_placement: Option<i32>,
         event_name: String,
@@ -501,26 +509,25 @@ pub async fn get_player_stats(
         country_code: Option<String>,
         phase_name: Option<String>,
         pool_identifier: Option<String>,
+        completed_at: Option<DateTime<Utc>>,
     }
 
     let rows = sqlx::query_as!(
-        RsrRow,
+        SetRow,
         r#"
         SELECT
-            rsr.winner_player_id                AS "winner_player_id!: Uuid",
-            rsr.loser_player_id                 AS "loser_player_id!: Uuid",
-            rsr.upset_factor,
-            rsr.completed_at,
-            wp.name                             AS winner_name,
-            lp.name                             AS loser_name,
+            we.player_id                        AS "winner_player_id?: Uuid",
+            COALESCE(wp.name, we.display_name)  AS "winner_name!",
+            we.seed                             AS winner_seed,
+            le.player_id                        AS "loser_player_id?: Uuid",
+            COALESCE(lp.name, le.display_name)  AS "loser_name!",
+            le.seed                             AS loser_seed,
             s.winner_score,
             s.loser_score,
             s.round_name,
             s.is_dq,
             s.vod_url,
             s.startgg_set_id,
-            we.seed                             AS winner_seed,
-            le.seed                             AS loser_seed,
             we.final_placement                  AS winner_placement,
             le.final_placement                  AS loser_placement,
             e.name                              AS event_name,
@@ -533,19 +540,25 @@ pub async fn get_player_stats(
             t.addr_state,
             t.country_code,
             ph.name                             AS "phase_name?: String",
-            pg.display_identifier               AS "pool_identifier?: String"
-        FROM ranking_set_results rsr
-        JOIN sets s ON s.id = rsr.set_id
-        JOIN players wp ON wp.id = rsr.winner_player_id
-        JOIN players lp ON lp.id = rsr.loser_player_id
+            pg.display_identifier               AS "pool_identifier?: String",
+            s.completed_at
+        FROM sets s
         JOIN entrants we ON we.id = s.winner_entrant_id
         JOIN entrants le ON le.id = s.loser_entrant_id
-        JOIN events e ON e.id = rsr.event_id
+        JOIN ranking_events re ON re.event_id = s.event_id AND re.ranking_id = $1
+        JOIN events e ON e.id = s.event_id
         JOIN tournaments t ON t.id = e.tournament_id
+        LEFT JOIN ranking_players rwp ON rwp.player_id = we.player_id AND rwp.ranking_id = $1
+        LEFT JOIN players wp ON wp.id = rwp.player_id
+        LEFT JOIN ranking_players rlp ON rlp.player_id = le.player_id AND rlp.ranking_id = $1
+        LEFT JOIN players lp ON lp.id = rlp.player_id
         LEFT JOIN phase_groups pg ON pg.id = s.phase_group_id
         LEFT JOIN phases ph ON ph.id = pg.phase_id
-        WHERE rsr.ranking_id = $1
-          AND (rsr.winner_player_id = $2 OR rsr.loser_player_id = $2)
+        WHERE re.included = true
+          AND s.is_dq = false
+          AND s.has_placeholder = false
+          AND (rwp.player_id IS NOT NULL OR rlp.player_id IS NOT NULL)
+          AND (we.player_id = $2 OR le.player_id = $2)
         "#,
         path.rid,
         path.player_id,
@@ -557,16 +570,19 @@ pub async fn get_player_stats(
     let mut losses: Vec<SetRecord> = Vec::new();
 
     for row in rows {
-        let uf = row.upset_factor.unwrap_or(0.0).round() as i64;
+        let uf = match (row.winner_seed, row.loser_seed) {
+            (Some(ws), Some(ls)) => set_upset_factor(ws, ls) as i64,
+            _ => 0,
+        };
         let location = compute_location(
             row.online,
             row.city.as_deref(),
             row.addr_state.as_deref(),
             row.country_code.as_deref(),
         );
-        let rec = SetRecord {
-            opponent_id: if row.winner_player_id == path.player_id { row.loser_player_id } else { row.winner_player_id },
-            opponent_name: if row.winner_player_id == path.player_id { row.loser_name.clone() } else { row.winner_name.clone() },
+        let rec = |opponent_id: Option<Uuid>, opponent_name: String| SetRecord {
+            opponent_id,
+            opponent_name,
             upset_factor: uf,
             winner_score: row.winner_score,
             loser_score: row.loser_score,
@@ -584,14 +600,14 @@ pub async fn get_player_stats(
             pool_identifier: row.pool_identifier.clone(),
             winner_placement: row.winner_placement,
             loser_placement: row.loser_placement,
-            location: location.clone(),
+            location,
             num_entrants: row.num_entrants,
             event_handle: row.event_handle.clone(),
         };
-        if row.winner_player_id == path.player_id {
-            wins.push(rec);
+        if row.winner_player_id == Some(path.player_id) {
+            wins.push(rec(row.loser_player_id, row.loser_name));
         } else {
-            losses.push(rec);
+            losses.push(rec(row.winner_player_id, row.winner_name));
         }
     }
 
@@ -868,9 +884,9 @@ pub async fn get_h2h_sets(
             };
             let is_win = row.winner_player_id == path.pid_a;
             let (opponent_id, opponent_name) = if is_win {
-                (row.loser_player_id, row.loser_name)
+                (Some(row.loser_player_id), row.loser_name)
             } else {
-                (row.winner_player_id, row.winner_name)
+                (Some(row.winner_player_id), row.winner_name)
             };
             let location = compute_location(
                 row.online,

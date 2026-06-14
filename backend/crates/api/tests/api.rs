@@ -1657,10 +1657,18 @@ async fn stats_includes_non_project_opponent(pool: PgPool) {
     let entries = stats.as_array().unwrap();
     assert_eq!(entries.len(), 1, "only ranking players in outer list");
 
-    // Non-ranking opponents are excluded from ranking_set_results — Alice shows no wins/losses.
     let alice = entries.iter().find(|s| s["name"] == "Alice").unwrap();
     assert_eq!(alice["wins"], json!([]));
-    assert_eq!(alice["losses"], json!([]));
+    assert_eq!(
+        alice["losses"].as_array().unwrap().len(),
+        1,
+        "Alice's loss to Outsider should appear"
+    );
+    assert_eq!(alice["losses"][0]["opponent_name"], "Outsider");
+    assert!(
+        alice["losses"][0]["opponent_id"].is_null(),
+        "non-ranking opponent has no player id"
+    );
 }
 
 #[sqlx::test(migrations = "../../migrations")]
