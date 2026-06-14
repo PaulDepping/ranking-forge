@@ -363,6 +363,14 @@ function createMockServer() {
 			if (req.method === 'DELETE') { respond(res, 204, null); return; }
 		}
 
+		const rankingPlayerTournamentsMatch = path.match(
+			/^\/projects\/([^/]+)\/rankings\/([^/]+)\/players\/([^/]+)\/tournaments$/
+		);
+		if (rankingPlayerTournamentsMatch && req.method === 'GET') {
+			respond(res, 200, MOCK_PLAYER_TOURNAMENTS);
+			return;
+		}
+
 		const rankingPlayerItemMatch = path.match(
 			/^\/projects\/([^/]+)\/rankings\/([^/]+)\/players\/([^/]+)$/
 		);
