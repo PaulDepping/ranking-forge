@@ -4,6 +4,7 @@
   import type { DndEvent } from "svelte-dnd-action";
   import { makeApi } from "$lib/api";
   import { Button } from "$lib/components/ui/button";
+  import { Badge } from "$lib/components/ui/badge";
   import { Input } from "$lib/components/ui/input";
   import * as Empty from "$lib/components/ui/empty";
   import type { RankingPlayerWithScore, PlayerStats } from "$lib/types";
@@ -264,12 +265,14 @@
                 {formatRating(item)}
               </span>
               {#if delta !== null && delta !== 0}
-                <span
-                  class="min-w-[28px] text-right text-xs tabular-nums
-                    {delta > 0 ? 'text-green-600' : 'text-red-500'}"
+                <Badge
+                  variant="outline"
+                  class="tabular-nums {delta > 0
+                    ? 'border-green-200 text-green-600 dark:text-green-400'
+                    : 'border-red-200 text-red-500 dark:text-red-400'}"
                 >
                   {delta > 0 ? `↑${delta}` : `↓${Math.abs(delta)}`}
-                </span>
+                </Badge>
               {/if}
             {:else if s}
               <span class="text-xs text-muted-foreground">{wlRecord(s)}</span>
@@ -300,12 +303,14 @@
                 {formatRating(item)}
               </span>
               {#if delta !== null && delta !== 0}
-                <span
-                  class="min-w-[28px] text-right text-xs tabular-nums
-                    {delta > 0 ? 'text-green-600' : 'text-red-500'}"
+                <Badge
+                  variant="outline"
+                  class="tabular-nums {delta > 0
+                    ? 'border-green-200 text-green-600 dark:text-green-400'
+                    : 'border-red-200 text-red-500 dark:text-red-400'}"
                 >
                   {delta > 0 ? `↑${delta}` : `↓${Math.abs(delta)}`}
-                </span>
+                </Badge>
               {/if}
             {:else if s}
               <span class="text-xs text-muted-foreground">{wlRecord(s)}</span>

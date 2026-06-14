@@ -55,6 +55,7 @@ Frontend-specific guidance for the SvelteKit app in this directory.
 | Navigation Menu | `$lib/components/ui/navigation-menu` |
 | Toggle | `$lib/components/ui/toggle` |
 | Toggle Group | `$lib/components/ui/toggle-group` |
+| Radio Group | `$lib/components/ui/radio-group` |
 
 Update this list when adding new components.
 

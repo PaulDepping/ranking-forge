@@ -4,6 +4,7 @@
   import * as Tabs from "$lib/components/ui/tabs";
   import { Separator } from "$lib/components/ui/separator";
   import * as Popover from "$lib/components/ui/popover";
+  import * as Command from "$lib/components/ui/command";
 
   let { children, data } = $props();
 
@@ -56,28 +57,35 @@
             {data.ranking.name} ▾
           </button>
         </Popover.Trigger>
-        <Popover.Content class="w-56 p-1" align="start">
-          {#each data.rankings as r (r.id)}
-            <button
-              class="w-full rounded px-3 py-1.5 text-left text-sm transition-colors
-                {r.id === data.ranking.id
-                ? 'font-semibold text-primary'
-                : 'text-foreground hover:bg-muted'}"
-              onclick={() => switchRanking(r.id)}
-            >
-              {r.name}
-            </button>
-          {/each}
-          {#if data.project.user_role === "editor" || data.project.user_role === "owner"}
-            <Separator class="my-1" />
-            <a
-              href="/projects/{data.project.id}/rankings/new"
-              class="block rounded px-3 py-1.5 text-sm text-primary hover:bg-muted"
-              onclick={() => (switcherOpen = false)}
-            >
-              + New ranking
-            </a>
-          {/if}
+        <Popover.Content class="w-56 p-0" align="start">
+          <Command.Root value={data.ranking.id}>
+            <Command.List>
+              <Command.Group>
+                {#each data.rankings as r (r.id)}
+                  <Command.Item
+                    value={r.id}
+                    onSelect={() => switchRanking(r.id)}
+                  >
+                    {r.name}
+                  </Command.Item>
+                {/each}
+              </Command.Group>
+              {#if data.project.user_role === "editor" || data.project.user_role === "owner"}
+                <Command.Separator />
+                <Command.Group>
+                  <Command.Item
+                    class="text-primary"
+                    onSelect={() => {
+                      switcherOpen = false;
+                      goto(`/projects/${data.project.id}/rankings/new`);
+                    }}
+                  >
+                    + New ranking
+                  </Command.Item>
+                </Command.Group>
+              {/if}
+            </Command.List>
+          </Command.Root>
         </Popover.Content>
       </Popover.Root>
     </div>
