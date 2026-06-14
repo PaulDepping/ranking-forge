@@ -48,7 +48,7 @@
           <Card.Content class="p-3">
             <div class="mb-2 flex items-baseline justify-between">
               <a
-                href="/projects/{data.project.id}/players/{player.player_id}"
+                href="/projects/{data.project.id}/rankings/{data.ranking.id}/players/{player.player_id}"
                 class="font-semibold hover:underline">{player.name}</a
               >
               <span class="text-xs text-muted-foreground">
@@ -114,6 +114,7 @@
   currentPlayerName={selectedPlayerName}
   onClose={() => (selectedSet = null)}
   projectId={data.project.id}
+  rankingId={data.ranking.id}
   opponentPlayerId={selectedSet &&
   selectedSet.opponent_id !== null &&
   trackedPlayerIds.has(selectedSet.opponent_id)

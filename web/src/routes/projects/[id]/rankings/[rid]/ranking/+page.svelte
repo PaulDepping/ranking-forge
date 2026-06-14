@@ -256,7 +256,7 @@
             {/if}
 
             <a
-              href="/projects/{data.project.id}/players/{item.id}"
+              href="/projects/{data.project.id}/rankings/{data.ranking.id}/players/{item.id}"
               class="flex-1 font-semibold hover:underline">{item.name}</a
             >
 
@@ -295,7 +295,7 @@
               >{i + 1}</span
             >
             <a
-              href="/projects/{data.project.id}/players/{item.id}"
+              href="/projects/{data.project.id}/rankings/{data.ranking.id}/players/{item.id}"
               class="flex-1 font-semibold hover:underline">{item.name}</a
             >
             {#if isAlgorithmic && item.computed_rating !== null}
