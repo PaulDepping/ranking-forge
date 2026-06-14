@@ -104,23 +104,41 @@ async fn main() {
                                 }
                                 Err(e) => {
                                     tracing::error!(%e, %job_id, "failed to look up owner API key");
-                                    let _ = common::jobs::mark_failed(&pool, job_id, &e.to_string()).await;
+                                    let _ =
+                                        common::jobs::mark_failed(&pool, job_id, &e.to_string())
+                                            .await;
                                     continue;
                                 }
                             };
                             let startgg = common::startgg::StartggClient::new(api_key);
                             tracing::info!(%job_id, %project_id, "starting import");
                             tokio::spawn(async move {
-                                match import::run(&pool2, &startgg, project_id, job_id, import_params).await {
+                                match import::run(
+                                    &pool2,
+                                    &startgg,
+                                    project_id,
+                                    job_id,
+                                    import_params,
+                                )
+                                .await
+                                {
                                     Ok(()) => {
                                         tracing::info!(%job_id, "import complete");
-                                        if let Err(e) = common::jobs::mark_done(&pool2, job_id).await {
+                                        if let Err(e) =
+                                            common::jobs::mark_done(&pool2, job_id).await
+                                        {
                                             tracing::error!(%e, %job_id, "failed to mark job done");
                                         }
                                     }
                                     Err(e) => {
                                         tracing::error!(%e, %job_id, "import failed");
-                                        if let Err(e2) = common::jobs::mark_failed(&pool2, job_id, &e.to_string()).await {
+                                        if let Err(e2) = common::jobs::mark_failed(
+                                            &pool2,
+                                            job_id,
+                                            &e.to_string(),
+                                        )
+                                        .await
+                                        {
                                             tracing::error!(%e2, %job_id, "failed to mark job failed");
                                         }
                                     }
@@ -134,13 +152,21 @@ async fn main() {
                                 match compute::run(&pool2, params.ranking_id).await {
                                     Ok(()) => {
                                         tracing::info!(%job_id, "compute_ranking complete");
-                                        if let Err(e) = common::jobs::mark_done(&pool2, job_id).await {
+                                        if let Err(e) =
+                                            common::jobs::mark_done(&pool2, job_id).await
+                                        {
                                             tracing::error!(%e, %job_id, "failed to mark job done");
                                         }
                                     }
                                     Err(e) => {
                                         tracing::error!(%e, %job_id, "compute_ranking failed");
-                                        if let Err(e2) = common::jobs::mark_failed(&pool2, job_id, &e.to_string()).await {
+                                        if let Err(e2) = common::jobs::mark_failed(
+                                            &pool2,
+                                            job_id,
+                                            &e.to_string(),
+                                        )
+                                        .await
+                                        {
                                             tracing::error!(%e2, %job_id, "failed to mark job failed");
                                         }
                                     }
@@ -149,7 +175,12 @@ async fn main() {
                         }
                         kind => {
                             tracing::warn!(%job_id, %kind, "unknown job kind, marking failed");
-                            let _ = common::jobs::mark_failed(&pool, job_id, &format!("unknown job kind: {kind}")).await;
+                            let _ = common::jobs::mark_failed(
+                                &pool,
+                                job_id,
+                                &format!("unknown job kind: {kind}"),
+                            )
+                            .await;
                             continue;
                         }
                     };

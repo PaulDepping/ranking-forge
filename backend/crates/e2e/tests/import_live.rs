@@ -471,7 +471,9 @@ async fn import_hannover_weekly_88_and_84(pool: PgPool) {
         }) {
             let startgg_id = event["startgg_id"].as_i64().unwrap_or(0);
             if !keep_ids.contains(&startgg_id) {
-                let event_uuid = event["id"].as_str().expect("event id should be a string UUID");
+                let event_uuid = event["id"]
+                    .as_str()
+                    .expect("event id should be a string UUID");
                 exclusions.push(json!({"event_id": event_uuid, "included": false}));
             }
         }

@@ -138,13 +138,11 @@ async fn seed_tournament_event(
     startgg_tournament_id: i64,
     startgg_event_id: i64,
 ) -> (Uuid, Uuid) {
-    let project_id: Uuid = sqlx::query_scalar!(
-        "SELECT project_id FROM rankings WHERE id = $1",
-        ranking_id,
-    )
-    .fetch_one(pool)
-    .await
-    .unwrap();
+    let project_id: Uuid =
+        sqlx::query_scalar!("SELECT project_id FROM rankings WHERE id = $1", ranking_id,)
+            .fetch_one(pool)
+            .await
+            .unwrap();
 
     let tournament_id: Uuid = sqlx::query_scalar!(
         "INSERT INTO tournaments (project_id, startgg_id, name, handle, online)

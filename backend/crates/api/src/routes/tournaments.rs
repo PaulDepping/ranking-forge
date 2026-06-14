@@ -16,8 +16,8 @@ use crate::{
     routes::rankings::{RankingPath, require_ranking_access, require_ranking_read_access},
     state::AppState,
 };
-use common::models::UserRole;
 use common::jobs::enqueue_compute_ranking;
+use common::models::UserRole;
 use common::upset::set_upset_factor;
 
 // ── Response types ────────────────────────────────────────────────────────────
@@ -435,12 +435,16 @@ pub async fn get_stats(
         };
         if let Some(winner_id) = row.winner_player_id {
             if let Some(entry) = stats.get_mut(&winner_id) {
-                entry.1.push(make_record(row.loser_player_id, row.loser_name.clone()));
+                entry
+                    .1
+                    .push(make_record(row.loser_player_id, row.loser_name.clone()));
             }
         }
         if let Some(loser_id) = row.loser_player_id {
             if let Some(entry) = stats.get_mut(&loser_id) {
-                entry.2.push(make_record(row.winner_player_id, row.winner_name.clone()));
+                entry
+                    .2
+                    .push(make_record(row.winner_player_id, row.winner_name.clone()));
             }
         }
     }
@@ -453,12 +457,14 @@ pub async fn get_stats(
     let resp: Vec<PlayerStatsResponse> = player_order
         .iter()
         .filter_map(|&id| {
-            stats.remove(&id).map(|(name, wins, losses)| PlayerStatsResponse {
-                player_id: id,
-                name,
-                wins,
-                losses,
-            })
+            stats
+                .remove(&id)
+                .map(|(name, wins, losses)| PlayerStatsResponse {
+                    player_id: id,
+                    name,
+                    wins,
+                    losses,
+                })
         })
         .collect();
 

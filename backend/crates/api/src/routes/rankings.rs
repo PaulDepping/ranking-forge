@@ -297,8 +297,15 @@ async fn create_ranking(
         ));
     }
 
-    let config = body.algorithm_config.clone().unwrap_or_else(|| serde_json::json!({}));
-    let result_sort = body.result_sort.as_deref().unwrap_or("upset_factor").to_string();
+    let config = body
+        .algorithm_config
+        .clone()
+        .unwrap_or_else(|| serde_json::json!({}));
+    let result_sort = body
+        .result_sort
+        .as_deref()
+        .unwrap_or("upset_factor")
+        .to_string();
 
     let ranking = sqlx::query_as!(
         Ranking,
@@ -391,7 +398,9 @@ async fn patch_ranking(
          RETURNING id, project_id, name, description, published,
                    algorithm, algorithm_config, include_external_results, result_sort, created_at",
         new_name,
-        body.description.as_deref().or(ranking.description.as_deref()),
+        body.description
+            .as_deref()
+            .or(ranking.description.as_deref()),
         body.published.unwrap_or(ranking.published),
         body.algorithm_config.as_ref(),
         body.include_external_results,

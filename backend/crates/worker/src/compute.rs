@@ -20,13 +20,7 @@ pub async fn run(pool: &PgPool, ranking_id: Uuid) -> anyhow::Result<()> {
     phase1_set_results(pool, ranking_id).await?;
 
     if let Some(ref algo_name) = ranking.algorithm {
-        phase2_algorithm_scores(
-            pool,
-            ranking_id,
-            algo_name,
-            &ranking.algorithm_config,
-        )
-        .await?;
+        phase2_algorithm_scores(pool, ranking_id, algo_name, &ranking.algorithm_config).await?;
 
         seed_rank_position_from_scores(pool, ranking_id).await?;
     }
