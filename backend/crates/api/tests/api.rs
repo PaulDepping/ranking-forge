@@ -1635,13 +1635,12 @@ async fn stats_includes_non_project_opponent(pool: PgPool) {
 
     let (_, event_id) = seed_tournament_event(&pool, rid_uuid, 2010, 3010).await;
 
-    // Alice (seed 2) and a non-project entrant "Outsider" (seed 7) with no player_id.
-    // ranking_set_results only stores sets where both entrants map to ranking_players,
-    // so the Outsider's win over Alice is not included in the computed results.
+    // Alice (seed 2) and a non-ranking entrant "Outsider" (seed 7) with no player_id.
+    // Stats query reads from sets directly and includes non-ranking opponents (opponent_id = null).
     let alice_e = seed_entrant_named(&pool, event_id, Some(alice_id), 110, "Alice", Some(2)).await;
     let outside_e = seed_entrant_named(&pool, event_id, None, 111, "Outsider", Some(7)).await;
 
-    // Outsider beats Alice (not captured in ranking_set_results)
+    // Outsider beats Alice
     seed_set(&pool, event_id, outside_e, alice_e, 510).await;
     compute_ranking_set_results(&pool, rid_uuid).await;
 
