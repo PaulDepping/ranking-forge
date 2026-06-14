@@ -283,9 +283,10 @@ components:
         opponent_id:
           type: string
           format: uuid
+          nullable: true
           description: >
-            For project players this is a `players.id` UUID;
-            for non-project opponents this is an `entrants.id` UUID.
+            UUID of the opponent's player record if they are a member of this ranking;
+            null for opponents who are not ranking members.
         opponent_name:
           type: string
         upset_factor:
