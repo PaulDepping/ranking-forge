@@ -27,6 +27,8 @@ pub async fn run(pool: &PgPool, ranking_id: Uuid) -> anyhow::Result<()> {
             &ranking.algorithm_config,
         )
         .await?;
+
+        seed_rank_position_from_scores(pool, ranking_id).await?;
     }
 
     Ok(())
@@ -199,5 +201,42 @@ async fn phase2_algorithm_scores(
     tx.commit().await?;
 
     tracing::info!(%ranking_id, count = scores.len(), "phase2: wrote ranking_player_scores");
+    Ok(())
+}
+
+async fn seed_rank_position_from_scores(pool: &PgPool, ranking_id: Uuid) -> anyhow::Result<()> {
+    // Only seed if all rank_positions are still 0 (first compute only)
+    let all_zero: bool = sqlx::query_scalar!(
+        "SELECT NOT EXISTS (SELECT 1 FROM ranking_players WHERE ranking_id = $1 AND rank_position != 0)",
+        ranking_id,
+    )
+    .fetch_one(pool)
+    .await?
+    .unwrap_or(true);
+
+    if !all_zero {
+        return Ok(());
+    }
+
+    // Assign rank_position = ROW_NUMBER ordered by computed_rating DESC
+    sqlx::query!(
+        r#"
+        UPDATE ranking_players rp
+        SET rank_position = ranked.new_rank::int4
+        FROM (
+            SELECT player_id,
+                   ROW_NUMBER() OVER (ORDER BY computed_rating DESC NULLS LAST) AS new_rank
+            FROM ranking_player_scores
+            WHERE ranking_id = $1
+        ) ranked
+        WHERE rp.player_id = ranked.player_id
+          AND rp.ranking_id = $1
+        "#,
+        ranking_id,
+    )
+    .execute(pool)
+    .await?;
+
+    tracing::info!(%ranking_id, "algorithmic ranking: seeded rank_position from computed_rating");
     Ok(())
 }

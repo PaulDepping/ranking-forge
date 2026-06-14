@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE ranking_players rp\n        SET rank_position = ranked.new_rank::int4\n        FROM (\n            SELECT player_id,\n                   ROW_NUMBER() OVER (ORDER BY computed_rating DESC NULLS LAST) AS new_rank\n            FROM ranking_player_scores\n            WHERE ranking_id = $1\n        ) ranked\n        WHERE rp.player_id = ranked.player_id\n          AND rp.ranking_id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "48330a4ad8d191e1bf5e956ed89fc98d914de121c5ac392e4d0ec7c180a1dd50"
+}
