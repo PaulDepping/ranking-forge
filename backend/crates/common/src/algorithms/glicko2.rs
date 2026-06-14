@@ -81,12 +81,14 @@ impl RankingAlgorithm for Glicko2 {
         let mut state: HashMap<Uuid, (f64, f64, f64)> = HashMap::new();
 
         for s in sets {
-            let (mu_w, phi_w, sigma_w) = *state
-                .entry(s.winner_id)
-                .or_insert((initial_mu, initial_phi, initial_vol));
-            let (mu_l, phi_l, sigma_l) = *state
-                .entry(s.loser_id)
-                .or_insert((initial_mu, initial_phi, initial_vol));
+            let (mu_w, phi_w, sigma_w) =
+                *state
+                    .entry(s.winner_id)
+                    .or_insert((initial_mu, initial_phi, initial_vol));
+            let (mu_l, phi_l, sigma_l) =
+                *state
+                    .entry(s.loser_id)
+                    .or_insert((initial_mu, initial_phi, initial_vol));
 
             let g_l = g(phi_l);
             let e_w = e(mu_w, mu_l, phi_l);
@@ -118,9 +120,10 @@ impl RankingAlgorithm for Glicko2 {
         let scores = player_ids
             .into_iter()
             .map(|pid| {
-                let (mu, phi, sigma) = *state
-                    .get(&pid)
-                    .unwrap_or(&(initial_mu, initial_phi, initial_vol));
+                let (mu, phi, sigma) =
+                    *state
+                        .get(&pid)
+                        .unwrap_or(&(initial_mu, initial_phi, initial_vol));
                 let r = SCALE * mu + 1500.0;
                 let rd = (SCALE * phi).round() as i64;
                 PlayerScore {

@@ -73,7 +73,11 @@ async fn post_no_body(client: &Client, uri: &str, session_id: &str, body: Value)
         .send()
         .await
         .unwrap_or_else(|e| panic!("POST {uri} failed: {e}"));
-    assert!(resp.status().is_success(), "POST {uri} returned {}", resp.status());
+    assert!(
+        resp.status().is_success(),
+        "POST {uri} returned {}",
+        resp.status()
+    );
 }
 
 async fn get_json(client: &Client, uri: &str, session_id: &str) -> Value {
