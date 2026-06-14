@@ -192,10 +192,11 @@ struct RankingResponse {
     result_sort: String,
     created_at: DateTime<Utc>,
     user_role: Option<UserRole>,
+    player_count: i64,
 }
 
 impl RankingResponse {
-    fn from_ranking(r: Ranking, role: Option<UserRole>) -> Self {
+    fn from_ranking(r: Ranking, role: Option<UserRole>, player_count: i64) -> Self {
         RankingResponse {
             id: r.id,
             project_id: r.project_id,
@@ -208,6 +209,7 @@ impl RankingResponse {
             result_sort: r.result_sort,
             created_at: r.created_at,
             user_role: role,
+            player_count,
         }
     }
 }
@@ -245,19 +247,38 @@ async fn list_rankings(
     use crate::routes::projects::require_project_read_access;
     let (_, role) = require_project_read_access(&state.db, project_id, user.map(|u| u.id)).await?;
 
-    let rankings = sqlx::query_as!(
-        Ranking,
-        "SELECT id, project_id, name, description, published,
-                algorithm, algorithm_config, include_external_results, result_sort, created_at
-         FROM rankings WHERE project_id = $1 ORDER BY created_at ASC",
+    let rows = sqlx::query!(
+        r#"SELECT r.id, r.project_id, r.name, r.description, r.published,
+                  r.algorithm, r.algorithm_config, r.include_external_results,
+                  r.result_sort, r.created_at,
+                  COUNT(rp.player_id) AS "player_count!"
+           FROM rankings r
+           LEFT JOIN ranking_players rp ON rp.ranking_id = r.id
+           WHERE r.project_id = $1
+           GROUP BY r.id
+           ORDER BY r.created_at ASC"#,
         project_id,
     )
     .fetch_all(&state.db)
     .await?;
 
-    let resp: Vec<RankingResponse> = rankings
+    let resp: Vec<RankingResponse> = rows
         .into_iter()
-        .map(|r| RankingResponse::from_ranking(r, role.clone()))
+        .map(|r| {
+            let ranking = Ranking {
+                id: r.id,
+                project_id: r.project_id,
+                name: r.name,
+                description: r.description,
+                published: r.published,
+                algorithm: r.algorithm,
+                algorithm_config: r.algorithm_config,
+                include_external_results: r.include_external_results,
+                result_sort: r.result_sort,
+                created_at: r.created_at,
+            };
+            RankingResponse::from_ranking(ranking, role.clone(), r.player_count)
+        })
         .collect();
     Ok(Json(resp))
 }
@@ -317,6 +338,7 @@ async fn create_ranking(
         Json(RankingResponse::from_ranking(
             ranking,
             Some(UserRole::Owner),
+            0,
         )),
     ))
 }
@@ -328,7 +350,7 @@ async fn get_ranking(
 ) -> Result<impl IntoResponse> {
     let (_, ranking, role) =
         require_ranking_read_access(&state.db, path.id, path.rid, user.map(|u| u.id)).await?;
-    Ok(Json(RankingResponse::from_ranking(ranking, role)))
+    Ok(Json(RankingResponse::from_ranking(ranking, role, 0)))
 }
 
 async fn patch_ranking(
@@ -379,7 +401,7 @@ async fn patch_ranking(
     .fetch_one(&state.db)
     .await?;
 
-    Ok(Json(RankingResponse::from_ranking(updated, Some(role))))
+    Ok(Json(RankingResponse::from_ranking(updated, Some(role), 0)))
 }
 
 async fn delete_ranking(
