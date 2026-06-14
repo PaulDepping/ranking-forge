@@ -46,6 +46,7 @@ const MOCK_PUBLISHED_OWNER_PROJECT = {
 	owner_has_startgg_key: true
 };
 
+/** @type {Record<string, any[]>} */
 const MOCK_RANKINGS = {
 	'proj-1': [{ id: 'rank-1', project_id: 'proj-1', name: 'Main Ranking', description: null, published: false, created_at: '2026-01-01T00:00:00Z', user_role: 'owner', algorithm: null, algorithm_config: {}, include_external_results: false, result_sort: 'upset_factor', player_count: 3 }],
 	'proj-viewer': [{ id: 'rank-viewer', project_id: 'proj-viewer', name: 'Main Ranking', description: null, published: true, created_at: '2026-01-01T00:00:00Z', user_role: 'viewer', algorithm: null, algorithm_config: {}, include_external_results: false, result_sort: 'upset_factor', player_count: 0 }],

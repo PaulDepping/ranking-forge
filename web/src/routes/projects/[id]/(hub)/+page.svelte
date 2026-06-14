@@ -6,8 +6,9 @@
   import type { Ranking } from "$lib/types";
 
   let { data }: { data: PageData } = $props();
-  const isEditor =
-    data.project.user_role === "owner" || data.project.user_role === "editor";
+  const isEditor = $derived(
+    data.project.user_role === "owner" || data.project.user_role === "editor",
+  );
 
   function algorithmLabel(r: Ranking): string {
     if (!r.algorithm) return "Manual";

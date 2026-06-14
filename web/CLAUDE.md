@@ -67,6 +67,10 @@ Update this list when adding new components.
 
 `ModeWatcher` (from mode-watcher) is mounted once in `+layout.svelte`. Use Tailwind's `dark:` variant for any colors not covered by CSS variables. Toggle is in `ThemeToggle.svelte`.
 
+## Type checking
+
+Run `npm run check` after every edit to a `.svelte`, `.ts`, or `.js` file. Fix all errors and warnings before moving on — do not defer them.
+
 ## Formatting
 
 Run before every commit:
