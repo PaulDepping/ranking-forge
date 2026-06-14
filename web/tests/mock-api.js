@@ -47,12 +47,12 @@ const MOCK_PUBLISHED_OWNER_PROJECT = {
 };
 
 const MOCK_RANKINGS = {
-	'proj-1': [{ id: 'rank-1', project_id: 'proj-1', name: 'Main Ranking', description: null, published: false, created_at: '2026-01-01T00:00:00Z', user_role: 'owner' }],
-	'proj-viewer': [{ id: 'rank-viewer', project_id: 'proj-viewer', name: 'Main Ranking', description: null, published: true, created_at: '2026-01-01T00:00:00Z', user_role: 'viewer' }],
-	'proj-viewer-tournaments': [{ id: 'rank-viewer', project_id: 'proj-viewer-tournaments', name: 'Main Ranking', description: null, published: true, created_at: '2026-01-01T00:00:00Z', user_role: 'viewer' }],
-	'proj-guest': [{ id: 'rank-guest', project_id: 'proj-guest', name: 'Public Ranking', description: null, published: true, created_at: '2026-01-01T00:00:00Z', user_role: null }],
-	'proj-published': [{ id: 'rank-published', project_id: 'proj-published', name: 'Published Ranking', description: null, published: true, created_at: '2026-01-01T00:00:00Z', user_role: 'owner' }],
-	'proj-tournaments': [{ id: 'rank-tournaments', project_id: 'proj-tournaments', name: 'Main Ranking', description: null, published: false, created_at: '2026-01-01T00:00:00Z', user_role: 'owner' }],
+	'proj-1': [{ id: 'rank-1', project_id: 'proj-1', name: 'Main Ranking', description: null, published: false, created_at: '2026-01-01T00:00:00Z', user_role: 'owner', algorithm: null, algorithm_config: {}, include_external_results: false, result_sort: 'upset_factor', player_count: 3 }],
+	'proj-viewer': [{ id: 'rank-viewer', project_id: 'proj-viewer', name: 'Main Ranking', description: null, published: true, created_at: '2026-01-01T00:00:00Z', user_role: 'viewer', algorithm: null, algorithm_config: {}, include_external_results: false, result_sort: 'upset_factor', player_count: 0 }],
+	'proj-viewer-tournaments': [{ id: 'rank-viewer', project_id: 'proj-viewer-tournaments', name: 'Main Ranking', description: null, published: true, created_at: '2026-01-01T00:00:00Z', user_role: 'viewer', algorithm: null, algorithm_config: {}, include_external_results: false, result_sort: 'upset_factor', player_count: 0 }],
+	'proj-guest': [{ id: 'rank-guest', project_id: 'proj-guest', name: 'Public Ranking', description: null, published: true, created_at: '2026-01-01T00:00:00Z', user_role: null, algorithm: null, algorithm_config: {}, include_external_results: false, result_sort: 'upset_factor', player_count: 0 }],
+	'proj-published': [{ id: 'rank-published', project_id: 'proj-published', name: 'Published Ranking', description: null, published: true, created_at: '2026-01-01T00:00:00Z', user_role: 'owner', algorithm: null, algorithm_config: {}, include_external_results: false, result_sort: 'upset_factor', player_count: 0 }],
+	'proj-tournaments': [{ id: 'rank-tournaments', project_id: 'proj-tournaments', name: 'Main Ranking', description: null, published: false, created_at: '2026-01-01T00:00:00Z', user_role: 'owner', algorithm: null, algorithm_config: {}, include_external_results: false, result_sort: 'upset_factor', player_count: 0 }],
 	'proj-failed': [],
 };
 
@@ -339,7 +339,7 @@ function createMockServer() {
 			}
 			if (req.method === 'POST') {
 				const body = await readBody(req);
-				respond(res, 201, { id: 'rank-new', project_id: projectId, name: body?.name ?? 'New Ranking', description: body?.description ?? null, published: false, created_at: new Date().toISOString(), user_role: 'owner' });
+				respond(res, 201, { id: 'rank-new', project_id: projectId, name: body?.name ?? 'New Ranking', description: body?.description ?? null, published: false, created_at: new Date().toISOString(), user_role: 'owner', algorithm: null, algorithm_config: {}, include_external_results: false, result_sort: 'upset_factor', player_count: 0 });
 				return;
 			}
 		}

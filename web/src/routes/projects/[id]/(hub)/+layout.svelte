@@ -39,7 +39,10 @@
 </script>
 
 <div class="space-y-4 {page.data.wide ? 'mx-auto max-w-5xl px-4' : ''}">
-  <Tabs.Root value={currentTab} onValueChange={(v) => v !== undefined && goto(tabHref(v))}>
+  <Tabs.Root
+    value={currentTab}
+    onValueChange={(v) => v !== undefined && goto(tabHref(v))}
+  >
     <Tabs.List>
       {#each tabs as tab (tab.href)}
         <Tabs.Trigger value={tab.href}>{tab.label}</Tabs.Trigger>
