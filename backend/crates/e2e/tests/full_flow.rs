@@ -548,6 +548,7 @@ async fn full_import_flow(pool: PgPool) {
     // ── Import ────────────────────────────────────────────────────────────────
 
     let project_uuid = Uuid::parse_str(&project_id).unwrap();
+    let ranking_uuid = Uuid::parse_str(&ranking_id).unwrap();
     let startgg_worker = StartggClient::new_with_base_url("test-key".into(), base_url.into());
     worker::import::run(
         &pool,
@@ -558,6 +559,8 @@ async fn full_import_flow(pool: PgPool) {
     )
     .await
     .unwrap();
+    // The import enqueues a compute_ranking job; run it synchronously in the test.
+    worker::compute::run(&pool, ranking_uuid).await.unwrap();
 
     // ── Tournaments ───────────────────────────────────────────────────────────
 
@@ -681,14 +684,16 @@ async fn full_import_flow(pool: PgPool) {
 
     // ── Event exclusion ───────────────────────────────────────────────────────
 
-    let resp = patch_json(
+    let event_uuid = Uuid::parse_str(&event_id).unwrap();
+    let resp = put_json(
         &app,
-        &format!("/projects/{project_id}/rankings/{ranking_id}/events/{event_id}"),
+        &format!("/projects/{project_id}/rankings/{ranking_id}/events"),
         &cookie,
-        json!({"included": false}),
+        json!([{"event_id": event_uuid, "included": false}]),
     )
     .await;
-    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(resp.status(), StatusCode::ACCEPTED);
+    worker::compute::run(&pool, ranking_uuid).await.unwrap();
 
     let resp = get_req(
         &app,
@@ -708,14 +713,15 @@ async fn full_import_flow(pool: PgPool) {
 
     // ── Re-include ────────────────────────────────────────────────────────────
 
-    let resp = patch_json(
+    let resp = put_json(
         &app,
-        &format!("/projects/{project_id}/rankings/{ranking_id}/events/{event_id}"),
+        &format!("/projects/{project_id}/rankings/{ranking_id}/events"),
         &cookie,
-        json!({"included": true}),
+        json!([{"event_id": event_uuid, "included": true}]),
     )
     .await;
-    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(resp.status(), StatusCode::ACCEPTED);
+    worker::compute::run(&pool, ranking_uuid).await.unwrap();
 
     let resp = get_req(
         &app,

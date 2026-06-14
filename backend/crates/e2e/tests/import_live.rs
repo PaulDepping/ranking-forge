@@ -100,6 +100,21 @@ async fn get_req(app: &Router, uri: &str, cookie: &str) -> axum::response::Respo
         .unwrap()
 }
 
+async fn put_json(app: &Router, uri: &str, cookie: &str, body: Value) -> axum::response::Response {
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(uri)
+                .header("content-type", "application/json")
+                .header("cookie", cookie)
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
 async fn patch_json(
     app: &Router,
     uri: &str,
@@ -445,6 +460,7 @@ async fn import_hannover_weekly_88_and_84(pool: PgPool) {
 
     // ── Filter: exclude all events except the two target Melee Singles events ──
     let keep_ids = [KEEP_EVENT_STARTGG_ID_88, KEEP_EVENT_STARTGG_ID_84];
+    let mut exclusions: Vec<serde_json::Value> = Vec::new();
     for tournament in tournaments {
         let tournament_name = tournament["name"].as_str().unwrap_or("?");
         for event in tournament["events"].as_array().unwrap_or_else(|| {
@@ -455,24 +471,25 @@ async fn import_hannover_weekly_88_and_84(pool: PgPool) {
         }) {
             let startgg_id = event["startgg_id"].as_i64().unwrap_or(0);
             if !keep_ids.contains(&startgg_id) {
-                let event_uuid = event["id"]
-                    .as_str()
-                    .expect("event id should be a string UUID");
-                let resp = patch_json(
-                    &app,
-                    &format!("/projects/{project_id}/rankings/{ranking_id}/events/{event_uuid}"),
-                    &cookie,
-                    json!({"included": false}),
-                )
-                .await;
-                assert!(
-                    resp.status().is_success(),
-                    "PATCH event/{event_uuid} returned {}",
-                    resp.status()
-                );
+                let event_uuid = event["id"].as_str().expect("event id should be a string UUID");
+                exclusions.push(json!({"event_id": event_uuid, "included": false}));
             }
         }
     }
+    let ranking_uuid = Uuid::parse_str(&ranking_id).unwrap();
+    let resp = put_json(
+        &app,
+        &format!("/projects/{project_id}/rankings/{ranking_id}/events"),
+        &cookie,
+        json!(exclusions),
+    )
+    .await;
+    assert!(
+        resp.status().is_success(),
+        "PUT /events returned {}",
+        resp.status()
+    );
+    worker::compute::run(&pool, ranking_uuid).await.unwrap();
 
     // ── Stats ──────────────────────────────────────────────────────────────────
     let resp = get_req(
