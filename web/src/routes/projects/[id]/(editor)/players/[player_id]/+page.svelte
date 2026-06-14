@@ -151,6 +151,7 @@
   onClose={() => (selectedSet = null)}
   projectId={data.projectId}
   opponentPlayerId={selectedSet &&
+  selectedSet.opponent_id !== null &&
   data.trackedPlayerIds.has(selectedSet.opponent_id)
     ? selectedSet.opponent_id
     : undefined}

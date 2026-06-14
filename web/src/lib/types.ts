@@ -131,7 +131,7 @@ export interface Job {
 }
 
 export interface SetRecord {
-  opponent_id: string;
+  opponent_id: string | null;
   opponent_name: string;
   upset_factor: number;
   winner_score: number | null;

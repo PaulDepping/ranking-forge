@@ -114,7 +114,9 @@
   currentPlayerName={selectedPlayerName}
   onClose={() => (selectedSet = null)}
   projectId={data.project.id}
-  opponentPlayerId={selectedSet && trackedPlayerIds.has(selectedSet.opponent_id)
+  opponentPlayerId={selectedSet &&
+  selectedSet.opponent_id !== null &&
+  trackedPlayerIds.has(selectedSet.opponent_id)
     ? selectedSet.opponent_id
     : undefined}
 />
