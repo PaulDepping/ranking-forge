@@ -108,10 +108,11 @@ CREATE TABLE startgg_accounts (
 CREATE INDEX startgg_accounts_player_id_idx ON startgg_accounts(player_id);
 CREATE INDEX startgg_accounts_user_id_idx   ON startgg_accounts(startgg_user_id);
 
--- Tournaments (global, shared across all projects)
+-- Tournaments (project-scoped; same startgg_id may appear in multiple projects)
 CREATE TABLE tournaments (
     id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    startgg_id     BIGINT      NOT NULL UNIQUE,
+    project_id     UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    startgg_id     BIGINT      NOT NULL,
     name           TEXT        NOT NULL,
     handle         TEXT        NOT NULL,
     city           TEXT,
@@ -130,10 +131,13 @@ CREATE TABLE tournaments (
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX tournaments_project_startgg_idx ON tournaments(project_id, startgg_id);
+CREATE INDEX tournaments_project_id_idx ON tournaments(project_id);
+
 CREATE TABLE events (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     tournament_id UUID        NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
-    startgg_id    BIGINT      NOT NULL UNIQUE,
+    startgg_id    BIGINT      NOT NULL,
     name          TEXT        NOT NULL,
     handle        TEXT        NOT NULL,
     state         TEXT,
@@ -150,10 +154,11 @@ CREATE TABLE events (
 
 CREATE INDEX events_start_at_idx      ON events(start_at);
 CREATE INDEX events_tournament_id_idx ON events(tournament_id);
+CREATE UNIQUE INDEX events_tournament_startgg_idx ON events(tournament_id, startgg_id);
 
 CREATE TABLE phases (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    startgg_id    BIGINT      NOT NULL UNIQUE,
+    startgg_id    BIGINT      NOT NULL,
     event_id      UUID        NOT NULL REFERENCES events(id) ON DELETE CASCADE,
     name          TEXT,
     bracket_type  TEXT,
@@ -165,10 +170,11 @@ CREATE TABLE phases (
 );
 
 CREATE INDEX phases_event_id_idx ON phases(event_id);
+CREATE UNIQUE INDEX phases_event_startgg_idx ON phases(event_id, startgg_id);
 
 CREATE TABLE phase_groups (
     id                 UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    startgg_id         BIGINT      NOT NULL UNIQUE,
+    startgg_id         BIGINT      NOT NULL,
     phase_id           UUID        NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
     display_identifier TEXT,
     bracket_type       TEXT,
@@ -180,6 +186,7 @@ CREATE TABLE phase_groups (
 );
 
 CREATE INDEX phase_groups_phase_id_idx ON phase_groups(phase_id);
+CREATE UNIQUE INDEX phase_groups_phase_startgg_idx ON phase_groups(phase_id, startgg_id);
 
 -- Per-ranking event inclusion (imported by worker per ranking; default included)
 CREATE TABLE ranking_events (

@@ -138,10 +138,19 @@ async fn seed_tournament_event(
     startgg_tournament_id: i64,
     startgg_event_id: i64,
 ) -> (Uuid, Uuid) {
+    let project_id: Uuid = sqlx::query_scalar!(
+        "SELECT project_id FROM rankings WHERE id = $1",
+        ranking_id,
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+
     let tournament_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO tournaments (startgg_id, name, handle, online)
-         VALUES ($1, 'Test Tournament', 'test-tournament', false)
+        "INSERT INTO tournaments (project_id, startgg_id, name, handle, online)
+         VALUES ($1, $2, 'Test Tournament', 'test-tournament', false)
          RETURNING id",
+        project_id,
         startgg_tournament_id,
     )
     .fetch_one(pool)
@@ -1279,7 +1288,82 @@ async fn tournaments_list_enforces_ownership(pool: PgPool) {
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
-// ── Events (PATCH) ────────────────────────────────────────────────────────────
+/// Simulate the worker's phase-1 compute_ranking: populate ranking_set_results from sets.
+/// Only includes sets where both entrants map to ranking_players, event is included,
+/// and the set is not a DQ or placeholder.
+async fn compute_ranking_set_results(pool: &PgPool, ranking_id: Uuid) {
+    struct SetRow {
+        set_id: Uuid,
+        winner_player_id: Uuid,
+        loser_player_id: Uuid,
+        event_id: Uuid,
+        winner_seed: Option<i32>,
+        loser_seed: Option<i32>,
+        completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    }
+
+    let sets = sqlx::query_as!(
+        SetRow,
+        r#"
+        SELECT
+            s.id            AS set_id,
+            we.player_id    AS "winner_player_id!: Uuid",
+            le.player_id    AS "loser_player_id!: Uuid",
+            s.event_id,
+            we.seed         AS winner_seed,
+            le.seed         AS loser_seed,
+            s.completed_at
+        FROM sets s
+        JOIN entrants we ON we.id = s.winner_entrant_id
+        JOIN entrants le ON le.id = s.loser_entrant_id
+        JOIN ranking_players rwp ON rwp.player_id = we.player_id AND rwp.ranking_id = $1
+        JOIN ranking_players rlp ON rlp.player_id = le.player_id AND rlp.ranking_id = $1
+        JOIN ranking_events re ON re.event_id = s.event_id AND re.ranking_id = $1
+        WHERE re.included       = true
+          AND s.is_dq           = false
+          AND s.has_placeholder = false
+          AND we.player_id IS NOT NULL
+          AND le.player_id IS NOT NULL
+        ORDER BY s.completed_at ASC NULLS LAST
+        "#,
+        ranking_id,
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap();
+
+    sqlx::query!(
+        "DELETE FROM ranking_set_results WHERE ranking_id = $1",
+        ranking_id,
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+
+    for row in &sets {
+        let upset_factor = match (row.winner_seed, row.loser_seed) {
+            (Some(ws), Some(ls)) => Some(common::upset::set_upset_factor(ws, ls) as f64),
+            _ => None,
+        };
+        sqlx::query!(
+            r#"INSERT INTO ranking_set_results
+                (ranking_id, set_id, winner_player_id, loser_player_id, event_id, upset_factor, completed_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)"#,
+            ranking_id,
+            row.set_id,
+            row.winner_player_id,
+            row.loser_player_id,
+            row.event_id,
+            upset_factor,
+            row.completed_at,
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+}
+
+// ── Events (PUT) ──────────────────────────────────────────────────────────────
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn patch_event_toggle_included(pool: PgPool) {
@@ -1291,27 +1375,60 @@ async fn patch_event_toggle_included(pool: PgPool) {
 
     let (_, event_id) = seed_tournament_event(&pool, rid_uuid, 1002, 2002).await;
 
-    let resp = patch_json(
+    // Exclude via bulk PUT
+    let resp = put_json(
         &app,
-        &format!("/projects/{pid_str}/rankings/{rid}/events/{event_id}"),
+        &format!("/projects/{pid_str}/rankings/{rid}/events"),
         &cookie,
-        json!({"included": false}),
+        json!([{"event_id": event_id, "included": false}]),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::ACCEPTED);
+
+    // Verify the flag was persisted via the tournaments list
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid_str}/rankings/{rid}/tournaments"),
+        &cookie,
     )
     .await;
     assert_eq!(resp.status(), StatusCode::OK);
     let body = read_json(resp).await;
-    assert_eq!(body["included"], false);
-    assert_eq!(body["name"], "Singles");
+    let event = body[0]["events"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["id"] == event_id.to_string())
+        .unwrap()
+        .clone();
+    assert_eq!(event["included"], false);
+    assert_eq!(event["name"], "Singles");
 
-    let resp = patch_json(
+    // Re-include via bulk PUT
+    let resp = put_json(
         &app,
-        &format!("/projects/{pid_str}/rankings/{rid}/events/{event_id}"),
+        &format!("/projects/{pid_str}/rankings/{rid}/events"),
         &cookie,
-        json!({"included": true}),
+        json!([{"event_id": event_id, "included": true}]),
     )
     .await;
-    assert_eq!(resp.status(), StatusCode::OK);
-    assert_eq!(read_json(resp).await["included"], true);
+    assert_eq!(resp.status(), StatusCode::ACCEPTED);
+
+    let resp = get_req(
+        &app,
+        &format!("/projects/{pid_str}/rankings/{rid}/tournaments"),
+        &cookie,
+    )
+    .await;
+    let body = read_json(resp).await;
+    let event = body[0]["events"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["id"] == event_id.to_string())
+        .unwrap()
+        .clone();
+    assert_eq!(event["included"], true);
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -1394,6 +1511,7 @@ async fn stats_upset_factor_computed(pool: PgPool) {
     let alice_e = seed_entrant(&pool, event_id, Some(alice_id), 101, Some(2)).await;
     let bob_e = seed_entrant(&pool, event_id, Some(bob_id), 102, Some(7)).await;
     seed_set(&pool, event_id, bob_e, alice_e, 501).await;
+    compute_ranking_set_results(&pool, rid_uuid).await;
 
     let resp = get_req(
         &app,
@@ -1444,14 +1562,16 @@ async fn stats_excluded_events_not_counted(pool: PgPool) {
     let bob_e = seed_entrant(&pool, event_id, Some(bob_id), 104, Some(7)).await;
     seed_set(&pool, event_id, bob_e, alice_e, 502).await;
 
-    // Exclude the event via API
-    patch_json(
+    // Exclude the event via bulk PUT, then recompute
+    let resp = put_json(
         &app,
-        &format!("/projects/{pid_str}/rankings/{rid}/events/{event_id}"),
+        &format!("/projects/{pid_str}/rankings/{rid}/events"),
         &cookie,
-        json!({"included": false}),
+        json!([{"event_id": event_id, "included": false}]),
     )
     .await;
+    assert_eq!(resp.status(), StatusCode::ACCEPTED);
+    compute_ranking_set_results(&pool, rid_uuid).await;
 
     let resp = get_req(
         &app,
@@ -1515,12 +1635,15 @@ async fn stats_includes_non_project_opponent(pool: PgPool) {
 
     let (_, event_id) = seed_tournament_event(&pool, rid_uuid, 2010, 3010).await;
 
-    // Alice (seed 2) and a non-project entrant "Outsider" (seed 7)
+    // Alice (seed 2) and a non-project entrant "Outsider" (seed 7) with no player_id.
+    // ranking_set_results only stores sets where both entrants map to ranking_players,
+    // so the Outsider's win over Alice is not included in the computed results.
     let alice_e = seed_entrant_named(&pool, event_id, Some(alice_id), 110, "Alice", Some(2)).await;
     let outside_e = seed_entrant_named(&pool, event_id, None, 111, "Outsider", Some(7)).await;
 
-    // Outsider beats Alice
+    // Outsider beats Alice (not captured in ranking_set_results)
     seed_set(&pool, event_id, outside_e, alice_e, 510).await;
+    compute_ranking_set_results(&pool, rid_uuid).await;
 
     let resp = get_req(
         &app,
@@ -1534,12 +1657,10 @@ async fn stats_includes_non_project_opponent(pool: PgPool) {
     let entries = stats.as_array().unwrap();
     assert_eq!(entries.len(), 1, "only ranking players in outer list");
 
+    // Non-ranking opponents are excluded from ranking_set_results — Alice shows no wins/losses.
     let alice = entries.iter().find(|s| s["name"] == "Alice").unwrap();
     assert_eq!(alice["wins"], json!([]));
-    assert_eq!(alice["losses"].as_array().unwrap().len(), 1);
-    assert_eq!(alice["losses"][0]["opponent_name"], "Outsider");
-    // opponent_id for non-project entrants is the entrant UUID, not a player UUID
-    assert_eq!(alice["losses"][0]["opponent_id"], outside_e.to_string());
+    assert_eq!(alice["losses"], json!([]));
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -1564,6 +1685,7 @@ async fn stats_returns_game_scores(pool: PgPool) {
 
     // Alice beats Bob 3-1
     seed_set_with_scores(&pool, event_id, alice_e, bob_e, 511, 3, 1).await;
+    compute_ranking_set_results(&pool, rid_uuid).await;
 
     let resp = get_req(
         &app,
@@ -2083,6 +2205,7 @@ async fn h2h_with_sets(pool: PgPool) {
     // Alice beats Bob twice
     seed_set(&pool, event_id, alice_e, bob_e, 601).await;
     seed_set(&pool, event_id, alice_e, bob_e, 602).await;
+    compute_ranking_set_results(&pool, rid_uuid).await;
 
     let resp = get_req(
         &app,
@@ -2254,6 +2377,7 @@ async fn stats_returns_enriched_set_fields(pool: PgPool) {
     .execute(&pool)
     .await
     .unwrap();
+    compute_ranking_set_results(&pool, rid_uuid).await;
 
     let resp = get_req(
         &app,
@@ -2378,6 +2502,7 @@ async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
     .execute(&pool)
     .await
     .unwrap();
+    compute_ranking_set_results(&pool, rid_uuid).await;
 
     let resp = get_req(
         &app,
@@ -2712,6 +2837,7 @@ async fn player_stats_returns_single_player_data(pool: PgPool) {
     seed_set(&pool, event_id, alice_e, charlie_e, 402).await;
     // Bob beats Charlie (should not appear in Alice's stats)
     seed_set(&pool, event_id, bob_e, charlie_e, 403).await;
+    compute_ranking_set_results(&pool, rid_uuid).await;
 
     let resp = get_req(
         &app,
@@ -2767,6 +2893,7 @@ async fn player_stats_returns_losses_correctly(pool: PgPool) {
 
     // Alice beats Bob — Bob's perspective should be 0 wins, 1 loss
     seed_set(&pool, event_id, alice_e, bob_e, 411).await;
+    compute_ranking_set_results(&pool, rid_uuid).await;
 
     let resp = get_req(
         &app,
