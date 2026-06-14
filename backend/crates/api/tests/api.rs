@@ -2952,7 +2952,7 @@ async fn player_tournaments_returns_attendance_history(pool: PgPool) {
         e1_id, alice_id
     ).execute(&pool).await.unwrap();
 
-    // Tournament 2: NOT linked to project, Alice attended — should still appear
+    // Tournament 2: no ranking_events entry for this tournament — attendance should still appear
     let t2_id: Uuid = sqlx::query_scalar!(
         "INSERT INTO tournaments (project_id, startgg_id, name, handle, online)
          VALUES ($1, 9102, 'CEO 2024', 'tournament/ceo-2024', false)
