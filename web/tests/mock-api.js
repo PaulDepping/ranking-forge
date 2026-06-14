@@ -345,17 +345,21 @@ function createMockServer() {
 		}
 
 		const rankingItemMatch = path.match(/^\/projects\/([^/]+)\/rankings\/([^/]+)$/);
-		if (rankingItemMatch && req.method === 'GET') {
+		if (rankingItemMatch) {
 			const projectId = rankingItemMatch[1];
 			const rankingId = rankingItemMatch[2];
-			const rankings = MOCK_RANKINGS[projectId] ?? [];
-			const ranking = rankings.find(r => r.id === rankingId);
-			if (ranking) {
-				respond(res, 200, ranking);
-			} else {
-				respond(res, 404, { message: 'Not found' });
+			if (req.method === 'GET') {
+				const rankings = MOCK_RANKINGS[projectId] ?? [];
+				const ranking = rankings.find(r => r.id === rankingId);
+				if (ranking) {
+					respond(res, 200, ranking);
+				} else {
+					respond(res, 404, { message: 'Not found' });
+				}
+				return;
 			}
-			return;
+			if (req.method === 'PATCH') { respond(res, 200, {}); return; }
+			if (req.method === 'DELETE') { respond(res, 204, null); return; }
 		}
 
 		const rankingPlayerItemMatch = path.match(
@@ -376,6 +380,12 @@ function createMockServer() {
 				respond(res, 201, {});
 				return;
 			}
+		}
+
+		const rankingRecomputeMatch = path.match(/^\/projects\/([^/]+)\/rankings\/([^/]+)\/recompute$/);
+		if (rankingRecomputeMatch && req.method === 'POST') {
+			respond(res, 202, null);
+			return;
 		}
 
 		const rankingReorderMatch = path.match(/^\/projects\/([^/]+)\/rankings\/([^/]+)\/ranking$/);
