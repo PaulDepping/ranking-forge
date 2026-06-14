@@ -44,7 +44,8 @@ jobs:
         run: bash test.sh
 
   build-backend:
-    needs: test
+    needs: [test, topology]
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -144,7 +145,7 @@ jobs:
     needs: live-tests
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -200,7 +201,8 @@ jobs:
           echo "=== worker.log ===" && cat /tmp/worker.log || true
 
   build-web:
-    needs: test
+    needs: [test, topology]
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

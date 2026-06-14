@@ -88,6 +88,7 @@ pub async fn latest_for_project(
                   status::text AS "status!", error, created_at, updated_at
            FROM jobs
            WHERE project_id = $1
+             AND kind = 'import_tournaments'
            ORDER BY created_at DESC
            LIMIT 1"#,
         project_id,

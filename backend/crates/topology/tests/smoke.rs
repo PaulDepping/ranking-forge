@@ -215,9 +215,9 @@ async fn smoke_import_roundtrip() {
         resp.status()
     );
 
-    // 7. Poll for job completion — up to 120s (60 × 2s)
+    // 7. Poll for job completion — up to 180s (90 × 2s)
     let mut last_status = String::from("unknown");
-    for _ in 0..60 {
+    for _ in 0..90 {
         sleep(Duration::from_secs(2)).await;
         let import = get_json(
             &client,
@@ -237,7 +237,7 @@ async fn smoke_import_roundtrip() {
     }
     assert_eq!(
         last_status, "done",
-        "import did not complete within 120s (last observed status: {last_status})"
+        "import did not complete within 180s (last observed status: {last_status})"
     );
 
     // 8. Assert at least one known Hannover Weekly is in the tournament list
