@@ -1235,7 +1235,6 @@ async fn import_no_game_filter_flow(pool: PgPool) {
 async fn test_ranking_player_tournaments(pool: PgPool) {
     let app = make_app(pool.clone(), "http://unused");
     let cookie = register(&app, "alice", "pass1234").await;
-    set_startgg_api_key(&pool, &cookie, "test-key").await;
 
     let resp = post_json(&app, "/projects", &cookie, json!({"name": "Test"})).await;
     assert_eq!(resp.status(), StatusCode::CREATED);

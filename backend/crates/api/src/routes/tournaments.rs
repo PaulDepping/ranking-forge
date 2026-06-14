@@ -1006,15 +1006,13 @@ pub async fn get_ranking_player_tournaments(
             t.addr_state,
             t.country_code
         FROM entrants ent
+        JOIN players pl ON pl.id = ent.player_id AND pl.project_id = $1
         JOIN events e ON e.id = ent.event_id
         JOIN ranking_events re ON re.event_id = e.id
                                AND re.ranking_id = $2
                                AND re.included = true
         JOIN tournaments t ON t.id = e.tournament_id
         WHERE ent.player_id = $3
-          AND ent.player_id IN (
-              SELECT pl.id FROM players pl WHERE pl.project_id = $1
-          )
         ORDER BY t.start_at DESC NULLS LAST
         "#,
         path.id,

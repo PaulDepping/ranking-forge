@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        SELECT\n            t.name              AS tournament_name,\n            t.handle            AS tournament_slug,\n            e.name              AS event_name,\n            ent.final_placement AS \"placement?: i32\",\n            e.num_entrants      AS \"num_entrants?: i32\",\n            t.start_at,\n            t.online,\n            t.city,\n            t.addr_state,\n            t.country_code\n        FROM entrants ent\n        JOIN events e ON e.id = ent.event_id\n        JOIN ranking_events re ON re.event_id = e.id\n                               AND re.ranking_id = $2\n                               AND re.included = true\n        JOIN tournaments t ON t.id = e.tournament_id\n        WHERE ent.player_id = $3\n          AND ent.player_id IN (\n              SELECT pl.id FROM players pl WHERE pl.project_id = $1\n          )\n        ORDER BY t.start_at DESC NULLS LAST\n        ",
+  "query": "\n        SELECT\n            t.name              AS tournament_name,\n            t.handle            AS tournament_slug,\n            e.name              AS event_name,\n            ent.final_placement AS \"placement?: i32\",\n            e.num_entrants      AS \"num_entrants?: i32\",\n            t.start_at,\n            t.online,\n            t.city,\n            t.addr_state,\n            t.country_code\n        FROM entrants ent\n        JOIN players pl ON pl.id = ent.player_id AND pl.project_id = $1\n        JOIN events e ON e.id = ent.event_id\n        JOIN ranking_events re ON re.event_id = e.id\n                               AND re.ranking_id = $2\n                               AND re.included = true\n        JOIN tournaments t ON t.id = e.tournament_id\n        WHERE ent.player_id = $3\n        ORDER BY t.start_at DESC NULLS LAST\n        ",
   "describe": {
     "columns": [
       {
@@ -74,5 +74,5 @@
       true
     ]
   },
-  "hash": "9e4d73ed8a83e6dd36f6f2fe6e86f1b018c3a31dbd1f80ccfe97367be0463bfa"
+  "hash": "eb3b3ff52dd998ea8ea9ad986ce3a13ad5a001520791ba217a34f3de3b681faf"
 }
