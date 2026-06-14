@@ -9,7 +9,6 @@
 
   let {
     player,
-    projectId,
     isEditing,
     form,
     onEdit,
@@ -17,7 +16,6 @@
     onOpenLinkDialog,
   }: {
     player: Player;
-    projectId: string;
     isEditing: boolean;
     form: { renameError?: string; renamePid?: string } | null;
     onEdit: () => void;

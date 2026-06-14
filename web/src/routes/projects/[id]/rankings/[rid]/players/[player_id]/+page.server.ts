@@ -1,12 +1,18 @@
 import { error } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
-import type { PlayerStats, RankingPlayer, TournamentAttendance } from "$lib/types";
+import type {
+  PlayerStats,
+  RankingPlayer,
+  TournamentAttendance,
+} from "$lib/types";
 
 export const load: PageServerLoad = async ({ params, locals }) => {
   const { api } = locals;
 
   const [statsRes, tournamentsRes, rankingPlayersRes] = await Promise.all([
-    api.get(`/projects/${params.id}/rankings/${params.rid}/stats/${params.player_id}`),
+    api.get(
+      `/projects/${params.id}/rankings/${params.rid}/stats/${params.player_id}`,
+    ),
     api.get(
       `/projects/${params.id}/rankings/${params.rid}/players/${params.player_id}/tournaments`,
     ),

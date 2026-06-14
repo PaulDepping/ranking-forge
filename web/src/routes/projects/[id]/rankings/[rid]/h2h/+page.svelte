@@ -105,7 +105,8 @@
                       {#snippet child({ props })}
                         <a
                           {...props}
-                          href="/projects/{data.project.id}/rankings/{data.ranking.id}/players/{col.id}"
+                          href="/projects/{data.project.id}/rankings/{data
+                            .ranking.id}/players/{col.id}"
                           class="block max-w-[5rem] truncate hover:underline"
                           >{col.name}</a
                         >
@@ -128,7 +129,8 @@
                       {#snippet child({ props })}
                         <a
                           {...props}
-                          href="/projects/{data.project.id}/rankings/{data.ranking.id}/players/{row.id}"
+                          href="/projects/{data.project.id}/rankings/{data
+                            .ranking.id}/players/{row.id}"
                           class="block max-w-[8rem] truncate hover:underline"
                           >{row.name}</a
                         >

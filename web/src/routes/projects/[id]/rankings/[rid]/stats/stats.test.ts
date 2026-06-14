@@ -85,14 +85,18 @@ const stats = [
 
 describe("Stats page", () => {
   it("renders player names", () => {
-    render(Page, { data: { user, project, ranking, rankings, wide: true, stats } });
+    render(Page, {
+      data: { user, project, ranking, rankings, wide: true, stats },
+    });
     expect(screen.getByText("Alice")).toBeInTheDocument();
     expect(screen.getByText("Bob")).toBeInTheDocument();
     expect(screen.getByText("Charlie")).toBeInTheDocument();
   });
 
   it("shows W/L/% summary in each card header", () => {
-    render(Page, { data: { user, project, ranking, rankings, wide: true, stats } });
+    render(Page, {
+      data: { user, project, ranking, rankings, wide: true, stats },
+    });
     // Alice: 2W 1L = 67%, Bob: 1W 1L = 50%, Charlie: 0W 1L = 0%
     expect(screen.getByText("W 2 · L 1 · 67%")).toBeInTheDocument();
     expect(screen.getByText("W 1 · L 1 · 50%")).toBeInTheDocument();
@@ -100,7 +104,9 @@ describe("Stats page", () => {
   });
 
   it("shows win opponent names with integer UF", () => {
-    render(Page, { data: { user, project, ranking, rankings, wide: true, stats } });
+    render(Page, {
+      data: { user, project, ranking, rankings, wide: true, stats },
+    });
     expect(screen.getByText(/Bob · UF 2/)).toBeInTheDocument();
     expect(screen.getByText(/Charlie · UF 1/)).toBeInTheDocument();
   });
@@ -109,19 +115,32 @@ describe("Stats page", () => {
     const statsWithDecimalUF = [
       { player_id: "p1", name: "Alice", wins: [makeSet("Bob", 2)], losses: [] },
     ];
-    render(Page, { data: { user, project, ranking, rankings, wide: true, stats: statsWithDecimalUF } });
+    render(Page, {
+      data: {
+        user,
+        project,
+        ranking,
+        rankings,
+        wide: true,
+        stats: statsWithDecimalUF,
+      },
+    });
     expect(screen.queryByText(/UF 2\.0/)).not.toBeInTheDocument();
     expect(screen.queryByText(/UF 2\.5/)).not.toBeInTheDocument();
   });
 
   it("does not show Agg. UF or accumulated upset factor", () => {
-    render(Page, { data: { user, project, ranking, rankings, wide: true, stats } });
+    render(Page, {
+      data: { user, project, ranking, rankings, wide: true, stats },
+    });
     expect(screen.queryByText(/Agg\./i)).not.toBeInTheDocument();
     expect(screen.queryByText(/accumulated/i)).not.toBeInTheDocument();
   });
 
   it("shows empty state when stats is empty", () => {
-    render(Page, { data: { user, project, ranking, rankings, wide: true, stats: [] } });
+    render(Page, {
+      data: { user, project, ranking, rankings, wide: true, stats: [] },
+    });
     expect(screen.getByText("No stats yet")).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -132,7 +151,9 @@ describe("Stats page", () => {
   });
 
   it("opens set detail modal when a win row is clicked", async () => {
-    render(Page, { data: { user, project, ranking, rankings, wide: true, stats } });
+    render(Page, {
+      data: { user, project, ranking, rankings, wide: true, stats },
+    });
     const bobRow = screen.getByRole("button", { name: /Bob · UF 2/ });
     await fireEvent.click(bobRow);
     expect(screen.getByText("Alice vs Bob")).toBeInTheDocument();
@@ -140,7 +161,9 @@ describe("Stats page", () => {
   });
 
   it("opens set detail modal when a loss row is clicked", async () => {
-    render(Page, { data: { user, project, ranking, rankings, wide: true, stats } });
+    render(Page, {
+      data: { user, project, ranking, rankings, wide: true, stats },
+    });
     // Alice's losses list contains "Charlie · UF 0"
     const lossRow = screen.getByRole("button", { name: /Charlie · UF 0/ });
     await fireEvent.click(lossRow);
