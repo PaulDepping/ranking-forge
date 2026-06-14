@@ -39,6 +39,10 @@ export interface Ranking {
   published: boolean;
   created_at: string;
   user_role: "owner" | "editor" | "viewer" | null;
+  algorithm: string | null;
+  algorithm_config: Record<string, unknown>;
+  include_external_results: boolean;
+  result_sort: string;
 }
 
 export interface RankingPlayer {
@@ -46,6 +50,15 @@ export interface RankingPlayer {
   name: string;
   rank_position: number;
   notes: string | null;
+}
+
+export interface RankingPlayerWithScore {
+  player_id: string;
+  name: string;
+  rank_position: number;
+  notes: string | null;
+  computed_rating: number | null;
+  display_data: Record<string, unknown> | null;
 }
 
 export interface TournamentParticipant {

@@ -35,6 +35,8 @@ export function makeApi(fetchFn: typeof fetch) {
     ) => req("PATCH", `/projects/${projectId}/rankings/${rankingId}`, body),
     deleteRanking: (projectId: string, rankingId: string) =>
       req("DELETE", `/projects/${projectId}/rankings/${rankingId}`),
+    recomputeRanking: (projectId: string, rankingId: string) =>
+      req("POST", `/projects/${projectId}/rankings/${rankingId}/recompute`),
     addRankingPlayer: (
       projectId: string,
       rankingId: string,
