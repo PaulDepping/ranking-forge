@@ -15,7 +15,7 @@ fn make_slot(entrant_id: i64, score: Option<f64>) -> SetSlot {
 
 fn make_set(winner_id: Option<i64>, slots: Vec<SetSlot>) -> SetNode {
     SetNode {
-        id: 1,
+        id: Some(1),
         winner_id,
         round: Some(1),
         full_round_text: None,
@@ -137,7 +137,7 @@ fn make_participant(tag: &str, user_id: Option<i64>) -> Participant {
 
 fn make_entrant(participants: Vec<Participant>) -> EntrantNode {
     EntrantNode {
-        id: 1,
+        id: 1_i64,
         initial_seed_num: Some(1),
         is_disqualified: Some(false),
         standing: None,

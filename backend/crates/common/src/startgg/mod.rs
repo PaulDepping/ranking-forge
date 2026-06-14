@@ -536,7 +536,7 @@ mod tests {
         assert_eq!(page.nodes.len(), 1);
 
         let s = &page.nodes[0];
-        assert_eq!(s.id, 3001);
+        assert_eq!(s.id, Some(3001));
         assert_eq!(s.winner_id, Some(1001));
         assert_eq!(s.round, Some(6));
         assert_eq!(s.full_round_text.as_deref(), Some("Grand Final"));
@@ -584,6 +584,53 @@ mod tests {
 
         let page = client(&mock.uri()).event_sets(200, 1, 25).await.unwrap();
         assert!(page.nodes[0].is_dq());
+    }
+
+    #[tokio::test]
+    async fn event_sets_deserializes_page_with_preview_set_id() {
+        let mock = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(mock_ok(json!({
+                "data": {
+                    "event": {
+                        "sets": {
+                            "pageInfo": { "total": 2, "totalPages": 1 },
+                            "nodes": [
+                                {
+                                    "id": 4001,
+                                    "winnerId": 1001,
+                                    "round": 1,
+                                    "fullRoundText": "Round 1",
+                                    "totalGames": 3,
+                                    "completedAt": 1700050000_i64,
+                                    "vodUrl": null,
+                                    "slots": [
+                                        { "entrant": { "id": 1001 }, "standing": { "stats": { "score": { "value": 2.0 } } } },
+                                        { "entrant": { "id": 1002 }, "standing": { "stats": { "score": { "value": 0.0 } } } }
+                                    ]
+                                },
+                                {
+                                    "id": "preview_3350520_1_0",
+                                    "winnerId": null,
+                                    "round": 2,
+                                    "fullRoundText": "Round 2",
+                                    "totalGames": null,
+                                    "completedAt": null,
+                                    "vodUrl": null,
+                                    "slots": []
+                                }
+                            ]
+                        }
+                    }
+                }
+            })))
+            .mount(&mock)
+            .await;
+
+        let page = client(&mock.uri()).event_sets(200, 1, 25).await.unwrap();
+        assert_eq!(page.nodes.len(), 2);
+        assert_eq!(page.nodes[0].id, Some(4001));
+        assert_eq!(page.nodes[1].id, None);
     }
 
     #[tokio::test]

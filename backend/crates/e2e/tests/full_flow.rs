@@ -199,7 +199,8 @@ fn mount_import_mocks(mock: &wiremock::MockServer) -> impl std::future::Future<O
                                     "id": 2001_i64,
                                     "name": "Melee Singles",
                                     "numEntrants": 2,
-                                    "startAt": 1700040000_i64
+                                    "startAt": 1700040000_i64,
+                                    "state": "COMPLETED"
                                 }]
                             }]
                         }
@@ -363,7 +364,8 @@ async fn full_import_flow(pool: PgPool) {
                                 "id": 2001_i64,
                                 "name": "Melee Singles",
                                 "numEntrants": 2,
-                                "startAt": 1700040000_i64
+                                "startAt": 1700040000_i64,
+                                "state": "COMPLETED"
                             }]
                         }]
                     }
@@ -1282,4 +1284,110 @@ async fn test_ranking_player_tournaments(pool: PgPool) {
     )
     .await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+/// Events whose state is not "COMPLETED" must be skipped during import.
+/// A tournament with a single ACTIVE event should result in zero events stored.
+#[sqlx::test(migrations = "../../migrations")]
+async fn skips_non_completed_events(pool: PgPool) {
+    let mock = MockServer::start().await;
+
+    // user_by_slug
+    Mock::given(method("POST"))
+        .and(body_string_contains("user/mango"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": { "user": { "id": 12345_i64, "player": { "gamerTag": "Mango" } } }
+        })))
+        .mount(&mock)
+        .await;
+
+    // tournaments_by_user — event state is ACTIVE (not yet finished)
+    Mock::given(method("POST"))
+        .and(body_string_contains("userId"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": {
+                "user": {
+                    "tournaments": {
+                        "pageInfo": { "total": 1, "totalPages": 1 },
+                        "nodes": [{
+                            "id": 1001_i64,
+                            "name": "Live Tournament",
+                            "slug": "tournament/live-2024",
+                            "city": "San Jose",
+                            "addrState": "CA",
+                            "countryCode": "US",
+                            "venueName": null,
+                            "venueAddress": null,
+                            "timezone": "America/Los_Angeles",
+                            "isOnline": false,
+                            "numAttendees": 8,
+                            "startAt": 1700000000_i64,
+                            "endAt":   1700086400_i64,
+                            "events": [{
+                                "id": 2001_i64,
+                                "name": "Melee Singles",
+                                "numEntrants": 8,
+                                "startAt": 1700040000_i64,
+                                "state": "ACTIVE"
+                            }]
+                        }]
+                    }
+                }
+            }
+        })))
+        .mount(&mock)
+        .await;
+
+    let base_url = mock.uri();
+    let app = make_app(pool.clone(), &base_url);
+    let cookie = register(&app, "testuser", "pass1234").await;
+    set_startgg_api_key(&pool, &cookie, "test-key").await;
+
+    let resp = post_json(
+        &app,
+        "/projects",
+        &cookie,
+        json!({"name": "PR", "game_id": 1, "game_name": "Melee"}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let project_id = read_json(resp).await["id"].as_str().unwrap().to_string();
+
+    let resp = post_json(
+        &app,
+        &format!("/projects/{project_id}/players"),
+        &cookie,
+        json!({"name": "Mango"}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let mango_id = read_json(resp).await["id"].as_str().unwrap().to_string();
+
+    let resp = post_json(
+        &app,
+        &format!("/projects/{project_id}/players/{mango_id}/accounts"),
+        &cookie,
+        json!({"handle": "user/mango"}),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    let startgg = StartggClient::new_with_base_url("test-key".into(), base_url.into());
+    worker::import::run(
+        &pool,
+        &startgg,
+        Uuid::parse_str(&project_id).unwrap(),
+        Uuid::nil(),
+        common::jobs::ImportParams::default(),
+    )
+    .await
+    .unwrap();
+
+    // No events should have been imported
+    let event_count: i64 = sqlx::query_scalar!("SELECT COUNT(*) FROM events")
+        .fetch_one(&pool)
+        .await
+        .unwrap()
+        .unwrap_or(0);
+    assert_eq!(event_count, 0, "ACTIVE event should have been skipped");
 }

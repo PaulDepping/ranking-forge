@@ -1051,7 +1051,10 @@ pub fn router() -> Router<AppState> {
         .route("/events", axum::routing::put(put_events))
         .route("/stats", get(get_stats))
         .route("/stats/{player_id}", get(get_player_stats))
-        .route("/players/{player_id}/tournaments", get(get_ranking_player_tournaments))
+        .route(
+            "/players/{player_id}/tournaments",
+            get(get_ranking_player_tournaments),
+        )
         .route("/head-to-head", get(get_head_to_head))
         .route("/head-to-head/{pid_a}/{pid_b}/sets", get(get_h2h_sets))
 }

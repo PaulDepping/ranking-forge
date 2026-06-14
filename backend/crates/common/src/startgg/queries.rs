@@ -1,4 +1,19 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+/// Deserializes a set ID that may be an integer or a non-numeric preview string.
+/// Returns `None` for preview strings like `"preview_3350520_1_0"`.
+fn deserialize_set_id<'de, D>(de: D) -> Result<Option<i64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let v = serde_json::Value::deserialize(de)?;
+    match v {
+        serde_json::Value::Number(n) => Ok(n.as_i64()),
+        serde_json::Value::String(s) => Ok(s.parse::<i64>().ok()),
+        serde_json::Value::Null => Ok(None),
+        _ => Ok(None),
+    }
+}
 
 #[cfg(test)]
 mod tests;
@@ -333,7 +348,8 @@ pub struct SetPage {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SetNode {
-    pub id: i64,
+    #[serde(deserialize_with = "deserialize_set_id")]
+    pub id: Option<i64>,
     pub winner_id: Option<i64>,
     pub round: Option<i32>,
     pub full_round_text: Option<String>,

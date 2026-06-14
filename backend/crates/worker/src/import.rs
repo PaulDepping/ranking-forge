@@ -330,7 +330,17 @@ async fn import_tournament(
     let tournament_db_id: Uuid = row.id;
     let events = tournament.events.as_deref().unwrap_or(&[]);
 
+    let mut imported = 0usize;
     for event in events {
+        if event.state.as_deref() != Some("COMPLETED") {
+            tracing::info!(
+                event_id = event.id,
+                event_name = %event.name,
+                state = ?event.state,
+                "skipping non-completed event"
+            );
+            continue;
+        }
         import_event(
             pool,
             startgg,
@@ -342,9 +352,10 @@ async fn import_tournament(
             account_map,
         )
         .await?;
+        imported += 1;
     }
 
-    tracing::info!(event_count = events.len(), "tournament imported");
+    tracing::info!(event_count = imported, "tournament imported");
     Ok(())
 }
 
@@ -645,6 +656,11 @@ async fn import_sets(
             let mut page_sets = 0usize;
 
             for set in &set_page.nodes {
+                let Some(set_id) = set.id else {
+                    tracing::debug!("skipping preview set with non-numeric id");
+                    continue;
+                };
+
                 if set.has_placeholder.unwrap_or(false) {
                     continue;
                 }
@@ -657,7 +673,7 @@ async fn import_sets(
                     entrant_map.get(&winner_sg_id),
                     entrant_map.get(&loser_sg_id),
                 ) else {
-                    tracing::warn!(set_id = set.id, "entrant not found for set, skipping");
+                    tracing::warn!(set_id, "entrant not found for set, skipping");
                     continue;
                 };
 
@@ -665,7 +681,7 @@ async fn import_sets(
                     let uuid = phase_group_map.get(&pg.id).copied();
                     if uuid.is_none() {
                         tracing::warn!(
-                            set_id = set.id,
+                            set_id,
                             pg_id = pg.id,
                             "phase_group not in map, storing NULL"
                         );
@@ -702,7 +718,7 @@ async fn import_sets(
                            completed_at      = EXCLUDED.completed_at"#,
                     event_db_id,
                     phase_group_id,
-                    set.id,
+                    set_id,
                     winner_uuid,
                     loser_uuid,
                     set.round,
