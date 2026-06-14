@@ -295,11 +295,11 @@ async fn import_tournament(
 
     let row = sqlx::query!(
         r#"INSERT INTO tournaments
-               (startgg_id, name, handle, city, addr_state, country_code,
+               (project_id, startgg_id, name, handle, city, addr_state, country_code,
                 venue_name, venue_address, timezone, online, num_attendees,
                 lat, lng, state, start_at, end_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-           ON CONFLICT (startgg_id) DO UPDATE SET
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+           ON CONFLICT (project_id, startgg_id) DO UPDATE SET
                name          = EXCLUDED.name,
                num_attendees = EXCLUDED.num_attendees,
                lat           = EXCLUDED.lat,
@@ -308,6 +308,7 @@ async fn import_tournament(
                start_at      = EXCLUDED.start_at,
                end_at        = EXCLUDED.end_at
            RETURNING id"#,
+        project_id,
         tournament.id,
         tournament.name,
         extract_tournament_handle(&tournament.slug),
@@ -379,7 +380,7 @@ async fn import_event(
                (tournament_id, startgg_id, name, handle, state, is_online, event_type,
                 min_team_size, max_team_size, game_id, game_name, num_entrants, start_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-           ON CONFLICT (startgg_id) DO UPDATE SET
+           ON CONFLICT (tournament_id, startgg_id) DO UPDATE SET
                name          = EXCLUDED.name,
                handle        = EXCLUDED.handle,
                state         = EXCLUDED.state,
@@ -545,7 +546,7 @@ async fn upsert_phases(
                    (startgg_id, event_id, name, bracket_type, phase_order,
                     num_seeds, group_count, state, is_exhibition)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-               ON CONFLICT (startgg_id) DO UPDATE SET
+               ON CONFLICT (event_id, startgg_id) DO UPDATE SET
                    name         = EXCLUDED.name,
                    bracket_type = EXCLUDED.bracket_type,
                    phase_order  = EXCLUDED.phase_order,
@@ -580,7 +581,7 @@ async fn upsert_phases(
                        (startgg_id, phase_id, display_identifier, bracket_type, bracket_url,
                         num_rounds, start_at, first_round_time, state)
                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                   ON CONFLICT (startgg_id) DO UPDATE SET
+                   ON CONFLICT (phase_id, startgg_id) DO UPDATE SET
                        display_identifier = EXCLUDED.display_identifier,
                        bracket_url        = EXCLUDED.bracket_url,
                        num_rounds         = EXCLUDED.num_rounds,

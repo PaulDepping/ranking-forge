@@ -2107,10 +2107,12 @@ async fn list_tournaments_includes_event_type_and_bracket_types(pool: PgPool) {
     let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
     // Insert a tournament with an event that has event_type=1 and two phases
+    let pid = Uuid::parse_str(&pid_str).unwrap();
     let t_id: uuid::Uuid = sqlx::query_scalar!(
-        "INSERT INTO tournaments (startgg_id, name, handle, online)
-         VALUES (9991, 'Test Cup', 'tournament/test-cup', false)
-         RETURNING id"
+        "INSERT INTO tournaments (project_id, startgg_id, name, handle, online)
+         VALUES ($1, 9991, 'Test Cup', 'tournament/test-cup', false)
+         RETURNING id",
+        pid
     )
     .fetch_one(&pool)
     .await
@@ -2292,10 +2294,12 @@ async fn stats_returns_enriched_set_fields(pool: PgPool) {
     add_player_to_ranking(&app, &cookie, &pid_str, &rid, &bob_id_str).await;
 
     // Tournament with location
+    let pid = Uuid::parse_str(&pid_str).unwrap();
     let t_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO tournaments (startgg_id, name, handle, online, city, addr_state)
-         VALUES (9001, 'LACS', 'tournament/lacs', false, 'Los Angeles', 'CA')
-         RETURNING id"
+        "INSERT INTO tournaments (project_id, startgg_id, name, handle, online, city, addr_state)
+         VALUES ($1, 9001, 'LACS', 'tournament/lacs', false, 'Los Angeles', 'CA')
+         RETURNING id",
+        pid
     )
     .fetch_one(&pool)
     .await
@@ -2421,10 +2425,12 @@ async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
     add_player_to_ranking(&app, &cookie, &pid_str, &rid, &bob_id_str).await;
 
     // Online tournament (location should be "Online")
+    let pid = Uuid::parse_str(&pid_str).unwrap();
     let t_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO tournaments (startgg_id, name, handle, online, city, addr_state)
-         VALUES (9002, 'Online Major', 'tournament/online-major', true, 'Austin', 'TX')
-         RETURNING id"
+        "INSERT INTO tournaments (project_id, startgg_id, name, handle, online, city, addr_state)
+         VALUES ($1, 9002, 'Online Major', 'tournament/online-major', true, 'Austin', 'TX')
+         RETURNING id",
+        pid
     )
     .fetch_one(&pool)
     .await
@@ -2921,9 +2927,10 @@ async fn player_tournaments_returns_attendance_history(pool: PgPool) {
 
     // Tournament 1: included event, Alice placed 2nd
     let t1_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO tournaments (startgg_id, name, handle, online, city, addr_state)
-         VALUES (9101, 'Genesis 9', 'tournament/genesis-9', false, 'San Jose', 'CA')
-         RETURNING id"
+        "INSERT INTO tournaments (project_id, startgg_id, name, handle, online, city, addr_state)
+         VALUES ($1, 9101, 'Genesis 9', 'tournament/genesis-9', false, 'San Jose', 'CA')
+         RETURNING id",
+        pid
     )
     .fetch_one(&pool)
     .await
@@ -2947,9 +2954,10 @@ async fn player_tournaments_returns_attendance_history(pool: PgPool) {
 
     // Tournament 2: NOT linked to project, Alice attended — should still appear
     let t2_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO tournaments (startgg_id, name, handle, online)
-         VALUES (9102, 'CEO 2024', 'tournament/ceo-2024', false)
-         RETURNING id"
+        "INSERT INTO tournaments (project_id, startgg_id, name, handle, online)
+         VALUES ($1, 9102, 'CEO 2024', 'tournament/ceo-2024', false)
+         RETURNING id",
+        pid
     )
     .fetch_one(&pool)
     .await
