@@ -65,10 +65,7 @@
   {:else}
     <div class="flex items-start justify-between">
       <div class="space-y-1">
-        <a
-          href="/projects/{projectId}/players/{player.id}"
-          class="font-medium hover:underline">{player.name}</a
-        >
+        <span class="font-medium">{player.name}</span>
         <div class="flex flex-wrap gap-1">
           {#each player.accounts as account (account.id)}
             <AccountBadge
