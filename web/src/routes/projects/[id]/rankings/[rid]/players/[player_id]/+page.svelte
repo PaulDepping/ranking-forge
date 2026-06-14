@@ -57,7 +57,7 @@
           <p class="text-sm text-muted-foreground">No wins yet.</p>
         {:else}
           <ScrollArea class="h-48 rounded border border-border bg-muted/20">
-            {#each wins as set, i (i)}
+            {#each wins as set (set.startgg_set_id)}
               <Button
                 variant="ghost"
                 class="h-auto w-full border-b border-border px-2 py-1 text-xs last:border-0 justify-start whitespace-normal"
@@ -83,7 +83,7 @@
           <p class="text-sm text-muted-foreground">No losses yet.</p>
         {:else}
           <ScrollArea class="h-48 rounded border border-border bg-muted/20">
-            {#each losses as set, i (i)}
+            {#each losses as set (set.startgg_set_id)}
               <Button
                 variant="ghost"
                 class="h-auto w-full border-b border-border px-2 py-1 text-xs last:border-0 justify-start whitespace-normal"
