@@ -32,7 +32,8 @@ RUN --mount=type=bind,source=crates,target=crates \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
     SQLX_OFFLINE=true cargo build --locked --release && \
     cp ./target/release/api /bin/api && \
-    cp ./target/release/worker /bin/worker
+    cp ./target/release/worker /bin/worker && \
+    cp ./target/release/crawler /bin/crawler
 
 FROM debian:bookworm-slim AS base
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -61,3 +62,7 @@ CMD ["/bin/api"]
 FROM base AS worker
 COPY --from=builder /bin/worker /bin/
 CMD ["/bin/worker"]
+
+FROM base AS crawler
+COPY --from=builder /bin/crawler /bin/
+CMD ["/bin/crawler"]
