@@ -37,4 +37,7 @@ pub struct Config {
 
     #[arg(long, env = "RUST_LOG", default_value = "info")]
     pub rust_log: String,
+
+    #[arg(long, env = "STARTGG_BASE_URL")]
+    pub startgg_base_url: Option<String>,
 }
