@@ -1,11 +1,12 @@
 # Backend Module Map
 
-The backend is a Rust workspace at `backend/`. It contains five crates:
+The backend is a Rust workspace at `backend/`. It contains six crates:
 
     backend/crates/
       common/    Shared library (no binary) — models, job queue, StartggClient, upset logic
       api/       Axum HTTP server binary
       worker/    Background import worker binary
+      crawler/   Global mirror crawler binary
       e2e/       End-to-end test suite (test-only, requires DATABASE_URL)
       topology/  Deployment smoke tests (test-only, runs against live stack)
 
@@ -66,6 +67,20 @@ Background process. Listens on the Postgres job queue and runs imports.
 | `src/lib.rs` | Re-exports `pub mod import` |
 | `src/main.rs` | Binary entry point: connects DB, runs migrations, starts `PgListener`, event loop that drains pending jobs via `jobs::claim` → `import::run` → mark done/failed, handles SIGTERM/SIGINT with in-flight job cleanup, and runs hourly expired-session pruning |
 | `src/config.rs` | Worker env config (DATABASE_URL, STARTGG_API_KEY) |
+
+---
+
+## `crawler`
+
+Binary crate. Continuously mirrors start.gg tournament data into `global_*` tables.
+
+| File | Owns |
+|---|---|
+| `src/api.rs` | `gql_query` with retry/backoff, 6 query string constants, error types |
+| `src/api_types.rs` | serde deserialization types for all 6 queries |
+| `src/cli.rs` | `Config` struct with env-var defaults (clap) |
+| `src/db.rs` | all `global_*` table upsert functions, checkpoint read/write |
+| `src/scraper.rs` | sliding window loop, per-tournament/event/phase-group processing, two-pass fallback |
 
 ---
 

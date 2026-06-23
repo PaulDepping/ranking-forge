@@ -201,6 +201,41 @@ A positive result means the lower-seeded player performed better than expected (
 
 `GET /projects/:id/rankings/:rid/stats` returns each player's wins and losses as separate lists of individual set records, each record carrying its own upset factor. Within each list the sets are sorted by upset factor descending (biggest upsets first). The outer player list is ordered by aggregate upset factor (sum of all the player's wins' upset factors) descending. Only sets from included events where both players are members of the ranking are counted.
 
+## Global Mirror
+
+### Tables
+
+`migrations/001_initial.sql` defines a set of `global_*` tables that store a platform-wide mirror of start.gg tournament data, independent of any user project:
+
+- `global_tournaments` — every discovered tournament
+- `global_events` — every event within those tournaments
+- `global_phase_groups` — phase groups (pools/brackets) per event
+- `global_entrants` — every entrant record per phase group
+- `global_sets` — every set result per phase group
+- `global_players` — deduplicated player identities resolved from entrant records
+- `global_player_ratings` — defined but not yet populated; reserved for a future phase that computes global ratings from mirror data
+- `crawler_checkpoints` — stores the crawler's progress (last processed tournament `updated_at` timestamp per game) so runs are resumable
+
+### Crawler Binary
+
+The `crawler` crate is a standalone binary that populates these tables. It operates independently of `api` and `worker` and requires only `DATABASE_URL` and `STARTGG_API_KEY`.
+
+**Sliding window strategy:** The crawler queries start.gg for tournaments updated within a rolling time window (configurable via `--lookback-days`). It pages through results ordered by `updatedAt` ascending, writing a checkpoint after each page so it can resume after interruption.
+
+**Two-pass fallback:** For each event, the crawler first attempts a full pass that fetches complete set and entrant data. If a phase group returns preview/stub set IDs (indicating the bracket is not yet finalized on start.gg), it falls back to a slim pass that records entrants only, skipping sets.
+
+### Player Identity Resolution
+
+Entrant records from start.gg carry two identifiers: `startgg_user_id` (account-level, present when the player has a linked start.gg account) and `startgg_player_id` (profile-level, always present).
+
+- **Full pass:** resolves identity via `startgg_user_id` — the authoritative cross-tournament identifier.
+- **Slim pass:** resolves identity via `startgg_player_id` — used when no user account is linked.
+- `global_players` rows are upserted with `COALESCE` so that a later full pass can upgrade a slim-only row with a `startgg_user_id` without losing existing data.
+
+### Future Direction
+
+Once the mirror has sufficient coverage, the `worker` import path can shift to querying `global_*` tables directly instead of calling the start.gg API per-import. This eliminates the requirement for per-user API keys and reduces rate-limit pressure.
+
 ## Infrastructure
 
 ### URLs
