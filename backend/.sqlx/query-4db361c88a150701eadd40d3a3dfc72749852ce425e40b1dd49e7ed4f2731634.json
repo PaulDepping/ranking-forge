@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO global_events\n            (startgg_id, tournament_id, game_id, name, slug,\n             start_at, num_entrants, is_online, competition_tier)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n        ON CONFLICT (startgg_id) DO UPDATE SET\n            tournament_id    = EXCLUDED.tournament_id,\n            game_id          = EXCLUDED.game_id,\n            name             = EXCLUDED.name,\n            slug             = EXCLUDED.slug,\n            start_at         = EXCLUDED.start_at,\n            num_entrants     = EXCLUDED.num_entrants,\n            is_online        = EXCLUDED.is_online,\n            competition_tier = EXCLUDED.competition_tier\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Int4",
+        "Bool",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4db361c88a150701eadd40d3a3dfc72749852ce425e40b1dd49e7ed4f2731634"
+}

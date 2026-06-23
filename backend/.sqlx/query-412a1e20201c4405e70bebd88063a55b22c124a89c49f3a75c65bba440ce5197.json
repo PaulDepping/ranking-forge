@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO global_players (startgg_player_id, handle)\n        VALUES ($1, $2)\n        ON CONFLICT (startgg_player_id) DO UPDATE SET\n            handle     = EXCLUDED.handle,\n            updated_at = NOW()\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "412a1e20201c4405e70bebd88063a55b22c124a89c49f3a75c65bba440ce5197"
+}

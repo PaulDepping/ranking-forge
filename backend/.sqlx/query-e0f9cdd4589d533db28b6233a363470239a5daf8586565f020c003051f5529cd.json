@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO global_game_selections\n            (game_id, player_id, selection_type, character_id, character_name)\n        VALUES ($1, $2, $3, $4, $5)\n        ON CONFLICT (game_id, player_id, selection_type) DO UPDATE SET\n            character_id   = EXCLUDED.character_id,\n            character_name = EXCLUDED.character_name\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e0f9cdd4589d533db28b6233a363470239a5daf8586565f020c003051f5529cd"
+}

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO global_event_entries (event_id, player_id, seed, placement)\n        VALUES ($1, $2, $3, $4)\n        ON CONFLICT (event_id, player_id) DO UPDATE SET\n            seed      = COALESCE(EXCLUDED.seed, global_event_entries.seed),\n            placement = COALESCE(EXCLUDED.placement, global_event_entries.placement)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fc43f75cc882640fdca74b1a3757dadd21ab1166b0a29a5bf8a8ff644bd00c3b"
+}

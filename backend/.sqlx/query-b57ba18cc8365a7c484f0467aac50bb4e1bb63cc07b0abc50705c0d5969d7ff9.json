@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO global_set_games (set_id, order_num, winner_player_id, stage_id, stage_name)\n        VALUES ($1, $2, $3, $4, $5)\n        ON CONFLICT (set_id, order_num) DO UPDATE SET\n            winner_player_id = EXCLUDED.winner_player_id,\n            stage_id         = EXCLUDED.stage_id,\n            stage_name       = EXCLUDED.stage_name\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Uuid",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b57ba18cc8365a7c484f0467aac50bb4e1bb63cc07b0abc50705c0d5969d7ff9"
+}

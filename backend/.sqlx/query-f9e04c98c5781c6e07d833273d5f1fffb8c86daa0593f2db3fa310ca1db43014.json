@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO crawler_checkpoints (key, value)\n        VALUES ($1, $2)\n        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f9e04c98c5781c6e07d833273d5f1fffb8c86daa0593f2db3fa310ca1db43014"
+}
