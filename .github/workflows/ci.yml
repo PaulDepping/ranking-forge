@@ -87,6 +87,18 @@ jobs:
             type=raw,value=edge,enable={{is_default_branch}}
             type=ref,event=pr
 
+      - name: Docker metadata for crawler
+        id: meta-crawler
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/pauldepping/ranking-forge/crawler
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=edge,enable={{is_default_branch}}
+            type=ref,event=pr
+
       - name: Build and push api
         uses: docker/build-push-action@v6
         with:
@@ -110,6 +122,19 @@ jobs:
             type=gha,scope=backend-api
             type=gha,scope=backend-worker
           cache-to: type=gha,mode=max,scope=backend-worker
+
+      - name: Build and push crawler
+        uses: docker/build-push-action@v6
+        with:
+          context: backend/
+          target: crawler
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-crawler.outputs.tags }}
+          labels: ${{ steps.meta-crawler.outputs.labels }}
+          cache-from: |
+            type=gha,scope=backend-api
+            type=gha,scope=backend-crawler
+          cache-to: type=gha,mode=max,scope=backend-crawler
 
   live-tests:
     needs: test
