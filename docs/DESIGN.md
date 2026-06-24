@@ -205,31 +205,42 @@ A positive result means the lower-seeded player performed better than expected (
 
 ### Tables
 
-`migrations/001_initial.sql` defines a set of `global_*` tables that store a platform-wide mirror of start.gg tournament data, independent of any user project:
+The `global_*` tables store a platform-wide mirror of start.gg tournament data, independent of any user project:
 
 - `global_tournaments` — every discovered tournament
 - `global_events` — every event within those tournaments
-- `global_phase_groups` — phase groups (pools/brackets) per event
-- `global_entrants` — every entrant record per phase group
+- `global_phases` — phases (round-robin pools, bracket rounds) per event
+- `global_phase_groups` — phase groups (individual pools/brackets) per phase
 - `global_sets` — every set result per phase group
-- `global_players` — deduplicated player identities resolved from entrant records
-- `global_player_ratings` — defined but not yet populated; reserved for a future phase that computes global ratings from mirror data
-- `crawler_checkpoints` — stores the crawler's progress (last processed tournament `updated_at` timestamp per game) so runs are resumable
+- `global_set_games` — individual games within each set
+- `global_game_selections` — character selections per game
+- `global_players` — deduplicated player identities resolved from participants
+- `global_event_entries` — final placements and seeds per player per event, populated from standings
+- `global_games` — videogame titles referenced by events
+- `crawler_checkpoints` — key/value store for crawler progress; stores `window_start` (unix timestamp of the current sliding window position) and per-tournament/event boolean flags so runs are resumable after interruption
 
 ### Crawler Binary
 
 The `crawler` crate is a standalone binary that populates these tables. It operates independently of `api` and `worker` and requires only `DATABASE_URL` and `STARTGG_API_KEY`.
 
-**Sliding window strategy:** The crawler queries start.gg for tournaments updated within a rolling time window (configurable via `--lookback-days`). It pages through results ordered by `updatedAt` ascending, writing a checkpoint after each page so it can resume after interruption.
+**CLI flags:** `--from-date`, `--to-date`, `--window-days` (default 7), `--game-id`, `--delay-ms`, `--sets-per-page`.
 
-**Two-pass fallback:** For each event, the crawler first attempts a full pass that fetches complete set and entrant data. If a phase group returns preview/stub set IDs (indicating the bracket is not yet finalized on start.gg), it falls back to a slim pass that records entrants only, skipping sets.
+**Sliding window strategy:** The crawler divides the `from-date` → `to-date` range into windows of `window-days` days. Each window queries start.gg for tournaments with `afterDate`/`beforeDate` filters on tournament `startAt`. After processing all tournaments in a window, it advances the `window_start` checkpoint and saves it to `crawler_checkpoints`. On restart, the crawler resumes from the last saved `window_start`.
+
+**Continuous operation:** After completing the initial backfill (when `window_start` reaches `to-date`), the crawler enters a live-polling loop: it sleeps for one hour, then rechecks for new tournaments. This loop is only active when `to-date` is today or a future date; a historical backfill to a past `to-date` exits cleanly.
+
+**Two-pass fallback:** For each phase group, the crawler first attempts a full query (`PhaseGroupSets`) that fetches complete set data including participant `user` records and game-by-game data in one request. If start.gg returns a complexity error even at `perPage=1`, it falls back to two passes:
+1. **Slim pass** (`PhaseGroupSets` without `user` fields) — fetches set structure and player identity via `player.id`
+2. **Games pass** (`PhaseGroupGames`) — fetches game and character-selection data using the entrant→player map built in the slim pass
+
+**Event entries:** After all phase groups in an event are processed, the crawler paginates through the event standings query and upserts a `global_event_entries` row for each entrant, carrying their final placement. Entrant-to-player resolution uses the map accumulated across all phase groups during set processing.
 
 ### Player Identity Resolution
 
 Entrant records from start.gg carry two identifiers: `startgg_user_id` (account-level, present when the player has a linked start.gg account) and `startgg_player_id` (profile-level, always present).
 
 - **Full pass:** resolves identity via `startgg_user_id` — the authoritative cross-tournament identifier.
-- **Slim pass:** resolves identity via `startgg_player_id` — used when no user account is linked.
+- **Slim pass:** resolves identity via `startgg_player_id` — used when the full query is too complex and no user data is fetched.
 - `global_players` rows are upserted with `COALESCE` so that a later full pass can upgrade a slim-only row with a `startgg_user_id` without losing existing data.
 
 ### Future Direction

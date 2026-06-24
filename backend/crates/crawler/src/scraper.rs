@@ -47,8 +47,9 @@ pub fn extract_scores(display_score: &str) -> Option<(i16, i16)> {
     if parts.len() != 2 {
         return None;
     }
-    let a: i16 = parts[0].trim().parse().ok()?;
-    let b: i16 = parts[1].trim().parse().ok()?;
+    // displayScore may be "EntrantTag score - EntrantTag score"
+    let a: i16 = parts[0].split_whitespace().last()?.parse().ok()?;
+    let b: i16 = parts[1].split_whitespace().last()?.parse().ok()?;
     if a >= b { Some((a, b)) } else { Some((b, a)) }
 }
 
@@ -98,13 +99,6 @@ pub async fn run(config: &Config, pool: &PgPool, shutdown: &AtomicBool) -> Resul
         .unwrap()
         .and_utc()
         .timestamp();
-    let range_end = config
-        .to_date
-        .and_hms_opt(0, 0, 0)
-        .unwrap()
-        .and_utc()
-        .timestamp()
-        .min(Utc::now().timestamp());
     let window_secs = config.window_days as i64 * 86400;
 
     // Resume from checkpoint if available
@@ -119,7 +113,30 @@ pub async fn run(config: &Config, pool: &PgPool, shutdown: &AtomicBool) -> Resul
         base_filter["videogameIds"] = json!([gid]);
     }
 
-    while window_start < range_end {
+    loop {
+        let range_end = config
+            .to_date
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc()
+            .timestamp()
+            .min(Utc::now().timestamp());
+
+        if window_start >= range_end {
+            if shutdown.load(Ordering::SeqCst) {
+                break;
+            }
+            // Exit if we've completed a historical backfill (to_date is in the past).
+            // Only sleep and poll when running in live mode (to_date is today or future).
+            let today = Utc::now().date_naive();
+            if config.to_date < today {
+                break;
+            }
+            info!("fully caught up, sleeping 1 hour before polling for new tournaments");
+            tokio::time::sleep(Duration::from_secs(3600)).await;
+            continue;
+        }
+
         if shutdown.load(Ordering::SeqCst) {
             break;
         }
@@ -215,9 +232,9 @@ pub async fn run(config: &Config, pool: &PgPool, shutdown: &AtomicBool) -> Resul
         // Advance window and persist checkpoint
         window_start = window_end;
         set_checkpoint(pool, "window_start", json!(window_start)).await?;
-    }
+    } // end outer loop
 
-    info!("crawl complete");
+    info!("crawler shutting down");
     Ok(())
 }
 
@@ -249,6 +266,9 @@ async fn process_event(
 
     let phases = pg_data.event.map(|e| e.phases).unwrap_or_default();
 
+    // Accumulate entrant → player UUID across all phase groups for standings resolution
+    let mut event_entrant_map: HashMap<i64, Uuid> = HashMap::new();
+
     for phase in &phases {
         if shutdown.load(Ordering::SeqCst) {
             return Ok(());
@@ -267,13 +287,14 @@ async fn process_event(
                 event_id,
                 sets_per_page,
                 delay,
+                &mut event_entrant_map,
             )
             .await?;
             tokio::time::sleep(delay).await;
         }
     }
 
-    // Fetch standings for final placements
+    // Fetch standings for final placements and populate global_event_entries
     let mut standings_page = 1u32;
     loop {
         let data: EventStandingsData = gql_query(
@@ -290,9 +311,18 @@ async fn process_event(
         let total_pages = standings_node.standings.page_info.total_pages.unwrap_or(1);
 
         for standing in &standings_node.standings.nodes {
-            // entrant ID → player UUID lookup via global_sets is not trivial here;
-            // we skip entries we can't resolve — they get populated from set data
-            let _ = standing; // standings processing happens in full path below
+            if let Some(entrant) = &standing.entrant {
+                if let Some(&player_uuid) = event_entrant_map.get(&entrant.id) {
+                    upsert_event_entry(
+                        pool,
+                        event_id,
+                        player_uuid,
+                        None,
+                        standing.placement.map(|p| p as i32),
+                    )
+                    .await?;
+                }
+            }
         }
 
         if standings_page >= total_pages as u32 {
@@ -319,46 +349,46 @@ async fn process_phase_group(
     event_id: Uuid,
     sets_per_page: u32,
     delay: Duration,
+    event_entrant_map: &mut HashMap<i64, Uuid>,
 ) -> Result<()> {
-    // Track entrant_id → player UUID within this phase group for game winner resolution
-    let mut entrant_to_player: HashMap<i64, Uuid> = HashMap::new();
     // Track set_startgg_id → set UUID for games pass
     let mut set_id_to_uuid: HashMap<i64, Uuid> = HashMap::new();
 
     // Attempt full query with complexity halving
-    let full_result: Result<()> = with_complexity_retry!(sets_per_page, 1, |per_page| async move {
-        fetch_full_path(
-            client,
-            base_url,
-            pool,
-            token,
-            pg_startgg_id,
-            phase_startgg_id,
-            event_id,
-            per_page,
-            delay,
-            &mut HashMap::new(),
-            &mut HashMap::new(),
-        )
-        .await
-    });
+    let full_result: Result<HashMap<i64, Uuid>> =
+        with_complexity_retry!(sets_per_page, 1, |per_page| async move {
+            fetch_full_path(
+                client,
+                base_url,
+                pool,
+                token,
+                pg_startgg_id,
+                phase_startgg_id,
+                event_id,
+                per_page,
+                delay,
+            )
+            .await
+        });
 
-    if full_result.is_ok() {
-        return Ok(());
+    match full_result {
+        Ok(map) => {
+            event_entrant_map.extend(map);
+            return Ok(());
+        }
+        Err(err) => {
+            let is_complexity = err.downcast_ref::<ComplexityError>().is_some();
+            if !is_complexity {
+                return Err(err);
+            }
+            warn!(
+                pg_startgg_id,
+                "full query failed at perPage=1, falling back to two-pass"
+            );
+        }
     }
 
-    let err = full_result.unwrap_err();
-    let is_complexity = err.downcast_ref::<ComplexityError>().is_some();
-    if !is_complexity {
-        return Err(err);
-    }
-
-    warn!(
-        pg_startgg_id,
-        "full query failed at perPage=1, falling back to two-pass"
-    );
-
-    // Pass 1: slim identity pass
+    // Pass 1: slim identity pass — populates event_entrant_map directly
     let slim_result = fetch_slim_pass(
         client,
         base_url,
@@ -369,7 +399,7 @@ async fn process_phase_group(
         event_id,
         sets_per_page,
         delay,
-        &mut entrant_to_player,
+        event_entrant_map,
         &mut set_id_to_uuid,
     )
     .await;
@@ -388,7 +418,7 @@ async fn process_phase_group(
         pg_startgg_id,
         sets_per_page,
         delay,
-        &entrant_to_player,
+        event_entrant_map,
         &set_id_to_uuid,
     )
     .await;
@@ -410,13 +440,13 @@ async fn fetch_full_path(
     event_id: Uuid,
     sets_per_page: u32,
     delay: Duration,
-    _entrant_map: &mut HashMap<i64, Uuid>,
-    _set_map: &mut HashMap<i64, Uuid>,
-) -> Result<()> {
+) -> Result<HashMap<i64, Uuid>> {
     let mut page = 1u32;
     // Phase/phase_group upserted on first page to avoid extra query
     let mut phase_uuid: Option<Uuid> = None;
     let mut phase_group_uuid: Option<Uuid> = None;
+    // Accumulate entrant → player UUID across all pages for caller use
+    let mut all_entrant_map: HashMap<i64, Uuid> = HashMap::new();
 
     loop {
         let data: FullPhaseGroupSetsData = gql_query(
@@ -494,6 +524,7 @@ async fn fetch_full_path(
                             continue;
                         };
                         local_entrant_map.insert(entrant.id, player_uuid);
+                        all_entrant_map.insert(entrant.id, player_uuid);
                     }
                 }
             }
@@ -577,7 +608,7 @@ async fn fetch_full_path(
         tokio::time::sleep(delay).await;
     }
 
-    Ok(())
+    Ok(all_entrant_map)
 }
 
 async fn fetch_slim_pass(
@@ -858,6 +889,13 @@ mod tests {
         let (w, l) = extract_scores("2 - 0").unwrap();
         assert_eq!(w, 2);
         assert_eq!(l, 0);
+    }
+
+    #[test]
+    fn scores_extracted_from_name_bearing_display_score() {
+        let (w, l) = extract_scores("Mang0 3 - Zain 1").unwrap();
+        assert_eq!(w, 3);
+        assert_eq!(l, 1);
     }
 
     #[test]
