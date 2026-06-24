@@ -23,19 +23,19 @@ pub struct Config {
     #[arg(long, env = "CRAWLER_TO_DATE", default_value_t = default_to_date())]
     pub to_date: NaiveDate,
 
-    #[arg(long, env = "CRAWLER_WINDOW_DAYS", default_value = "7")]
+    #[arg(long, env = "CRAWLER_WINDOW_DAYS", default_value_t = 7)]
     pub window_days: u32,
 
-    #[arg(long, env = "CRAWLER_DELAY_MS", default_value = "750")]
+    #[arg(long, env = "CRAWLER_DELAY_MS", default_value_t = 750)]
     pub delay_ms: u64,
 
-    #[arg(long, env = "CRAWLER_SETS_PER_PAGE", default_value = "20")]
+    #[arg(long, env = "CRAWLER_SETS_PER_PAGE", default_value_t = 20)]
     pub sets_per_page: u32,
 
     #[arg(long, env = "CRAWLER_GAME_ID")]
     pub game_id: Option<u64>,
 
-    #[arg(long, env = "RUST_LOG", default_value = "info")]
+    #[arg(long, env = "RUST_LOG", default_value_t = String::from("info"))]
     pub rust_log: String,
 
     #[arg(long, env = "STARTGG_BASE_URL")]

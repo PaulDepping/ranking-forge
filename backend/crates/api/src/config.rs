@@ -18,6 +18,6 @@ pub struct Config {
     #[arg(long, env = "CORS_ORIGIN")]
     pub cors_origin: String,
 
-    #[arg(long, env = "RUST_LOG", default_value = "info")]
+    #[arg(long, env = "RUST_LOG", default_value_t = String::from("info"))]
     pub rust_log: String,
 }
