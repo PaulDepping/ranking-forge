@@ -117,7 +117,7 @@ pub struct EventNode {
     pub name: String,
     pub slug: Option<String>,
     pub start_at: Option<i64>,
-    pub state: Option<i64>,
+    pub state: Option<String>,
     pub is_online: Option<bool>,
     pub num_entrants: Option<i64>,
     #[serde(rename = "type")]

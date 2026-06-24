@@ -149,8 +149,8 @@ pub async fn upsert_event(
         r#"
         INSERT INTO global_events
             (startgg_id, tournament_id, game_id, name, slug,
-             start_at, num_entrants, is_online, competition_tier)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             start_at, num_entrants, is_online, competition_tier, state)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         ON CONFLICT (startgg_id) DO UPDATE SET
             tournament_id    = EXCLUDED.tournament_id,
             game_id          = EXCLUDED.game_id,
@@ -159,7 +159,8 @@ pub async fn upsert_event(
             start_at         = EXCLUDED.start_at,
             num_entrants     = EXCLUDED.num_entrants,
             is_online        = EXCLUDED.is_online,
-            competition_tier = EXCLUDED.competition_tier
+            competition_tier = EXCLUDED.competition_tier,
+            state            = EXCLUDED.state
         RETURNING id
         "#,
         node.id,
@@ -171,6 +172,7 @@ pub async fn upsert_event(
         node.num_entrants.map(|n| n as i32),
         node.is_online,
         node.competition_tier.map(|n| n as i32),
+        node.state,
     )
     .fetch_one(pool)
     .await?;

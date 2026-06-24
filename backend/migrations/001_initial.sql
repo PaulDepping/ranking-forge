@@ -350,6 +350,7 @@ CREATE TABLE global_events (
     num_entrants     INTEGER,
     is_online        BOOLEAN,
     competition_tier INTEGER,
+    state            TEXT,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX global_events_tournament_id_idx    ON global_events(tournament_id);

@@ -236,7 +236,8 @@ pub async fn gql_query<T: DeserializeOwned>(
             Ok(b) => b,
             Err(e) => {
                 let sleep_dur = retry_after.unwrap_or(backoff);
-                debug!(attempt = attempt + 1, error = %e, body = %text, sleep_ms = sleep_dur.as_millis(), "Failed to decode body, retrying");
+                tracing::warn!(attempt = attempt + 1, error = %e, sleep_ms = sleep_dur.as_millis(), "Failed to decode response body, retrying");
+                debug!(body = %text, "Body that failed to decode");
                 last_decode_failure = Some(text);
                 sleep(sleep_dur).await;
                 continue;

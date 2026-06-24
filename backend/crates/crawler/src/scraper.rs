@@ -11,9 +11,8 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::api::{
-    ComplexityError, EVENT_STANDINGS_QUERY, MaxRetriesError, PHASE_GROUP_GAMES_QUERY,
-    PHASE_GROUP_SETS_QUERY, PHASE_GROUP_SETS_QUERY_SLIM, PHASE_GROUPS_QUERY, PaginationLimitError,
-    TOURNAMENT_QUERY, gql_query,
+    ComplexityError, EVENT_STANDINGS_QUERY, PHASE_GROUP_GAMES_QUERY, PHASE_GROUP_SETS_QUERY,
+    PHASE_GROUP_SETS_QUERY_SLIM, PHASE_GROUPS_QUERY, TOURNAMENT_QUERY, gql_query,
 };
 use crate::api_types::{
     EventPhaseGroupsData, EventStandingsData, FullPhaseGroupSetsData, GamesPhaseGroupSetsData,
