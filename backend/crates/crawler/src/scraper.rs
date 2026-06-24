@@ -468,6 +468,7 @@ async fn fetch_full_path(
         let mut local_entrant_map: HashMap<i64, Uuid> = HashMap::new();
 
         for set_node in &pg_node.sets.nodes {
+            let Some(set_startgg_id) = set_node.id else { continue };
             // Upsert phase + phase_group from first set that has them
             if phase_uuid.is_none() {
                 if let Some(pg_info) = &set_node.phase_group {
@@ -544,7 +545,7 @@ async fn fetch_full_path(
 
             let set_uuid = upsert_set(
                 pool,
-                set_node.id,
+                set_startgg_id,
                 event_id,
                 phase_group_uuid,
                 winner_uuid,
@@ -652,6 +653,7 @@ async fn fetch_slim_pass(
         let total_pages = pg_node.sets.page_info.total_pages.unwrap_or(1);
 
         for set_node in &pg_node.sets.nodes {
+            let Some(set_startgg_id) = set_node.id else { continue };
             if phase_uuid.is_none() {
                 if let Some(pg_info) = &set_node.phase_group {
                     if let Some(phase_info) = &pg_info.phase {
@@ -691,7 +693,7 @@ async fn fetch_slim_pass(
 
             let set_uuid = upsert_set(
                 pool,
-                set_node.id,
+                set_startgg_id,
                 event_id,
                 phase_group_uuid,
                 winner_uuid,
@@ -706,7 +708,7 @@ async fn fetch_slim_pass(
             )
             .await?;
 
-            set_id_to_uuid.insert(set_node.id, set_uuid);
+            set_id_to_uuid.insert(set_startgg_id, set_uuid);
         }
 
         if page >= total_pages as u32 {
@@ -757,7 +759,8 @@ async fn fetch_games_pass(
         let total_pages = pg_node.sets.page_info.total_pages.unwrap_or(1);
 
         for set_node in &pg_node.sets.nodes {
-            let set_uuid = match set_id_to_uuid.get(&set_node.id) {
+            let Some(set_startgg_id) = set_node.id else { continue };
+            let set_uuid = match set_id_to_uuid.get(&set_startgg_id) {
                 Some(u) => *u,
                 None => continue,
             };

@@ -42,6 +42,22 @@ pub fn deserialize_opt_id<'de, D: Deserializer<'de>>(
     }
 }
 
+// Returns None for non-numeric string IDs (e.g. start.gg "preview_..." placeholders).
+pub fn deserialize_opt_numeric_id<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<i64>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Raw {
+        Int(i64),
+        Str(String),
+    }
+    match Raw::deserialize(deserializer)? {
+        Raw::Int(n) => Ok(Some(n)),
+        Raw::Str(s) => Ok(s.parse().ok()),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // GQL envelope
 // ---------------------------------------------------------------------------
@@ -202,8 +218,8 @@ where
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FullSetNode {
-    #[serde(deserialize_with = "deserialize_id")]
-    pub id: i64,
+    #[serde(deserialize_with = "deserialize_opt_numeric_id")]
+    pub id: Option<i64>,
     pub state: Option<i64>,
     #[serde(default, deserialize_with = "deserialize_opt_id")]
     pub winner_id: Option<i64>,
@@ -380,8 +396,8 @@ pub struct SlimPhaseGroupNode {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SlimSetNode {
-    #[serde(deserialize_with = "deserialize_id")]
-    pub id: i64,
+    #[serde(deserialize_with = "deserialize_opt_numeric_id")]
+    pub id: Option<i64>,
     pub state: Option<i64>,
     #[serde(default, deserialize_with = "deserialize_opt_id")]
     pub winner_id: Option<i64>,
@@ -438,8 +454,8 @@ pub struct GamesPhaseGroupNode {
 
 #[derive(Debug, Deserialize)]
 pub struct GamesSetNode {
-    #[serde(deserialize_with = "deserialize_id")]
-    pub id: i64,
+    #[serde(deserialize_with = "deserialize_opt_numeric_id")]
+    pub id: Option<i64>,
     #[serde(deserialize_with = "deserialize_null_default")]
     pub games: Vec<GameNode>,
 }
@@ -496,6 +512,14 @@ mod tests {
         let pg = data.phase_group.expect("phaseGroup missing");
         assert_eq!(pg.id, 4001);
         assert_eq!(pg.sets.nodes.len(), 1);
+    }
+
+    #[test]
+    fn preview_set_id_deserializes_to_none() {
+        let text = r#"{"id":"preview_2314175_-3_0","state":1,"winnerId":null,"vodUrl":null,"completedAt":null,"fullRoundText":"Losers Round 1","round":-3,"lPlacement":7,"wPlacement":5,"displayScore":null,"phaseGroup":null,"slots":[],"games":[]}"#;
+        let result: Result<FullSetNode, _> = serde_json::from_str(text);
+        assert!(result.is_ok(), "Deserialize failed: {:?}", result.err());
+        assert_eq!(result.unwrap().id, None);
     }
 
     #[test]
