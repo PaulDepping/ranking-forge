@@ -36,7 +36,7 @@ async fn test_crawl_single_tournament(pool: sqlx::PgPool) {
                             "name": "Singles",
                             "slug": "tournament/test-major/event/singles",
                             "startAt": 1700000000_i64,
-                            "state": 3,
+                            "state": "COMPLETED",
                             "isOnline": false,
                             "numEntrants": 2,
                             "type": 1,
@@ -208,7 +208,7 @@ async fn test_crawl_single_tournament(pool: sqlx::PgPool) {
     let shutdown = AtomicBool::new(false);
     crawler::scraper::run(&config, &pool, &shutdown)
         .await
-        .unwrap();
+        .expect("test_crawl_single_tournament: scraper::run failed");
 
     let count = sqlx::query_scalar!("SELECT COUNT(*) FROM global_tournaments")
         .fetch_one(&pool)
@@ -278,7 +278,7 @@ async fn test_crawl_two_pass_fallback(pool: sqlx::PgPool) {
                             "name": "Singles",
                             "slug": "tournament/test-major/event/singles",
                             "startAt": 1700000000_i64,
-                            "state": 3,
+                            "state": "COMPLETED",
                             "isOnline": false,
                             "numEntrants": 2,
                             "type": 1,

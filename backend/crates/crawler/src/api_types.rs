@@ -481,3 +481,40 @@ pub struct StandingEntrant {
     #[serde(deserialize_with = "deserialize_id")]
     pub id: i64,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn full_phase_group_sets_data_deserializes_from_mock_response() {
+        let text = r#"{"data":{"phaseGroup":{"id":"4001","sets":{"pageInfo":{"total":1,"totalPages":1},"nodes":[{"id":"5001","state":3,"winnerId":"6001","vodUrl":null,"completedAt":1700003600,"fullRoundText":"Winners Final","round":1,"lPlacement":null,"wPlacement":null,"displayScore":"3 - 1","phaseGroup":{"id":"4001","displayIdentifier":"A","bracketType":"DOUBLE_ELIMINATION","phase":{"id":"3001","name":"Bracket","bracketType":"DOUBLE_ELIMINATION","phaseOrder":1,"isExhibition":false}},"slots":[{"slotIndex":0,"standing":{"stats":{"score":{"value":3.0}}},"entrant":{"id":"6001","initialSeedNum":1,"isDisqualified":false,"participants":[{"player":{"id":"7001","gamerTag":"PlayerA","prefix":null},"user":{"id":"8001","slug":"user/playera","name":"Alice","bio":null,"genderPronoun":null,"location":{"city":"Seattle","state":"WA","country":"US"},"images":[{"url":"https://img/a.jpg","type":"profile"}]}}]}}],"games":[]}]}}}}"#;
+        let result: Result<GqlResponse<FullPhaseGroupSetsData>, _> = serde_json::from_str(text);
+        assert!(result.is_ok(), "Deserialize failed: {:?}", result.err());
+        let data = result.unwrap().data.expect("data field missing");
+        let pg = data.phase_group.expect("phaseGroup missing");
+        assert_eq!(pg.id, 4001);
+        assert_eq!(pg.sets.nodes.len(), 1);
+    }
+
+    #[test]
+    fn event_node_deserializes_string_state() {
+        let mock = json!({
+            "id": "2001",
+            "name": "Singles",
+            "slug": "tournament/test/event/singles",
+            "startAt": 1700000000_i64,
+            "state": "COMPLETED",
+            "isOnline": false,
+            "numEntrants": 2,
+            "type": 1,
+            "competitionTier": null,
+            "videogame": { "id": "1", "name": "SSBU" }
+        });
+        let text = serde_json::to_string(&mock).unwrap();
+        let result: Result<EventNode, _> = serde_json::from_str(&text);
+        assert!(result.is_ok(), "Deserialize failed: {:?}", result.err());
+        assert_eq!(result.unwrap().state, Some("COMPLETED".to_string()));
+    }
+}
