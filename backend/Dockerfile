@@ -54,15 +54,18 @@ RUN adduser \
 USER appuser
 
 FROM base AS api
+LABEL org.opencontainers.image.source="https://github.com/PaulDepping/ranking-forge"
 COPY --from=builder /bin/api /bin/
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:3000/health || exit 1
 CMD ["/bin/api"]
 
 FROM base AS worker
+LABEL org.opencontainers.image.source="https://github.com/PaulDepping/ranking-forge"
 COPY --from=builder /bin/worker /bin/
 CMD ["/bin/worker"]
 
 FROM base AS crawler
+LABEL org.opencontainers.image.source="https://github.com/PaulDepping/ranking-forge"
 COPY --from=builder /bin/crawler /bin/
 CMD ["/bin/crawler"]

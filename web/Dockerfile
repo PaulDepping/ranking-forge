@@ -12,6 +12,7 @@ COPY . .
 RUN npm run build
 
 FROM node:22-slim AS web
+LABEL org.opencontainers.image.source="https://github.com/PaulDepping/ranking-forge"
 WORKDIR /app
 
 ARG UID=10001
