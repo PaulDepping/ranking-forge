@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen } from "@testing-library/svelte";
 import SetDetailModal from "./SetDetailModal.svelte";
 import type { SetRecord } from "$lib/types";
@@ -27,6 +27,18 @@ const baseSet: SetRecord = {
   num_entrants: null,
   event_handle: "melee-singles",
 };
+
+// bits-ui's body-scroll-lock schedules a setTimeout during Dialog cleanup.
+// Without fake timers that timeout fires after jsdom tears down, causing
+// "document is not defined". Fake timers drain the queue while DOM is alive.
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.runAllTimers();
+  vi.useRealTimers();
+});
 
 describe("SetDetailModal", () => {
   it("renders nothing when set is null", () => {
