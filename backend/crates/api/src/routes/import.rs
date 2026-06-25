@@ -78,22 +78,6 @@ pub async fn start_import(
 ) -> Result<impl IntoResponse> {
     require_project_access(&state.db, project_id, user.id, UserRole::Editor).await?;
 
-    let owner_key: Option<String> = sqlx::query_scalar!(
-        "SELECT u.startgg_api_key FROM projects rp
-         JOIN users u ON u.id = rp.owner_id
-         WHERE rp.id = $1",
-        project_id,
-    )
-    .fetch_optional(&state.db)
-    .await?
-    .flatten();
-
-    if owner_key.is_none() {
-        return Err(AppError::UnprocessableEntity(
-            "Project owner has not configured a start.gg API key".into(),
-        ));
-    }
-
     let req = body.map(|b| b.0).unwrap_or_default();
     let params = ImportParams {
         after_date: req.after_date.map(date_to_timestamp),
@@ -114,6 +98,33 @@ pub async fn get_import_status(
         .await?
         .ok_or(AppError::NotFound)?;
     Ok(Json(JobResponse::from(job)))
+}
+
+pub async fn retrigger_import(
+    State(state): State<AppState>,
+    AuthUser(user): AuthUser,
+    Path((project_id, job_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse> {
+    require_project_access(&state.db, project_id, user.id, UserRole::Editor).await?;
+
+    let original = sqlx::query!(
+        "SELECT params FROM jobs WHERE id = $1 AND project_id = $2",
+        job_id,
+        project_id,
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let params: common::jobs::ImportParams =
+        serde_json::from_value(original.params).unwrap_or_default();
+    let job = common::jobs::enqueue(&state.db, project_id, params).await?;
+    tracing::info!(user_id = %user.id, %project_id, original_job_id = %job_id, new_job_id = %job.id, "import retriggered");
+    Ok((StatusCode::ACCEPTED, Json(JobResponse::from(job))))
+}
+
+pub fn router() -> Router<AppState> {
+    Router::new().route("/{id}/import/{job_id}/retrigger", post(retrigger_import))
 }
 
 pub fn rate_limited_post_router() -> Router<AppState> {
@@ -203,13 +214,6 @@ mod tests {
     async fn test_import_post_is_rate_limited(pool: PgPool) {
         let app = make_app(pool.clone());
         let cookie = register(&app, "rl_import").await;
-
-        sqlx::query!(
-            "UPDATE users SET startgg_api_key = 'test-key' WHERE email = 'rl_import@test.com'"
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
 
         let project_id = create_project(&app, &cookie).await;
 

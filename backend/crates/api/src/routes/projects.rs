@@ -39,11 +39,10 @@ pub struct ProjectResponse {
     pub game_name: Option<String>,
     pub created_at: DateTime<Utc>,
     pub user_role: Option<UserRole>,
-    pub owner_has_startgg_key: bool,
 }
 
 impl ProjectResponse {
-    fn from_project(p: Project, user_role: Option<UserRole>, owner_has_startgg_key: bool) -> Self {
+    fn from_project(p: Project, user_role: Option<UserRole>) -> Self {
         ProjectResponse {
             id: p.id,
             name: p.name,
@@ -51,7 +50,6 @@ impl ProjectResponse {
             game_name: p.game_name,
             created_at: p.created_at,
             user_role,
-            owner_has_startgg_key,
         }
     }
 }
@@ -199,15 +197,13 @@ async fn list_projects(
         created_at: DateTime<Utc>,
         is_owner: Option<bool>,
         member_role: Option<MemberRole>,
-        owner_has_startgg_key: bool,
     }
 
     let rows = sqlx::query_as!(
         Row,
         r#"SELECT p.id, p.owner_id, p.name, p.game_id, p.game_name, p.created_at,
                   (p.owner_id = $1) AS is_owner,
-                  CASE WHEN pm.user_id IS NOT NULL THEN pm.role END AS "member_role: MemberRole",
-                  (SELECT startgg_api_key IS NOT NULL FROM users WHERE id = p.owner_id) AS "owner_has_startgg_key!"
+                  CASE WHEN pm.user_id IS NOT NULL THEN pm.role END AS "member_role: MemberRole"
            FROM projects p
            LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1
            WHERE p.owner_id = $1 OR pm.user_id = $1
@@ -237,7 +233,6 @@ async fn list_projects(
                     created_at: r.created_at,
                 },
                 Some(role),
-                r.owner_has_startgg_key,
             )
         })
         .collect();
@@ -260,12 +255,6 @@ async fn create_project(
         ));
     }
 
-    if user.startgg_api_key.is_none() {
-        return Err(AppError::UnprocessableEntity(
-            "A start.gg API key is required to create projects".into(),
-        ));
-    }
-
     let project = sqlx::query_as!(
         Project,
         "INSERT INTO projects (owner_id, name, game_id, game_name)
@@ -284,7 +273,6 @@ async fn create_project(
         Json(ProjectResponse::from_project(
             project,
             Some(UserRole::Owner),
-            user.startgg_api_key.is_some(),
         )),
     ))
 }
@@ -297,19 +285,7 @@ async fn get_project(
     let (project, role) =
         require_project_read_access(&state.db, project_id, user.map(|u| u.id)).await?;
 
-    let owner_has_startgg_key: bool = sqlx::query_scalar!(
-        "SELECT startgg_api_key IS NOT NULL FROM users WHERE id = $1",
-        project.owner_id,
-    )
-    .fetch_one(&state.db)
-    .await?
-    .unwrap_or(false);
-
-    Ok(Json(ProjectResponse::from_project(
-        project,
-        role,
-        owner_has_startgg_key,
-    )))
+    Ok(Json(ProjectResponse::from_project(project, role)))
 }
 
 async fn patch_project(
@@ -349,11 +325,7 @@ async fn patch_project(
     .fetch_one(&state.db)
     .await?;
 
-    Ok(Json(ProjectResponse::from_project(
-        updated,
-        Some(role),
-        user.startgg_api_key.is_some(),
-    )))
+    Ok(Json(ProjectResponse::from_project(updated, Some(role))))
 }
 
 async fn delete_project(
@@ -383,6 +355,7 @@ pub fn router() -> Router<AppState> {
             get(crate::routes::import::get_import_status),
         )
         .merge(crate::routes::import::rate_limited_post_router())
+        .merge(crate::routes::import::router())
         .route(
             "/{id}/tournament-entrants",
             get(crate::routes::players::list_tournament_entrants),
@@ -432,16 +405,6 @@ mod tests {
         format!("session_id={}", body["session_id"].as_str().unwrap())
     }
 
-    async fn with_api_key(pool: &PgPool, email: &str) {
-        sqlx::query!(
-            "UPDATE users SET startgg_api_key = 'test-key' WHERE email = $1",
-            email
-        )
-        .execute(pool)
-        .await
-        .unwrap();
-    }
-
     pub async fn create_project(app: &Router, cookie: &str, name: &str) -> String {
         let resp = app
             .clone()
@@ -470,34 +433,9 @@ mod tests {
     }
 
     #[sqlx::test(migrations = "../../migrations")]
-    async fn test_create_project_requires_startgg_key(pool: PgPool) {
-        let app = make_app(pool.clone());
-        let cookie = register(&app, "nokeyuser").await;
-        // Newly registered users have no API key — route must return 422
-
-        let resp = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/projects")
-                    .header("content-type", "application/json")
-                    .header("cookie", &cookie)
-                    .body(Body::from(
-                        serde_json::to_vec(&json!({"name": "My Project"})).unwrap(),
-                    ))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
-    }
-
-    #[sqlx::test(migrations = "../../migrations")]
     async fn test_list_projects_shows_all_member_roles(pool: PgPool) {
         let app = make_app(pool.clone());
         let owner_cookie = register(&app, "owner1").await;
-        with_api_key(&pool, "owner1@test.com").await;
         let editor_cookie = register(&app, "editor1").await;
 
         let proj_id = create_project(&app, &owner_cookie, "Test Project").await;
@@ -554,7 +492,6 @@ mod tests {
     async fn test_create_project_sets_owner_id(pool: PgPool) {
         let app = make_app(pool.clone());
         let cookie = register(&app, "owner2").await;
-        with_api_key(&pool, "owner2@test.com").await;
         let proj_id = create_project(&app, &cookie, "My Project").await;
 
         let proj_uuid: uuid::Uuid = proj_id.parse().unwrap();
@@ -576,7 +513,6 @@ mod tests {
     async fn test_non_member_gets_404(pool: PgPool) {
         let app = make_app(pool.clone());
         let owner_cookie = register(&app, "owner3").await;
-        with_api_key(&pool, "owner3@test.com").await;
         let other_cookie = register(&app, "other3").await;
         let proj_id = create_project(&app, &owner_cookie, "Private Project").await;
 
@@ -599,7 +535,6 @@ mod tests {
     async fn test_unauthenticated_cannot_access_private_project(pool: PgPool) {
         let app = make_app(pool.clone());
         let cookie = register(&app, "owner5").await;
-        with_api_key(&pool, "owner5@test.com").await;
         let proj_id = create_project(&app, &cookie, "Private Project").await;
 
         let resp = app
@@ -620,7 +555,6 @@ mod tests {
     async fn test_only_owner_can_delete(pool: PgPool) {
         let app = make_app(pool.clone());
         let owner_cookie = register(&app, "owner6").await;
-        with_api_key(&pool, "owner6@test.com").await;
         let editor_cookie = register(&app, "editor6").await;
         let proj_id = create_project(&app, &owner_cookie, "Project").await;
 
@@ -669,15 +603,11 @@ mod tests {
     }
 
     #[sqlx::test(migrations = "../../migrations")]
-    async fn test_get_project_includes_owner_has_startgg_key(pool: PgPool) {
+    async fn test_get_project_response_shape(pool: PgPool) {
         let app = make_app(pool.clone());
         let cookie = register(&app, "keyowner").await;
-
-        // Set key so project creation succeeds
-        with_api_key(&pool, "keyowner@test.com").await;
         let proj_id = create_project(&app, &cookie, "Key Project").await;
 
-        // Key is set — owner_has_startgg_key should be true
         let resp = app
             .clone()
             .oneshot(
@@ -692,35 +622,13 @@ mod tests {
             .unwrap();
         assert_eq!(resp.status(), 200);
         let body = json_body(resp).await;
-        assert_eq!(body["owner_has_startgg_key"], true);
-
-        // Remove key — owner_has_startgg_key should become false
-        sqlx::query!("UPDATE users SET startgg_api_key = NULL WHERE email = 'keyowner@test.com'")
-            .execute(&pool)
-            .await
-            .unwrap();
-
-        let resp = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("GET")
-                    .uri(&format!("/projects/{proj_id}"))
-                    .header("cookie", &cookie)
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        let body = json_body(resp).await;
-        assert_eq!(body["owner_has_startgg_key"], false);
+        assert!(body.get("owner_has_startgg_key").is_none());
     }
 
     #[sqlx::test(migrations = "../../migrations")]
     async fn test_viewer_cannot_add_player(pool: PgPool) {
         let app = make_app(pool.clone());
         let owner_cookie = register(&app, "owner_pl").await;
-        with_api_key(&pool, "owner_pl@test.com").await;
         let viewer_cookie = register(&app, "viewer_pl").await;
         let proj_id = create_project(&app, &owner_cookie, "Player Project").await;
 
