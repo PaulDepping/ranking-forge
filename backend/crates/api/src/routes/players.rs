@@ -212,6 +212,15 @@ async fn link_account(
 ) -> Result<impl IntoResponse> {
     require_project_access(&state.db, project_id, user.id, UserRole::Editor).await?;
 
+    sqlx::query!(
+        "SELECT id FROM players WHERE id = $1 AND project_id = $2",
+        player_id,
+        project_id,
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
     let handle = body.handle.trim_start_matches("user/");
 
     let gp = sqlx::query!(
@@ -498,9 +507,11 @@ pub struct TournamentEventResp {
 
 pub async fn list_tournament_entrants(
     State(state): State<AppState>,
-    AuthUser(_user): AuthUser,
+    AuthUser(user): AuthUser,
     Path((project_id, tournament_handle)): Path<(Uuid, String)>,
 ) -> Result<impl IntoResponse> {
+    require_project_read_access(&state.db, project_id, Some(user.id)).await?;
+
     let slug = format!(
         "tournament/{}",
         tournament_handle.trim_start_matches("tournament/")
