@@ -3,11 +3,9 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, patch, put},
+    routing::{delete, patch},
 };
 use serde::Deserialize;
-
-use common::startgg::{StartggClient, StartggError};
 
 use crate::{
     error::{AppError, Result},
@@ -135,57 +133,10 @@ async fn delete_account(
     Ok(StatusCode::NO_CONTENT)
 }
 
-#[derive(Deserialize)]
-struct SetStartggKeyRequest {
-    api_key: String,
-}
-
-async fn set_startgg_key(
-    State(state): State<AppState>,
-    AuthUser(user): AuthUser,
-    Json(body): Json<SetStartggKeyRequest>,
-) -> Result<impl IntoResponse> {
-    let client =
-        StartggClient::new_with_base_url(body.api_key.clone(), state.startgg_base_url.clone());
-    client.validate_key().await.map_err(|e| match e {
-        StartggError::Http(re) => AppError::ExternalApi(re),
-        StartggError::ComplexityTooHigh { .. } => AppError::ExternalApiError,
-        _ => AppError::UnprocessableEntity("Invalid start.gg API key".into()),
-    })?;
-
-    sqlx::query!(
-        "UPDATE users SET startgg_api_key = $1 WHERE id = $2",
-        body.api_key,
-        user.id,
-    )
-    .execute(&state.db)
-    .await?;
-
-    Ok(StatusCode::NO_CONTENT)
-}
-
-async fn delete_startgg_key(
-    State(state): State<AppState>,
-    AuthUser(user): AuthUser,
-) -> Result<impl IntoResponse> {
-    sqlx::query!(
-        "UPDATE users SET startgg_api_key = NULL WHERE id = $1",
-        user.id,
-    )
-    .execute(&state.db)
-    .await?;
-
-    Ok(StatusCode::NO_CONTENT)
-}
-
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/profile", patch(update_profile))
         .route("/password", patch(update_password))
-        .route(
-            "/startgg-key",
-            put(set_startgg_key).delete(delete_startgg_key),
-        )
         .route("/", delete(delete_account))
 }
 
@@ -201,22 +152,11 @@ mod tests {
     use serde_json::{Value, json};
     use sqlx::PgPool;
     use tower::ServiceExt;
-    use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
 
     fn make_app(pool: PgPool) -> Router {
         let state = AppState {
             db: pool,
             cors_origin: "http://localhost".into(),
-            startgg_base_url: "http://localhost:1".into(),
-        };
-        routes::router().with_state(state)
-    }
-
-    fn make_app_with_startgg(pool: PgPool, startgg_url: &str) -> Router {
-        let state = AppState {
-            db: pool,
-            cors_origin: "http://localhost".into(),
-            startgg_base_url: startgg_url.into(),
         };
         routes::router().with_state(state)
     }
@@ -350,12 +290,6 @@ mod tests {
         let app = make_app(pool.clone());
         let cookie = register(&app, "deluser").await;
 
-        // Set key so project creation succeeds
-        sqlx::query!("UPDATE users SET startgg_api_key = 'k' WHERE email = 'deluser@test.com'")
-            .execute(&pool)
-            .await
-            .unwrap();
-
         let resp = app
             .clone()
             .oneshot(
@@ -429,115 +363,7 @@ mod tests {
     }
 
     #[sqlx::test(migrations = "../../migrations")]
-    async fn test_set_startgg_key_valid_stores_key(pool: PgPool) {
-        let mock = MockServer::start().await;
-        Mock::given(method("POST"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(json!({"data": {"currentUser": {"id": 1}}})),
-            )
-            .mount(&mock)
-            .await;
-
-        let app = make_app_with_startgg(pool.clone(), &mock.uri());
-        let cookie = register(&app, "keyuser").await;
-
-        let resp = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("PUT")
-                    .uri("/account/startgg-key")
-                    .header("content-type", "application/json")
-                    .header("cookie", &cookie)
-                    .body(Body::from(
-                        serde_json::to_vec(&json!({"api_key": "my-valid-key"})).unwrap(),
-                    ))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(resp.status(), 204);
-
-        let key = sqlx::query_scalar!(
-            "SELECT startgg_api_key FROM users WHERE email = 'keyuser@test.com'"
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-        assert_eq!(key, Some("my-valid-key".to_string()));
-    }
-
-    #[sqlx::test(migrations = "../../migrations")]
-    async fn test_set_startgg_key_invalid_returns_422(pool: PgPool) {
-        let mock = MockServer::start().await;
-        Mock::given(method("POST"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(
-                    json!({"data": null, "errors": [{"message": "not authorized"}]}),
-                ),
-            )
-            .mount(&mock)
-            .await;
-
-        let app = make_app_with_startgg(pool.clone(), &mock.uri());
-        let cookie = register(&app, "badkeyuser").await;
-
-        let resp = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("PUT")
-                    .uri("/account/startgg-key")
-                    .header("content-type", "application/json")
-                    .header("cookie", &cookie)
-                    .body(Body::from(
-                        serde_json::to_vec(&json!({"api_key": "bad-key"})).unwrap(),
-                    ))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(resp.status(), 422);
-    }
-
-    #[sqlx::test(migrations = "../../migrations")]
-    async fn test_delete_startgg_key_clears_it(pool: PgPool) {
-        let app = make_app(pool.clone());
-        let cookie = register(&app, "delkeyuser").await;
-
-        sqlx::query!(
-            "UPDATE users SET startgg_api_key = 'some-key' WHERE email = 'delkeyuser@test.com'"
-        )
-        .execute(&pool)
-        .await
-        .unwrap();
-
-        let resp = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("DELETE")
-                    .uri("/account/startgg-key")
-                    .header("cookie", &cookie)
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(resp.status(), 204);
-
-        let key = sqlx::query_scalar!(
-            "SELECT startgg_api_key FROM users WHERE email = 'delkeyuser@test.com'"
-        )
-        .fetch_one(&pool)
-        .await
-        .unwrap();
-        assert!(key.is_none());
-    }
-
-    #[sqlx::test(migrations = "../../migrations")]
-    async fn test_me_reflects_has_startgg_key(pool: PgPool) {
+    async fn test_me_response_has_no_startgg_key_field(pool: PgPool) {
         let app = make_app(pool.clone());
         let cookie = register(&app, "meuser").await;
 
@@ -555,26 +381,6 @@ mod tests {
             .unwrap();
         assert_eq!(resp.status(), 200);
         let body = json_body(resp).await;
-        assert_eq!(body["has_startgg_key"], false);
-
-        sqlx::query!("UPDATE users SET startgg_api_key = 'k' WHERE email = 'meuser@test.com'")
-            .execute(&pool)
-            .await
-            .unwrap();
-
-        let resp = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("GET")
-                    .uri("/auth/me")
-                    .header("cookie", &cookie)
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        let body = json_body(resp).await;
-        assert_eq!(body["has_startgg_key"], true);
+        assert!(body.get("has_startgg_key").is_none());
     }
 }

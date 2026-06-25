@@ -60,7 +60,6 @@ async fn main() {
     let state = AppState {
         db: pool,
         cors_origin: config.cors_origin,
-        startgg_base_url: "https://api.start.gg/gql/alpha".to_string(),
     };
 
     let cors = CorsLayer::new()

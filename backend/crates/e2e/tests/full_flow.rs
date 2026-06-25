@@ -15,11 +15,10 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-fn make_app(pool: PgPool, startgg_base_url: &str) -> Router {
+fn make_app(pool: PgPool) -> Router {
     let state = AppState {
         db: pool,
         cors_origin: "http://localhost".to_string(),
-        startgg_base_url: startgg_base_url.to_string(),
     };
     routes::router().with_state(state)
 }
@@ -481,7 +480,7 @@ async fn full_import_flow(pool: PgPool) {
         .await;
 
     let base_url = mock.uri();
-    let app = make_app(pool.clone(), &base_url);
+    let app = make_app(pool.clone());
 
     // ── Setup ─────────────────────────────────────────────────────────────────
 
@@ -744,7 +743,7 @@ async fn full_import_flow(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn test_rename_project(pool: PgPool) {
-    let app = make_app(pool.clone(), "http://unused");
+    let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
 
     set_startgg_api_key(&pool, &cookie, "test-key").await;
@@ -815,7 +814,7 @@ async fn import_seeds_rank_by_winrate(pool: PgPool) {
     mount_import_mocks(&mock).await;
 
     let base_url = mock.uri();
-    let app = make_app(pool.clone(), &base_url);
+    let app = make_app(pool.clone());
     let cookie = register(&app, "testuser", "pass1234").await;
     set_startgg_api_key(&pool, &cookie, "test-key").await;
 
@@ -914,7 +913,7 @@ async fn import_skips_sort_if_already_ranked(pool: PgPool) {
     mount_import_mocks(&mock).await;
 
     let base_url = mock.uri();
-    let app = make_app(pool.clone(), &base_url);
+    let app = make_app(pool.clone());
     let cookie = register(&app, "testuser", "pass1234").await;
     set_startgg_api_key(&pool, &cookie, "test-key").await;
 
@@ -1156,7 +1155,7 @@ async fn import_no_game_filter_flow(pool: PgPool) {
         .await;
 
     let base_url = mock.uri();
-    let app = make_app(pool.clone(), &base_url);
+    let app = make_app(pool.clone());
 
     // ── Setup ─────────────────────────────────────────────────────────────────
 
@@ -1235,7 +1234,7 @@ async fn import_no_game_filter_flow(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn test_ranking_player_tournaments(pool: PgPool) {
-    let app = make_app(pool.clone(), "http://unused");
+    let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "pass1234").await;
     set_startgg_api_key(&pool, &cookie, "test-key").await;
 
@@ -1339,7 +1338,7 @@ async fn skips_non_completed_events(pool: PgPool) {
         .await;
 
     let base_url = mock.uri();
-    let app = make_app(pool.clone(), &base_url);
+    let app = make_app(pool.clone());
     let cookie = register(&app, "testuser", "pass1234").await;
     set_startgg_api_key(&pool, &cookie, "test-key").await;
 

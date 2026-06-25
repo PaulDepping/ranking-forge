@@ -147,7 +147,6 @@ mod tests {
         let state = AppState {
             db: pool,
             cors_origin: "http://localhost".into(),
-            startgg_base_url: "http://localhost:1".into(),
         };
         routes::router().with_state(state)
     }

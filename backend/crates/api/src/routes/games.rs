@@ -5,48 +5,38 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    error::{AppError, Result},
-    routes::auth::AuthUser,
-    state::AppState,
-};
-use common::startgg::StartggClient;
+use crate::{error::Result, routes::auth::AuthUser, state::AppState};
 
 #[derive(Deserialize)]
-pub struct GamesQuery {
+pub struct SearchParams {
     pub q: String,
-}
-
-#[derive(Serialize)]
-pub struct GameResponse {
-    pub id: i64,
-    pub name: String,
-    pub display_name: Option<String>,
 }
 
 pub async fn search_games(
     State(state): State<AppState>,
-    AuthUser(user): AuthUser,
-    Query(params): Query<GamesQuery>,
+    _user: AuthUser,
+    Query(params): Query<SearchParams>,
 ) -> Result<impl IntoResponse> {
-    if params.q.trim().is_empty() {
-        return Err(AppError::UnprocessableEntity("q must not be empty".into()));
+    let pattern = format!("%{}%", params.q);
+    let games = sqlx::query!(
+        "SELECT startgg_id AS id, name FROM global_games WHERE name ILIKE $1 ORDER BY name LIMIT 20",
+        pattern,
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    #[derive(Serialize)]
+    struct GameResult {
+        id: i64,
+        name: String,
     }
-    let api_key = user.startgg_api_key.ok_or_else(|| {
-        AppError::UnprocessableEntity(
-            "Configure a start.gg API key in account settings before searching".into(),
-        )
-    })?;
-    let client = StartggClient::new_with_base_url(api_key, state.startgg_base_url.clone());
-    let games = client
-        .search_games(&params.q)
-        .await?
+
+    let results: Vec<GameResult> = games
         .into_iter()
-        .map(|g| GameResponse {
-            id: g.id,
-            name: g.name,
-            display_name: g.display_name,
+        .map(|r| GameResult {
+            id: r.id,
+            name: r.name,
         })
-        .collect::<Vec<_>>();
-    Ok(Json(games))
+        .collect();
+    Ok(Json(results))
 }
