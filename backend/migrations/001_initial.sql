@@ -8,7 +8,6 @@ CREATE TABLE users (
     email           TEXT        NOT NULL UNIQUE,
     display_name    TEXT        NOT NULL,
     password_hash   TEXT        NOT NULL,
-    startgg_api_key TEXT,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -23,7 +22,7 @@ CREATE INDEX sessions_user_id_idx ON sessions(user_id);
 
 CREATE TYPE project_member_role AS ENUM ('editor', 'viewer');
 
--- Projects (container for rankings, players, members)
+-- Projects
 CREATE TABLE projects (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_id    UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -57,23 +56,23 @@ CREATE TABLE project_invite_links (
 
 CREATE INDEX project_invite_links_project_id_idx ON project_invite_links(project_id);
 
--- Rankings (one or more per project; each is an independent ranking view)
+-- Rankings
 CREATE TABLE rankings (
-    id                      UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id              UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    name                    TEXT        NOT NULL,
-    description             TEXT,
-    published               BOOLEAN     NOT NULL DEFAULT FALSE,
-    algorithm               TEXT,
-    algorithm_config        JSONB       NOT NULL DEFAULT '{}',
-    include_external_results BOOLEAN    NOT NULL DEFAULT FALSE,
-    result_sort             TEXT        NOT NULL DEFAULT 'upset_factor',
-    created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id                       UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id               UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name                     TEXT        NOT NULL,
+    description              TEXT,
+    published                BOOLEAN     NOT NULL DEFAULT FALSE,
+    algorithm                TEXT,
+    algorithm_config         JSONB       NOT NULL DEFAULT '{}',
+    include_external_results BOOLEAN     NOT NULL DEFAULT FALSE,
+    result_sort              TEXT        NOT NULL DEFAULT 'upset_factor',
+    created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX rankings_project_id_idx ON rankings(project_id);
 
--- Players (project-scoped pool; rankings select a subset via ranking_players)
+-- Players
 CREATE TABLE players (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id    UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -83,7 +82,6 @@ CREATE TABLE players (
 
 CREATE INDEX players_project_id_idx ON players(project_id);
 
--- Per-ranking player membership with ordering and notes
 CREATE TABLE ranking_players (
     ranking_id    UUID    NOT NULL REFERENCES rankings(id) ON DELETE CASCADE,
     player_id     UUID    NOT NULL REFERENCES players(id) ON DELETE CASCADE,
@@ -94,7 +92,6 @@ CREATE TABLE ranking_players (
 
 CREATE INDEX ranking_players_player_id_idx ON ranking_players(player_id);
 
--- start.gg accounts linked to players
 CREATE TABLE startgg_accounts (
     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     player_id       UUID        NOT NULL REFERENCES players(id) ON DELETE CASCADE,
@@ -108,158 +105,7 @@ CREATE TABLE startgg_accounts (
 CREATE INDEX startgg_accounts_player_id_idx ON startgg_accounts(player_id);
 CREATE INDEX startgg_accounts_user_id_idx   ON startgg_accounts(startgg_user_id);
 
--- Tournaments (project-scoped; same startgg_id may appear in multiple projects)
-CREATE TABLE tournaments (
-    id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id     UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    startgg_id     BIGINT      NOT NULL,
-    name           TEXT        NOT NULL,
-    handle         TEXT        NOT NULL,
-    city           TEXT,
-    addr_state     TEXT,
-    country_code   TEXT,
-    venue_name     TEXT,
-    venue_address  TEXT,
-    timezone       TEXT,
-    online         BOOLEAN     NOT NULL DEFAULT FALSE,
-    num_attendees  INTEGER,
-    start_at       TIMESTAMPTZ,
-    end_at         TIMESTAMPTZ,
-    lat            DOUBLE PRECISION,
-    lng            DOUBLE PRECISION,
-    state          INTEGER,
-    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE UNIQUE INDEX tournaments_project_startgg_idx ON tournaments(project_id, startgg_id);
-CREATE INDEX tournaments_project_id_idx ON tournaments(project_id);
-
-CREATE TABLE events (
-    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    tournament_id UUID        NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
-    startgg_id    BIGINT      NOT NULL,
-    name          TEXT        NOT NULL,
-    handle        TEXT        NOT NULL,
-    state         TEXT,
-    is_online     BOOLEAN,
-    event_type    INTEGER,
-    min_team_size INTEGER,
-    max_team_size INTEGER,
-    game_id       BIGINT,
-    game_name     TEXT,
-    num_entrants  INTEGER,
-    start_at      TIMESTAMPTZ,
-    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX events_start_at_idx      ON events(start_at);
-CREATE INDEX events_tournament_id_idx ON events(tournament_id);
-CREATE UNIQUE INDEX events_tournament_startgg_idx ON events(tournament_id, startgg_id);
-
-CREATE TABLE phases (
-    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    startgg_id    BIGINT      NOT NULL,
-    event_id      UUID        NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    name          TEXT,
-    bracket_type  TEXT,
-    phase_order   INTEGER,
-    num_seeds     INTEGER,
-    group_count   INTEGER,
-    state         TEXT,
-    is_exhibition BOOLEAN     NOT NULL DEFAULT FALSE
-);
-
-CREATE INDEX phases_event_id_idx ON phases(event_id);
-CREATE UNIQUE INDEX phases_event_startgg_idx ON phases(event_id, startgg_id);
-
-CREATE TABLE phase_groups (
-    id                 UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    startgg_id         BIGINT      NOT NULL,
-    phase_id           UUID        NOT NULL REFERENCES phases(id) ON DELETE CASCADE,
-    display_identifier TEXT,
-    bracket_type       TEXT,
-    bracket_url        TEXT,
-    num_rounds         INTEGER,
-    start_at           TIMESTAMPTZ,
-    first_round_time   TIMESTAMPTZ,
-    state              INTEGER
-);
-
-CREATE INDEX phase_groups_phase_id_idx ON phase_groups(phase_id);
-CREATE UNIQUE INDEX phase_groups_phase_startgg_idx ON phase_groups(phase_id, startgg_id);
-
--- Per-ranking event inclusion (imported by worker per ranking; default included)
-CREATE TABLE ranking_events (
-    ranking_id UUID    NOT NULL REFERENCES rankings(id) ON DELETE CASCADE,
-    event_id   UUID    NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    included   BOOLEAN NOT NULL DEFAULT TRUE,
-    PRIMARY KEY (ranking_id, event_id)
-);
-
-CREATE INDEX ranking_events_event_id_idx ON ranking_events(event_id);
-
-CREATE TABLE entrants (
-    id                  UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id            UUID    NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    player_id           UUID    REFERENCES players(id) ON DELETE SET NULL,
-    startgg_entrant_id  BIGINT  NOT NULL,
-    startgg_user_id     BIGINT,
-    seed                INTEGER,
-    display_name        TEXT    NOT NULL,
-    is_disqualified     BOOLEAN NOT NULL DEFAULT FALSE,
-    final_placement     INTEGER,
-    UNIQUE (event_id, startgg_entrant_id)
-);
-
-CREATE INDEX entrants_event_id_idx          ON entrants(event_id);
-CREATE INDEX entrants_player_id_idx         ON entrants(player_id);
-CREATE INDEX entrants_startgg_user_id_idx   ON entrants(startgg_user_id);
-
-CREATE TABLE sets (
-    id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id          UUID        NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-    phase_group_id    UUID        REFERENCES phase_groups(id),
-    startgg_set_id    BIGINT      NOT NULL,
-    winner_entrant_id UUID        NOT NULL REFERENCES entrants(id),
-    loser_entrant_id  UUID        NOT NULL REFERENCES entrants(id),
-    round             INTEGER,
-    round_name        TEXT,
-    total_games       SMALLINT,
-    winner_score      SMALLINT,
-    loser_score       SMALLINT,
-    is_dq             BOOLEAN     NOT NULL DEFAULT FALSE,
-    has_placeholder   BOOLEAN     NOT NULL DEFAULT FALSE,
-    state             INTEGER,
-    identifier        TEXT,
-    vod_url           TEXT,
-    completed_at      TIMESTAMPTZ,
-    UNIQUE (event_id, startgg_set_id)
-);
-
-CREATE INDEX sets_event_id_idx           ON sets(event_id);
-CREATE INDEX sets_phase_group_id_idx     ON sets(phase_group_id);
-CREATE INDEX sets_winner_entrant_id_idx  ON sets(winner_entrant_id);
-CREATE INDEX sets_loser_entrant_id_idx   ON sets(loser_entrant_id);
-CREATE INDEX sets_completed_at_idx       ON sets(completed_at);
-
--- Pre-computed per-ranking set list (populated by compute_ranking job)
--- Contains only sets where both players are ranking members and the event is included.
--- The stats and H2H endpoints read from this table instead of joining the full set graph.
-CREATE TABLE ranking_set_results (
-    ranking_id       UUID        NOT NULL REFERENCES rankings(id) ON DELETE CASCADE,
-    set_id           UUID        NOT NULL REFERENCES sets(id)     ON DELETE CASCADE,
-    winner_player_id UUID        NOT NULL REFERENCES players(id),
-    loser_player_id  UUID        NOT NULL REFERENCES players(id),
-    event_id         UUID        NOT NULL REFERENCES events(id),
-    upset_factor     FLOAT,
-    completed_at     TIMESTAMPTZ,
-    PRIMARY KEY (ranking_id, set_id)
-);
-
-CREATE INDEX ranking_set_results_winner_idx ON ranking_set_results(ranking_id, winner_player_id);
-CREATE INDEX ranking_set_results_loser_idx  ON ranking_set_results(ranking_id, loser_player_id);
-
--- Per-player algorithm scores (only for algorithmic rankings)
+-- Per-player algorithm scores
 CREATE TABLE ranking_player_scores (
     ranking_id      UUID        NOT NULL REFERENCES rankings(id) ON DELETE CASCADE,
     player_id       UUID        NOT NULL REFERENCES players(id)  ON DELETE CASCADE,
@@ -307,6 +153,7 @@ CREATE TABLE global_players (
     handle              TEXT        NOT NULL,
     display_name        TEXT,
     profile_image_url   TEXT,
+    banner_url          TEXT,
     startgg_slug        TEXT,
     bio                 TEXT,
     pronouns            TEXT,
@@ -320,21 +167,27 @@ CREATE INDEX global_players_startgg_user_id_idx   ON global_players(startgg_user
 CREATE INDEX global_players_startgg_player_id_idx ON global_players(startgg_player_id);
 
 CREATE TABLE global_tournaments (
-    id            UUID             PRIMARY KEY DEFAULT gen_random_uuid(),
-    startgg_id    BIGINT           NOT NULL UNIQUE,
-    name          TEXT             NOT NULL,
-    slug          TEXT             NOT NULL,
-    start_at      TIMESTAMPTZ,
-    end_at        TIMESTAMPTZ,
-    country_code  TEXT,
-    city          TEXT,
-    addr_state    TEXT,
-    online        BOOLEAN,
-    num_attendees INTEGER,
-    lat           DOUBLE PRECISION,
-    lng           DOUBLE PRECISION,
-    timezone      TEXT,
-    created_at    TIMESTAMPTZ      NOT NULL DEFAULT NOW()
+    id                UUID             PRIMARY KEY DEFAULT gen_random_uuid(),
+    startgg_id        BIGINT           NOT NULL UNIQUE,
+    name              TEXT             NOT NULL,
+    slug              TEXT             NOT NULL,
+    short_slug        TEXT,
+    start_at          TIMESTAMPTZ,
+    end_at            TIMESTAMPTZ,
+    country_code      TEXT,
+    city              TEXT,
+    addr_state        TEXT,
+    venue_name        TEXT,
+    venue_address     TEXT,
+    online            BOOLEAN,
+    num_attendees     INTEGER,
+    lat               DOUBLE PRECISION,
+    lng               DOUBLE PRECISION,
+    timezone          TEXT,
+    hashtag           TEXT,
+    profile_image_url TEXT,
+    banner_url        TEXT,
+    created_at        TIMESTAMPTZ      NOT NULL DEFAULT NOW()
 );
 CREATE INDEX global_tournaments_start_at_idx   ON global_tournaments(start_at);
 CREATE INDEX global_tournaments_startgg_id_idx ON global_tournaments(startgg_id);
@@ -450,3 +303,35 @@ CREATE TABLE crawler_checkpoints (
     value      JSONB       NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- ============================================================
+-- Project → global bridge tables (depend on global_events/sets)
+-- ============================================================
+
+CREATE TABLE project_events (
+    project_id      UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    global_event_id UUID NOT NULL REFERENCES global_events(id),
+    PRIMARY KEY (project_id, global_event_id)
+);
+CREATE INDEX project_events_project_id_idx ON project_events(project_id);
+
+CREATE TABLE ranking_events (
+    ranking_id      UUID    NOT NULL REFERENCES rankings(id) ON DELETE CASCADE,
+    global_event_id UUID    NOT NULL REFERENCES global_events(id),
+    included        BOOLEAN NOT NULL DEFAULT TRUE,
+    PRIMARY KEY (ranking_id, global_event_id)
+);
+CREATE INDEX ranking_events_event_id_idx ON ranking_events(global_event_id);
+
+CREATE TABLE ranking_set_results (
+    ranking_id       UUID        NOT NULL REFERENCES rankings(id) ON DELETE CASCADE,
+    global_set_id    UUID        NOT NULL REFERENCES global_sets(id) ON DELETE CASCADE,
+    winner_player_id UUID        NOT NULL REFERENCES players(id),
+    loser_player_id  UUID        NOT NULL REFERENCES players(id),
+    global_event_id  UUID        NOT NULL REFERENCES global_events(id),
+    upset_factor     FLOAT,
+    completed_at     TIMESTAMPTZ,
+    PRIMARY KEY (ranking_id, global_set_id)
+);
+CREATE INDEX ranking_set_results_winner_idx ON ranking_set_results(ranking_id, winner_player_id);
+CREATE INDEX ranking_set_results_loser_idx  ON ranking_set_results(ranking_id, loser_player_id);
