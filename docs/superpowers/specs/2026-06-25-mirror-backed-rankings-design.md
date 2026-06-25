@@ -208,6 +208,69 @@ Removes the API key gate from project creation.
 
 ---
 
+## Test Changes
+
+### Obsolete → Delete
+
+| File | What is deleted | Reason |
+|---|---|---|
+| `api/routes/account.rs` | `test_set_startgg_key_valid_stores_key`, `test_set_startgg_key_invalid_returns_422`, `test_delete_startgg_key_clears_it` | Endpoints removed |
+| `api/routes/projects.rs` | `test_create_project_requires_startgg_key` | API key gate removed |
+| `e2e/tests/import_live.rs` | Entire file | Gated behind `live-tests` feature; exercises live start.gg API import flow which no longer exists. The crawler's `crates/crawler` tests cover the API scraping layer independently. |
+
+### Rewrite
+
+**`api/routes/account.rs`**
+- `test_me_reflects_has_startgg_key` → rename and rewrite to assert `has_startgg_key` is absent from `GET /account/me` response
+- `test_delete_account_cascades_projects` → remove the `startgg_api_key` setup line
+
+**`api/routes/projects.rs`**
+- Delete `with_api_key` helper; remove all calls to it across every test in this file (project creation no longer requires a key)
+- `test_get_project_includes_owner_has_startgg_key` → rename and rewrite to assert `owner_has_startgg_key` is absent from the project response shape
+
+**`api/routes/invite_links.rs`**
+- Delete `with_api_key` helper; remove calls in `test_invite_link_lifecycle` and `test_revoked_link_cannot_be_accepted`
+
+**`api/routes/rankings.rs`**
+- Delete `with_api_key` helper; remove calls in `test_create_and_list_rankings` and `test_published_ranking_accessible_without_auth`
+
+**`api/routes/members.rs`**
+- Delete `with_api_key` helper; remove calls in `test_add_member_and_list`, `test_remove_member`, `test_transfer_ownership`
+
+**`api/routes/players.rs`**
+- `link_account` tests → replace wiremock mock (resolving handle via start.gg) with direct `global_players` row insertion; test that linking finds the seeded row and creates a `startgg_accounts` entry
+- `add_players_by_handles` tests → same pattern: seed `global_players` rows, assert bulk-add resolves them
+- `list_tournament_entrants` tests → seed `global_players`, `global_tournaments`, `global_events`, `global_event_entries`; assert the endpoint returns the seeded entrants
+
+**`api/routes/import.rs`**
+- `test_import_post_is_rate_limited` → remove the `startgg_api_key` setup line; rate-limit logic is unchanged
+
+**`e2e/tests/full_flow.rs`** (major rewrite — ~1400 lines)
+- Delete `set_startgg_api_key` helper and all call sites
+- Delete `mount_import_mocks` helper and all wiremock `MockServer` setups
+- Add a `seed_global_data` helper that directly inserts the Mango/Armada tournament scenario into `global_players`, `global_tournaments`, `global_events`, `global_phases`, `global_phase_groups`, `global_sets`, `global_event_entries` using `sqlx::query!` against the test pool
+- Each test that previously called `mount_import_mocks` + `set_startgg_api_key` now calls `seed_global_data` instead
+- `link_account` calls resolve from seeded `global_players` rows — no API change needed
+- Import job queries the seeded global tables — no API change needed
+- Remove wiremock from `e2e/Cargo.toml` dev-dependencies once no longer used
+- The test scenarios (event structure, set outcomes, stats assertions) are preserved; only the data-setup mechanism changes
+
+**`topology/tests/smoke.rs`**
+- Remove `startgg_api_key()` helper and the `PUT /account/startgg-key` step (lines 22–133)
+- Remove project creation's `game_id`/`game_name` fields (no longer gated) or keep them (they are still valid)
+- The test requires global mirror data for the two Hannover players to already exist in the DB. The topology test environment must have the crawler running (or have been seeded) before the test fires. The test itself gains a `DATABASE_URL` env var + direct `sqlx` seeding step to insert minimal `global_*` rows for the two test players, making it self-contained again.
+
+### Stays Valid (no changes)
+
+- `common/upset.rs` — pure upset-factor logic
+- `common/jobs.rs` — job queue, no start.gg
+- `common/algorithms/glicko2.rs`, `elo.rs` — pure math
+- `common/startgg/` — `StartggClient` tests remain valid; the client is still used by the crawler
+- `crawler/scraper.rs`, `crawler/api_types.rs` — crawler tests are independent of this change
+- `api/routes/auth.rs` — registration/login, no start.gg interaction
+
+---
+
 ## Out of Scope
 
 - Live fallback to start.gg API for data not yet in the mirror — accepted gap, no fallback
