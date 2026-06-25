@@ -1,6 +1,6 @@
 use axum::{
     Json, Router,
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{delete, get, post},
@@ -18,7 +18,6 @@ use crate::{
     state::AppState,
 };
 use common::models::{Player, StartggAccount, UserRole};
-use common::startgg::StartggClient;
 
 // ── Request / response types ──────────────────────────────────────────────────
 
@@ -30,6 +29,16 @@ struct CreatePlayerRequest {
 #[derive(Deserialize)]
 struct LinkAccountRequest {
     handle: String,
+}
+
+#[derive(Serialize)]
+pub struct StartggAccountResponse {
+    pub id: Uuid,
+    pub player_id: Uuid,
+    pub startgg_user_id: i64,
+    pub handle: String,
+    pub display_name: Option<String>,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Serialize)]
@@ -198,56 +207,52 @@ async fn delete_player(
 async fn link_account(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
-    Path(path): Path<ProjectPlayerPath>,
+    Path((project_id, player_id)): Path<(Uuid, Uuid)>,
     Json(body): Json<LinkAccountRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, path.id, user.id, UserRole::Editor).await?;
+    require_project_access(&state.db, project_id, user.id, UserRole::Editor).await?;
 
-    sqlx::query!(
-        "SELECT id FROM players WHERE id = $1 AND project_id = $2",
-        path.pid,
-        path.id,
+    let handle = body.handle.trim_start_matches("user/");
+
+    let gp = sqlx::query!(
+        "SELECT startgg_user_id, handle, display_name FROM global_players WHERE handle ILIKE $1 AND startgg_user_id IS NOT NULL LIMIT 1",
+        handle,
     )
     .fetch_optional(&state.db)
     .await?
-    .ok_or(AppError::NotFound)?;
+    .ok_or_else(|| AppError::NotFound)?; // 404 = not yet indexed
 
-    let handle = normalize_handle(&body.handle);
+    let user_id = gp.startgg_user_id.unwrap(); // safe: filtered above
 
-    let api_key = user.startgg_api_key.ok_or_else(|| {
-        AppError::UnprocessableEntity(
-            "Configure a start.gg API key in account settings before linking accounts".into(),
-        )
-    })?;
-    let startgg = StartggClient::new_with_base_url(api_key, state.startgg_base_url.clone());
-
-    let sg_user = startgg
-        .user_by_slug(&format!("user/{handle}"))
-        .await?
-        .ok_or_else(|| AppError::UnprocessableEntity("user not found on start.gg".into()))?;
-
-    let account = sqlx::query_as!(
-        StartggAccount,
+    let row = sqlx::query!(
         "INSERT INTO startgg_accounts (player_id, startgg_user_id, handle, display_name)
          VALUES ($1, $2, $3, $4)
+         ON CONFLICT (player_id, startgg_user_id) DO NOTHING
          RETURNING id, player_id, startgg_user_id, handle, display_name, created_at",
-        path.pid,
-        sg_user.id,
-        handle,
-        sg_user.gamer_tag(),
+        player_id,
+        user_id,
+        gp.handle,
+        gp.display_name,
     )
-    .fetch_one(&state.db)
-    .await
-    .map_err(|e| match e {
-        sqlx::Error::Database(ref db_err)
-            if db_err.constraint() == Some("startgg_accounts_player_id_startgg_user_id_key") =>
-        {
-            AppError::UnprocessableEntity("account already linked to this player".into())
-        }
-        other => AppError::Db(other),
-    })?;
+    .fetch_optional(&state.db)
+    .await?;
 
-    Ok((StatusCode::CREATED, Json(AccountResponse::from(account))))
+    match row {
+        Some(r) => Ok((
+            StatusCode::CREATED,
+            Json(StartggAccountResponse {
+                id: r.id,
+                player_id: r.player_id,
+                startgg_user_id: r.startgg_user_id,
+                handle: r.handle,
+                display_name: r.display_name,
+                created_at: r.created_at,
+            }),
+        )),
+        None => Err(AppError::UnprocessableEntity(
+            "Account already linked".into(),
+        )),
+    }
 }
 
 async fn unlink_account(
@@ -385,190 +390,173 @@ pub struct ByHandlesRequest {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ByHandlesResult {
+pub struct AddPlayerResult {
     pub handle: String,
-    pub name: Option<String>,
-    pub status: String, // "created", "skipped", "not_found"
+    pub status: String,
+    pub player_id: Option<Uuid>,
 }
 
 pub async fn add_players_by_handles(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
-    Path(id): Path<Uuid>,
+    Path(project_id): Path<Uuid>,
     Json(body): Json<ByHandlesRequest>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, id, user.id, UserRole::Editor).await?;
-
-    let api_key = user.startgg_api_key.ok_or_else(|| {
-        AppError::UnprocessableEntity(
-            "Configure a start.gg API key in account settings before adding players".into(),
-        )
-    })?;
-    let startgg = StartggClient::new_with_base_url(api_key, state.startgg_base_url.clone());
+    require_project_access(&state.db, project_id, user.id, UserRole::Editor).await?;
 
     let mut results = Vec::new();
 
-    for raw_handle in body.handles {
-        let handle = normalize_handle(&raw_handle);
-
-        // Resolve on start.gg
-        let sg_user = match startgg.user_by_slug(&format!("user/{handle}")).await {
-            Ok(Some(u)) => u,
-            Ok(None) => {
-                results.push(ByHandlesResult {
-                    handle,
-                    name: None,
-                    status: "not_found".to_string(),
+    for handle in &body.handles {
+        let handle_str = handle.trim().trim_start_matches("user/");
+        let gp = match sqlx::query!(
+            "SELECT startgg_user_id, handle, display_name FROM global_players WHERE handle ILIKE $1 AND startgg_user_id IS NOT NULL LIMIT 1",
+            handle_str,
+        )
+        .fetch_optional(&state.db)
+        .await?
+        {
+            Some(r) => r,
+            None => {
+                results.push(AddPlayerResult {
+                    handle: handle_str.to_string(),
+                    status: "not_indexed".into(),
+                    player_id: None,
                 });
                 continue;
             }
-            Err(e) => return Err(AppError::from(e)),
         };
 
-        let user_id = sg_user.id;
-        let gamer_tag = sg_user.gamer_tag().unwrap_or(&handle).to_string();
+        let startgg_user_id = gp.startgg_user_id.unwrap();
 
-        // Check if already linked in this project
+        // Check if a player with this account already exists in the project
         let existing = sqlx::query!(
-            "SELECT 1 AS one FROM startgg_accounts sa
-             JOIN players p ON sa.player_id = p.id
+            "SELECT p.id FROM players p
+             JOIN startgg_accounts sa ON sa.player_id = p.id
              WHERE p.project_id = $1 AND sa.startgg_user_id = $2",
-            id,
-            user_id,
+            project_id,
+            startgg_user_id,
         )
         .fetch_optional(&state.db)
         .await?;
 
-        if existing.is_some() {
-            results.push(ByHandlesResult {
-                handle,
-                name: Some(gamer_tag),
-                status: "skipped".to_string(),
+        if let Some(row) = existing {
+            results.push(AddPlayerResult {
+                handle: gp.handle.clone(),
+                status: "duplicate".into(),
+                player_id: Some(row.id),
             });
             continue;
         }
 
-        create_player_with_account(
-            &state.db,
-            id,
-            &gamer_tag,
-            user_id,
-            &handle,
-            Some(&gamer_tag),
+        // Create player + link account
+        let player = sqlx::query!(
+            "INSERT INTO players (project_id, name) VALUES ($1, $2) RETURNING id",
+            project_id,
+            gp.handle,
         )
+        .fetch_one(&state.db)
         .await?;
-        results.push(ByHandlesResult {
-            handle,
-            name: Some(gamer_tag),
-            status: "created".to_string(),
+
+        sqlx::query!(
+            "INSERT INTO startgg_accounts (player_id, startgg_user_id, handle, display_name)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (player_id, startgg_user_id) DO NOTHING",
+            player.id,
+            startgg_user_id,
+            gp.handle,
+            gp.display_name,
+        )
+        .execute(&state.db)
+        .await?;
+
+        results.push(AddPlayerResult {
+            handle: gp.handle,
+            status: "created".into(),
+            player_id: Some(player.id),
         });
     }
 
-    Ok(Json(results))
+    Ok((StatusCode::CREATED, Json(results)))
 }
 
 // ── Tournament entrants ───────────────────────────────────────────────────────
 
 #[derive(Serialize)]
-pub struct TournamentDataResponse {
-    pub all_participants: Vec<TournamentParticipantResp>,
-    pub events: Vec<TournamentEventResp>,
-}
-
-#[derive(Serialize)]
-pub struct TournamentParticipantResp {
-    pub startgg_user_id: i64,
+pub struct EntrantResp {
+    pub startgg_user_id: Option<i64>,
     pub handle: String,
-    pub name: String,
+    pub display_name: Option<String>,
+    pub placement: Option<i32>,
+    pub seed: Option<i32>,
 }
 
 #[derive(Serialize)]
 pub struct TournamentEventResp {
-    pub id: i64,
     pub name: String,
-    pub state: Option<String>,
-    pub entrants: Vec<TournamentEntrantOrderedResp>,
-}
-
-#[derive(Serialize)]
-pub struct TournamentEntrantOrderedResp {
-    pub startgg_user_id: i64,
-    pub handle: String,
-    pub name: String,
-    pub seed: Option<i32>,
-    pub placement: Option<i32>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TournamentEntrantsQuery {
-    pub tournament: String,
+    pub entrants: Vec<EntrantResp>,
 }
 
 pub async fn list_tournament_entrants(
     State(state): State<AppState>,
-    AuthUser(user): AuthUser,
-    Path(id): Path<Uuid>,
-    Query(q): Query<TournamentEntrantsQuery>,
+    AuthUser(_user): AuthUser,
+    Path((project_id, tournament_handle)): Path<(Uuid, String)>,
 ) -> Result<impl IntoResponse> {
-    require_project_access(&state.db, id, user.id, UserRole::Editor).await?;
+    let slug = format!(
+        "tournament/{}",
+        tournament_handle.trim_start_matches("tournament/")
+    );
 
-    let api_key = user.startgg_api_key.ok_or_else(|| {
-        AppError::UnprocessableEntity(
-            "Configure a start.gg API key in account settings before fetching tournament data"
-                .into(),
-        )
-    })?;
-    let startgg = StartggClient::new_with_base_url(api_key, state.startgg_base_url.clone());
+    struct EntrantRow {
+        startgg_user_id: Option<i64>,
+        handle: String,
+        display_name: Option<String>,
+        event_name: String,
+        placement: Option<i32>,
+        seed: Option<i32>,
+    }
 
-    let handle = normalize_tournament_handle(&q.tournament);
+    let rows = sqlx::query_as!(
+        EntrantRow,
+        r#"
+        SELECT
+            gp.startgg_user_id,
+            gp.handle,
+            gp.display_name,
+            ge.name AS event_name,
+            gee.placement,
+            gee.seed
+        FROM global_tournaments gt
+        JOIN global_events ge ON ge.tournament_id = gt.id
+        JOIN global_event_entries gee ON gee.event_id = ge.id
+        JOIN global_players gp ON gp.id = gee.player_id
+        WHERE gt.slug = $1
+          AND gp.startgg_user_id IS NOT NULL
+        ORDER BY ge.name, gee.placement NULLS LAST
+        "#,
+        slug,
+    )
+    .fetch_all(&state.db)
+    .await?;
 
-    let participants = match startgg.tournament_participants(&handle).await? {
-        Some(p) => p,
-        None => {
-            return Err(AppError::UnprocessableEntity(
-                "Tournament not found on start.gg".into(),
-            ));
-        }
-    };
+    // Group by event_name, preserving insertion order
+    let mut events: indexmap::IndexMap<String, Vec<EntrantResp>> = indexmap::IndexMap::new();
+    for row in rows {
+        let entrant = EntrantResp {
+            startgg_user_id: row.startgg_user_id,
+            handle: row.handle,
+            display_name: row.display_name,
+            placement: row.placement,
+            seed: row.seed,
+        };
+        events.entry(row.event_name).or_default().push(entrant);
+    }
 
-    let events = startgg
-        .tournament_events_with_entrants(&handle)
-        .await
-        .map_err(AppError::from)?;
-
-    let all_participants: Vec<TournamentParticipantResp> = participants
+    let result: Vec<TournamentEventResp> = events
         .into_iter()
-        .map(|p| TournamentParticipantResp {
-            startgg_user_id: p.startgg_user_id,
-            handle: p.handle,
-            name: p.name,
-        })
+        .map(|(name, entrants)| TournamentEventResp { name, entrants })
         .collect();
 
-    let events: Vec<TournamentEventResp> = events
-        .into_iter()
-        .map(|e| TournamentEventResp {
-            id: e.id,
-            name: e.name,
-            state: e.state,
-            entrants: e
-                .entrants
-                .into_iter()
-                .map(|en| TournamentEntrantOrderedResp {
-                    startgg_user_id: en.startgg_user_id,
-                    handle: en.handle,
-                    name: en.name,
-                    seed: en.seed,
-                    placement: en.placement,
-                })
-                .collect(),
-        })
-        .collect();
-
-    Ok(Json(TournamentDataResponse {
-        all_participants,
-        events,
-    }))
+    Ok(Json(result))
 }
 
 // ── Rename player ─────────────────────────────────────────────────────────────
@@ -696,5 +684,313 @@ mod tests {
             normalize_tournament_handle("  some-weekly  "),
             "some-weekly"
         );
+    }
+
+    // ── Integration tests ─────────────────────────────────────────────────────
+
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use http_body_util::BodyExt;
+    use serde_json::{Value, json};
+    use sqlx::PgPool;
+    use tower::ServiceExt;
+
+    use crate::{routes, state::AppState};
+
+    fn make_app(pool: PgPool) -> Router {
+        let state = AppState {
+            db: pool,
+            cors_origin: "http://localhost".into(),
+        };
+        routes::router().with_state(state)
+    }
+
+    async fn register(app: &Router, name: &str, password: &str) -> String {
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/auth/register")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({
+                            "email": format!("{name}@test.com"),
+                            "display_name": name,
+                            "password": password,
+                        }))
+                        .unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        format!("session_id={}", body["session_id"].as_str().unwrap())
+    }
+
+    async fn create_project(app: &Router, cookie: &str) -> Uuid {
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/projects")
+                    .header("content-type", "application/json")
+                    .header("cookie", cookie)
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({"name": "Test Project"})).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let v: Value = serde_json::from_slice(&bytes).unwrap();
+        v["id"].as_str().unwrap().parse().unwrap()
+    }
+
+    async fn create_player(app: &Router, cookie: &str, project_id: Uuid, name: &str) -> Uuid {
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/projects/{project_id}/players"))
+                    .header("content-type", "application/json")
+                    .header("cookie", cookie)
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({"name": name})).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        let v: Value = serde_json::from_slice(&bytes).unwrap();
+        v["id"].as_str().unwrap().parse().unwrap()
+    }
+
+    async fn read_json(resp: axum::response::Response) -> Value {
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn test_link_account(pool: PgPool) {
+        let app = make_app(pool.clone());
+        let cookie = register(&app, "owner", "password123").await;
+        let project_id = create_project(&app, &cookie).await;
+        let player_id = create_player(&app, &cookie, project_id, "Mango").await;
+
+        // Seed global player
+        sqlx::query!(
+            "INSERT INTO global_players (startgg_user_id, handle, display_name) VALUES (99999, 'Mango', 'Juan')"
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!(
+                        "/projects/{project_id}/players/{player_id}/accounts"
+                    ))
+                    .header("content-type", "application/json")
+                    .header("cookie", &cookie)
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({"handle": "Mango"})).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let account = sqlx::query!(
+            "SELECT startgg_user_id FROM startgg_accounts WHERE player_id = $1",
+            player_id,
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(account.startgg_user_id, 99999);
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn test_link_account_not_found(pool: PgPool) {
+        let app = make_app(pool.clone());
+        let cookie = register(&app, "owner", "password123").await;
+        let project_id = create_project(&app, &cookie).await;
+        let player_id = create_player(&app, &cookie, project_id, "Mango").await;
+
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!(
+                        "/projects/{project_id}/players/{player_id}/accounts"
+                    ))
+                    .header("content-type", "application/json")
+                    .header("cookie", &cookie)
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({"handle": "unknown_handle_xyz"})).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn test_add_players_by_handles(pool: PgPool) {
+        let app = make_app(pool.clone());
+        let cookie = register(&app, "owner", "password123").await;
+        let project_id = create_project(&app, &cookie).await;
+
+        // Seed global players
+        sqlx::query!(
+            "INSERT INTO global_players (startgg_user_id, handle, display_name) VALUES (1001, 'Mango', 'Juan'), (1002, 'Armada', 'Adam')"
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri(format!("/projects/{project_id}/players/by-handles"))
+                    .header("content-type", "application/json")
+                    .header("cookie", &cookie)
+                    .body(Body::from(
+                        serde_json::to_vec(&json!({"handles": ["Mango", "Armada"]})).unwrap(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        let count = sqlx::query_scalar!(
+            "SELECT COUNT(*) FROM players WHERE project_id = $1",
+            project_id,
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(count, Some(2));
+    }
+
+    #[sqlx::test(migrations = "../../migrations")]
+    async fn test_list_tournament_entrants(pool: PgPool) {
+        let app = make_app(pool.clone());
+        let cookie = register(&app, "owner", "password123").await;
+        let project_id = create_project(&app, &cookie).await;
+
+        // Seed global tournament + event + players + entries
+        sqlx::query!("INSERT INTO global_games (startgg_id, name) VALUES (1, 'SSBM')")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let game_id: uuid::Uuid =
+            sqlx::query_scalar!("SELECT id FROM global_games WHERE startgg_id = 1")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        sqlx::query!(
+            "INSERT INTO global_tournaments (startgg_id, name, slug, online) VALUES (101, 'Genesis', 'tournament/genesis', false)"
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let tournament_id: uuid::Uuid =
+            sqlx::query_scalar!("SELECT id FROM global_tournaments WHERE startgg_id = 101")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        sqlx::query!(
+            "INSERT INTO global_events (startgg_id, tournament_id, game_id, name, slug, num_entrants) VALUES (201, $1, $2, 'Melee Singles', 'tournament/genesis/event/melee', 64)",
+            tournament_id,
+            game_id,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let event_id: uuid::Uuid =
+            sqlx::query_scalar!("SELECT id FROM global_events WHERE startgg_id = 201")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        sqlx::query!(
+            "INSERT INTO global_players (startgg_user_id, handle) VALUES (1001, 'Mango'), (1002, 'Armada')"
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let mango_id: uuid::Uuid =
+            sqlx::query_scalar!("SELECT id FROM global_players WHERE handle = 'Mango'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+        let armada_id: uuid::Uuid =
+            sqlx::query_scalar!("SELECT id FROM global_players WHERE handle = 'Armada'")
+                .fetch_one(&pool)
+                .await
+                .unwrap();
+
+        sqlx::query!(
+            "INSERT INTO global_event_entries (event_id, player_id, placement) VALUES ($1, $2, 1), ($1, $3, 2)",
+            event_id,
+            mango_id,
+            armada_id,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(format!(
+                        "/projects/{project_id}/tournament-entrants/genesis"
+                    ))
+                    .header("cookie", &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = read_json(resp).await;
+        let events = body.as_array().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0]["name"], "Melee Singles");
+        let entrants = events[0]["entrants"].as_array().unwrap();
+        assert_eq!(entrants.len(), 2);
+        assert_eq!(entrants[0]["handle"], "Mango");
     }
 }

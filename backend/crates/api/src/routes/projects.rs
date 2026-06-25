@@ -357,7 +357,7 @@ pub fn router() -> Router<AppState> {
         .merge(crate::routes::import::rate_limited_post_router())
         .merge(crate::routes::import::router())
         .route(
-            "/{id}/tournament-entrants",
+            "/{id}/tournament-entrants/{handle}",
             get(crate::routes::players::list_tournament_entrants),
         )
         .route(
