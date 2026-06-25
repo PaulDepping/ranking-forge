@@ -920,17 +920,20 @@ async fn accounts_link_duplicate(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn games_search(pool: PgPool) {
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    let mock = MockServer::start().await;
-    Mock::given(wiremock::matchers::method("POST"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(startgg_games_ok()))
-        .mount(&mock)
-        .await;
+    // Seed test data into global_games table
+    sqlx::query!(
+        "INSERT INTO global_games (startgg_id, name) VALUES ($1, $2), ($3, $4)",
+        1i64,
+        "Super Smash Bros. Melee",
+        2i64,
+        "Super Smash Bros. Ultimate"
+    )
+    .execute(&pool)
+    .await
+    .expect("failed to insert test games");
 
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    set_startgg_api_key(&pool, &cookie, "test-key").await;
 
     let resp = app
         .clone()
@@ -952,8 +955,8 @@ async fn games_search(pool: PgPool) {
     assert_eq!(games.len(), 2);
     assert_eq!(games[0]["id"], 1);
     assert_eq!(games[0]["name"], "Super Smash Bros. Melee");
-    assert_eq!(games[0]["display_name"], "SSBM");
-    assert!(games[1]["display_name"].is_null());
+    assert_eq!(games[1]["id"], 2);
+    assert_eq!(games[1]["name"], "Super Smash Bros. Ultimate");
 }
 
 #[sqlx::test(migrations = "../../migrations")]

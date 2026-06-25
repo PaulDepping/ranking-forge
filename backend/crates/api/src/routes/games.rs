@@ -17,6 +17,12 @@ pub async fn search_games(
     _user: AuthUser,
     Query(params): Query<SearchParams>,
 ) -> Result<impl IntoResponse> {
+    if params.q.trim().is_empty() {
+        return Err(crate::error::AppError::UnprocessableEntity(
+            "query must not be empty".into(),
+        ));
+    }
+
     let pattern = format!("%{}%", params.q);
     let games = sqlx::query!(
         "SELECT startgg_id AS id, name FROM global_games WHERE name ILIKE $1 ORDER BY name LIMIT 20",
