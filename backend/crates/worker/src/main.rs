@@ -82,46 +82,9 @@ async fn main() {
                     let handle = match job.kind.as_str() {
                         "import_tournaments" => {
                             let import_params = common::jobs::ImportParams::from_job(&job);
-                            let api_key = match sqlx::query_scalar!(
-                                "SELECT u.startgg_api_key FROM projects rp
-                                 JOIN users u ON u.id = rp.owner_id
-                                 WHERE rp.id = $1",
-                                project_id,
-                            )
-                            .fetch_optional(&pool)
-                            .await
-                            {
-                                Ok(Some(Some(key))) => key,
-                                Ok(_) => {
-                                    tracing::error!(%job_id, %project_id, "project owner has no start.gg API key");
-                                    let _ = common::jobs::mark_failed(
-                                        &pool,
-                                        job_id,
-                                        "Project owner has no start.gg API key configured",
-                                    )
-                                    .await;
-                                    continue;
-                                }
-                                Err(e) => {
-                                    tracing::error!(%e, %job_id, "failed to look up owner API key");
-                                    let _ =
-                                        common::jobs::mark_failed(&pool, job_id, &e.to_string())
-                                            .await;
-                                    continue;
-                                }
-                            };
-                            let startgg = common::startgg::StartggClient::new(api_key);
                             tracing::info!(%job_id, %project_id, "starting import");
                             tokio::spawn(async move {
-                                match import::run(
-                                    &pool2,
-                                    &startgg,
-                                    project_id,
-                                    job_id,
-                                    import_params,
-                                )
-                                .await
-                                {
+                                match import::run(&pool2, project_id, job_id, import_params).await {
                                     Ok(()) => {
                                         tracing::info!(%job_id, "import complete");
                                         if let Err(e) =
@@ -132,15 +95,12 @@ async fn main() {
                                     }
                                     Err(e) => {
                                         tracing::error!(%e, %job_id, "import failed");
-                                        if let Err(e2) = common::jobs::mark_failed(
+                                        let _ = common::jobs::mark_failed(
                                             &pool2,
                                             job_id,
                                             &e.to_string(),
                                         )
-                                        .await
-                                        {
-                                            tracing::error!(%e2, %job_id, "failed to mark job failed");
-                                        }
+                                        .await;
                                     }
                                 }
                             })

@@ -30,10 +30,10 @@ pub async fn run(pool: &PgPool, ranking_id: Uuid) -> anyhow::Result<()> {
 
 async fn phase1_set_results(pool: &PgPool, ranking_id: Uuid) -> anyhow::Result<()> {
     struct SetRow {
-        set_id: Uuid,
+        global_set_id: Uuid,
         winner_player_id: Uuid,
         loser_player_id: Uuid,
-        event_id: Uuid,
+        global_event_id: Uuid,
         winner_seed: Option<i32>,
         loser_seed: Option<i32>,
         completed_at: Option<chrono::DateTime<chrono::Utc>>,
@@ -43,25 +43,26 @@ async fn phase1_set_results(pool: &PgPool, ranking_id: Uuid) -> anyhow::Result<(
         SetRow,
         r#"
         SELECT
-            s.id            AS set_id,
-            we.player_id    AS "winner_player_id!: Uuid",
-            le.player_id    AS "loser_player_id!: Uuid",
-            s.event_id,
-            we.seed         AS winner_seed,
-            le.seed         AS loser_seed,
-            s.completed_at
-        FROM sets s
-        JOIN entrants we ON we.id = s.winner_entrant_id
-        JOIN entrants le ON le.id = s.loser_entrant_id
-        JOIN ranking_players rwp ON rwp.player_id = we.player_id AND rwp.ranking_id = $1
-        JOIN ranking_players rlp ON rlp.player_id = le.player_id AND rlp.ranking_id = $1
-        JOIN ranking_events re ON re.event_id = s.event_id AND re.ranking_id = $1
-        WHERE re.included       = true
-          AND s.is_dq           = false
-          AND s.has_placeholder = false
-          AND we.player_id IS NOT NULL
-          AND le.player_id IS NOT NULL
-        ORDER BY s.completed_at ASC NULLS LAST
+            gs.id         AS global_set_id,
+            saw.player_id AS "winner_player_id!: Uuid",
+            sal.player_id AS "loser_player_id!: Uuid",
+            gs.event_id   AS global_event_id,
+            wee.seed      AS winner_seed,
+            lee.seed      AS loser_seed,
+            gs.completed_at
+        FROM global_sets gs
+        JOIN global_players gwp ON gwp.id = gs.winner_player_id
+        JOIN global_players glp ON glp.id = gs.loser_player_id
+        JOIN startgg_accounts saw ON saw.startgg_user_id = gwp.startgg_user_id
+        JOIN startgg_accounts sal ON sal.startgg_user_id = glp.startgg_user_id
+        JOIN ranking_players rwp ON rwp.player_id = saw.player_id AND rwp.ranking_id = $1
+        JOIN ranking_players rlp ON rlp.player_id = sal.player_id AND rlp.ranking_id = $1
+        JOIN ranking_events re ON re.global_event_id = gs.event_id AND re.ranking_id = $1
+        LEFT JOIN global_event_entries wee ON wee.event_id = gs.event_id AND wee.player_id = gwp.id
+        LEFT JOIN global_event_entries lee ON lee.event_id = gs.event_id AND lee.player_id = glp.id
+        WHERE re.included = true
+          AND gs.is_dq    = false
+        ORDER BY gs.completed_at ASC NULLS LAST
         "#,
         ranking_id,
     )
@@ -78,22 +79,26 @@ async fn phase1_set_results(pool: &PgPool, ranking_id: Uuid) -> anyhow::Result<(
     .await?;
 
     for row in &sets {
-        let upset_factor = match (row.winner_seed, row.loser_seed) {
+        let upset_factor: Option<f64> = match (row.winner_seed, row.loser_seed) {
             (Some(ws), Some(ls)) => Some(set_upset_factor(ws, ls) as f64),
             _ => None,
         };
 
         sqlx::query!(
-            r#"
-            INSERT INTO ranking_set_results
-                (ranking_id, set_id, winner_player_id, loser_player_id, event_id, upset_factor, completed_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            "#,
+            "INSERT INTO ranking_set_results
+                 (ranking_id, global_set_id, winner_player_id, loser_player_id, global_event_id, upset_factor, completed_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (ranking_id, global_set_id) DO UPDATE SET
+                 winner_player_id = EXCLUDED.winner_player_id,
+                 loser_player_id  = EXCLUDED.loser_player_id,
+                 global_event_id  = EXCLUDED.global_event_id,
+                 upset_factor     = EXCLUDED.upset_factor,
+                 completed_at     = EXCLUDED.completed_at",
             ranking_id,
-            row.set_id,
+            row.global_set_id,
             row.winner_player_id,
             row.loser_player_id,
-            row.event_id,
+            row.global_event_id,
             upset_factor,
             row.completed_at,
         )
@@ -102,7 +107,6 @@ async fn phase1_set_results(pool: &PgPool, ranking_id: Uuid) -> anyhow::Result<(
     }
 
     tx.commit().await?;
-
     tracing::info!(%ranking_id, count = sets.len(), "phase1: wrote ranking_set_results");
     Ok(())
 }
@@ -128,21 +132,20 @@ async fn phase2_algorithm_scores(
         SetRow,
         r#"
         SELECT
-            we.player_id AS "winner_player_id!: Uuid",
-            le.player_id AS "loser_player_id!: Uuid",
-            s.completed_at
-        FROM sets s
-        JOIN entrants we ON we.id = s.winner_entrant_id
-        JOIN entrants le ON le.id = s.loser_entrant_id
-        JOIN ranking_players rwp ON rwp.player_id = we.player_id AND rwp.ranking_id = $1
-        JOIN ranking_players rlp ON rlp.player_id = le.player_id AND rlp.ranking_id = $1
-        JOIN ranking_events re ON re.event_id = s.event_id AND re.ranking_id = $1
-        WHERE re.included       = true
-          AND s.is_dq           = false
-          AND s.has_placeholder = false
-          AND we.player_id IS NOT NULL
-          AND le.player_id IS NOT NULL
-        ORDER BY s.completed_at ASC NULLS LAST
+            saw.player_id AS "winner_player_id!: Uuid",
+            sal.player_id AS "loser_player_id!: Uuid",
+            gs.completed_at
+        FROM global_sets gs
+        JOIN global_players gwp ON gwp.id = gs.winner_player_id
+        JOIN global_players glp ON glp.id = gs.loser_player_id
+        JOIN startgg_accounts saw ON saw.startgg_user_id = gwp.startgg_user_id
+        JOIN startgg_accounts sal ON sal.startgg_user_id = glp.startgg_user_id
+        JOIN ranking_players rwp ON rwp.player_id = saw.player_id AND rwp.ranking_id = $1
+        JOIN ranking_players rlp ON rlp.player_id = sal.player_id AND rlp.ranking_id = $1
+        JOIN ranking_events re ON re.global_event_id = gs.event_id AND re.ranking_id = $1
+        WHERE re.included = true
+          AND gs.is_dq    = false
+        ORDER BY gs.completed_at ASC NULLS LAST
         "#,
         ranking_id,
     )
