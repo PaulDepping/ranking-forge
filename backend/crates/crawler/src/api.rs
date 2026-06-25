@@ -45,8 +45,9 @@ query Tournaments($page: Int!, $perPage: Int!, $filter: TournamentPageFilter) {
   }) {
     pageInfo { total totalPages }
     nodes {
-      id name slug startAt endAt countryCode city addrState
-      numAttendees isOnline lat lng timezone
+      id name slug shortSlug startAt endAt countryCode city addrState
+      numAttendees isOnline lat lng timezone hashtag venueName venueAddress
+      images { url type }
       events {
         id name slug startAt state isOnline numEntrants type competitionTier
         videogame { id name }

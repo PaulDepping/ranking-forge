@@ -111,6 +111,7 @@ pub struct TournamentNode {
     pub id: i64,
     pub name: String,
     pub slug: String,
+    pub short_slug: Option<String>,
     pub start_at: Option<i64>,
     pub end_at: Option<i64>,
     pub country_code: Option<String>,
@@ -121,6 +122,11 @@ pub struct TournamentNode {
     pub lat: Option<f64>,
     pub lng: Option<f64>,
     pub timezone: Option<String>,
+    pub hashtag: Option<String>,
+    pub venue_name: Option<String>,
+    pub venue_address: Option<String>,
+    #[serde(deserialize_with = "deserialize_null_default")]
+    pub images: Vec<TournamentImage>,
     #[serde(deserialize_with = "deserialize_null_default")]
     pub events: Vec<EventNode>,
 }
@@ -332,6 +338,13 @@ pub struct UserLocation {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserImage {
+    pub url: Option<String>,
+    #[serde(rename = "type")]
+    pub image_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TournamentImage {
     pub url: Option<String>,
     #[serde(rename = "type")]
     pub image_type: Option<String>,

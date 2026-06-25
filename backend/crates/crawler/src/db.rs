@@ -28,6 +28,7 @@ pub async fn upsert_player_full(
     handle: &str,
     display_name: Option<&str>,
     profile_image_url: Option<&str>,
+    banner_url: Option<&str>,
     startgg_slug: Option<&str>,
     bio: Option<&str>,
     pronouns: Option<&str>,
@@ -39,14 +40,15 @@ pub async fn upsert_player_full(
         r#"
         INSERT INTO global_players
             (startgg_user_id, startgg_player_id, handle, display_name,
-             profile_image_url, startgg_slug, bio, pronouns,
+             profile_image_url, banner_url, startgg_slug, bio, pronouns,
              location_city, location_state, location_country)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         ON CONFLICT (startgg_user_id) DO UPDATE SET
             handle            = EXCLUDED.handle,
             display_name      = EXCLUDED.display_name,
             startgg_player_id = COALESCE(EXCLUDED.startgg_player_id, global_players.startgg_player_id),
             profile_image_url = COALESCE(EXCLUDED.profile_image_url, global_players.profile_image_url),
+            banner_url        = COALESCE(EXCLUDED.banner_url,        global_players.banner_url),
             startgg_slug      = COALESCE(EXCLUDED.startgg_slug,      global_players.startgg_slug),
             bio               = COALESCE(EXCLUDED.bio,               global_players.bio),
             pronouns          = COALESCE(EXCLUDED.pronouns,          global_players.pronouns),
@@ -61,6 +63,7 @@ pub async fn upsert_player_full(
         handle,
         display_name,
         profile_image_url,
+        banner_url,
         startgg_slug,
         bio,
         pronouns,
@@ -98,30 +101,52 @@ pub async fn upsert_player_slim(
 pub async fn upsert_tournament(pool: &PgPool, node: &TournamentNode) -> Result<Uuid> {
     let start_at = node.start_at.and_then(|ts| DateTime::from_timestamp(ts, 0));
     let end_at = node.end_at.and_then(|ts| DateTime::from_timestamp(ts, 0));
+
+    let profile_image_url = node
+        .images
+        .iter()
+        .find(|img| img.image_type.as_deref() == Some("profile"))
+        .or_else(|| node.images.first())
+        .and_then(|img| img.url.as_deref());
+
+    let banner_url = node
+        .images
+        .iter()
+        .find(|img| img.image_type.as_deref() == Some("banner"))
+        .and_then(|img| img.url.as_deref());
+
     let row = sqlx::query!(
         r#"
         INSERT INTO global_tournaments
-            (startgg_id, name, slug, start_at, end_at, country_code, city,
-             addr_state, online, num_attendees, lat, lng, timezone)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            (startgg_id, name, slug, short_slug, start_at, end_at, country_code, city,
+             addr_state, online, num_attendees, lat, lng, timezone,
+             hashtag, venue_name, venue_address, profile_image_url, banner_url)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
         ON CONFLICT (startgg_id) DO UPDATE SET
-            name          = EXCLUDED.name,
-            slug          = EXCLUDED.slug,
-            start_at      = EXCLUDED.start_at,
-            end_at        = EXCLUDED.end_at,
-            country_code  = EXCLUDED.country_code,
-            city          = EXCLUDED.city,
-            addr_state    = EXCLUDED.addr_state,
-            online        = EXCLUDED.online,
-            num_attendees = EXCLUDED.num_attendees,
-            lat           = EXCLUDED.lat,
-            lng           = EXCLUDED.lng,
-            timezone      = EXCLUDED.timezone
+            name              = EXCLUDED.name,
+            slug              = EXCLUDED.slug,
+            short_slug        = COALESCE(EXCLUDED.short_slug,        global_tournaments.short_slug),
+            start_at          = EXCLUDED.start_at,
+            end_at            = EXCLUDED.end_at,
+            country_code      = EXCLUDED.country_code,
+            city              = EXCLUDED.city,
+            addr_state        = EXCLUDED.addr_state,
+            online            = EXCLUDED.online,
+            num_attendees     = EXCLUDED.num_attendees,
+            lat               = EXCLUDED.lat,
+            lng               = EXCLUDED.lng,
+            timezone          = EXCLUDED.timezone,
+            hashtag           = COALESCE(EXCLUDED.hashtag,           global_tournaments.hashtag),
+            venue_name        = COALESCE(EXCLUDED.venue_name,        global_tournaments.venue_name),
+            venue_address     = COALESCE(EXCLUDED.venue_address,     global_tournaments.venue_address),
+            profile_image_url = COALESCE(EXCLUDED.profile_image_url, global_tournaments.profile_image_url),
+            banner_url        = COALESCE(EXCLUDED.banner_url,        global_tournaments.banner_url)
         RETURNING id
         "#,
         node.id,
         node.name,
         node.slug,
+        node.short_slug,
         start_at,
         end_at,
         node.country_code,
@@ -132,6 +157,11 @@ pub async fn upsert_tournament(pool: &PgPool, node: &TournamentNode) -> Result<U
         node.lat,
         node.lng,
         node.timezone,
+        node.hashtag,
+        node.venue_name,
+        node.venue_address,
+        profile_image_url,
+        banner_url,
     )
     .fetch_one(pool)
     .await?;

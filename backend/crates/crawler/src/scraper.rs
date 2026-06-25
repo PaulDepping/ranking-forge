@@ -468,7 +468,9 @@ async fn fetch_full_path(
         let mut local_entrant_map: HashMap<i64, Uuid> = HashMap::new();
 
         for set_node in &pg_node.sets.nodes {
-            let Some(set_startgg_id) = set_node.id else { continue };
+            let Some(set_startgg_id) = set_node.id else {
+                continue;
+            };
             // Upsert phase + phase_group from first set that has them
             if phase_uuid.is_none() {
                 if let Some(pg_info) = &set_node.phase_group {
@@ -493,6 +495,11 @@ async fn fetch_full_path(
                                 .find(|img| img.image_type.as_deref() == Some("profile"))
                                 .or_else(|| user.images.first())
                                 .and_then(|img| img.url.as_deref());
+                            let banner_url = user
+                                .images
+                                .iter()
+                                .find(|img| img.image_type.as_deref() == Some("banner"))
+                                .and_then(|img| img.url.as_deref());
                             let loc = user.location.as_ref();
                             upsert_player_full(
                                 pool,
@@ -505,6 +512,7 @@ async fn fetch_full_path(
                                     .unwrap_or("Unknown"),
                                 user.name.as_deref(),
                                 image_url,
+                                banner_url,
                                 user.slug.as_deref(),
                                 user.bio.as_deref(),
                                 user.gender_pronoun.as_deref(),
@@ -653,7 +661,9 @@ async fn fetch_slim_pass(
         let total_pages = pg_node.sets.page_info.total_pages.unwrap_or(1);
 
         for set_node in &pg_node.sets.nodes {
-            let Some(set_startgg_id) = set_node.id else { continue };
+            let Some(set_startgg_id) = set_node.id else {
+                continue;
+            };
             if phase_uuid.is_none() {
                 if let Some(pg_info) = &set_node.phase_group {
                     if let Some(phase_info) = &pg_info.phase {
@@ -759,7 +769,9 @@ async fn fetch_games_pass(
         let total_pages = pg_node.sets.page_info.total_pages.unwrap_or(1);
 
         for set_node in &pg_node.sets.nodes {
-            let Some(set_startgg_id) = set_node.id else { continue };
+            let Some(set_startgg_id) = set_node.id else {
+                continue;
+            };
             let set_uuid = match set_id_to_uuid.get(&set_startgg_id) {
                 Some(u) => *u,
                 None => continue,
