@@ -2,13 +2,14 @@
 
 use reqwest::Client;
 use serde_json::{Value, json};
+use sqlx::PgPool;
 use std::time::Duration;
 use tokio::time::sleep;
 
-// ── Golden dataset (mirrors import_live.rs) ───────────────────────────────────
+// ── Golden dataset ─────────────────────────────────────────────────────────────
 // These are completed past Smash Hannover Weeklies — data is immutable.
 
-const PLAYER1_SLUG: &str = "user/06b4042d"; // gamerTag: "King"
+const PLAYER1_SLUG: &str = "user/06b4042d";
 const PLAYER2_SLUG: &str = "user/54b7bbf3";
 const WEEKLY_100_NAME: &str = "Smash Hannover Weekly #100";
 const WEEKLY_88_NAME: &str = "Smash Hannover Weekly #88";
@@ -19,8 +20,8 @@ fn api_url() -> String {
     std::env::var("API_URL").unwrap_or_else(|_| "http://localhost:3000".to_string())
 }
 
-fn startgg_api_key() -> String {
-    std::env::var("STARTGG_API_KEY").expect("STARTGG_API_KEY must be set to run topology tests")
+fn db_url() -> String {
+    std::env::var("DATABASE_URL").expect("DATABASE_URL must be set to run topology tests")
 }
 
 async fn wait_for_api(client: &Client) {
@@ -92,6 +93,88 @@ async fn get_json(client: &Client, uri: &str, session_id: &str) -> Value {
         .unwrap_or_else(|e| panic!("GET {uri} response body was not JSON: {e}"))
 }
 
+// ── Seed ──────────────────────────────────────────────────────────────────────
+
+/// Seeds global mirror rows for the two Hannover Weekly players and their shared events.
+/// This replaces the old start.gg API key requirement — the global mirror is seeded
+/// directly into the DB so the import job can find data without hitting start.gg.
+async fn seed_topology_data(pool: &PgPool) {
+    // Insert two players using their known start.gg user IDs
+    // (These are the real IDs for the Hannover Weekly test players)
+    let p1_id: i64 = 1823808; // user/06b4042d
+    let p2_id: i64 = 3619891; // user/54b7bbf3
+
+    sqlx::query!(
+        "INSERT INTO global_players (startgg_user_id, handle) VALUES ($1, '06b4042d'), ($2, '54b7bbf3')
+         ON CONFLICT (startgg_user_id) DO NOTHING",
+        p1_id,
+        p2_id,
+    )
+    .execute(pool)
+    .await
+    .expect("failed to seed global_players");
+
+    // Insert the tournament + event + entries + a set for at least one of the Hannover Weeklies
+    let tournament_id = sqlx::query_scalar!(
+        r#"INSERT INTO global_tournaments (startgg_id, name, slug, online, start_at)
+           VALUES (612663, 'Smash Hannover Weekly #100', 'tournament/smash-hannover-weekly-100', false, '2025-11-10')
+           ON CONFLICT (startgg_id) DO UPDATE SET name = EXCLUDED.name
+           RETURNING id"#,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("failed to seed global_tournament");
+
+    let event_id = sqlx::query_scalar!(
+        r#"INSERT INTO global_events (startgg_id, tournament_id, name, state)
+           VALUES (1534512, $1, 'Melee Singles', 'COMPLETED')
+           ON CONFLICT (startgg_id) DO UPDATE SET name = EXCLUDED.name
+           RETURNING id"#,
+        tournament_id,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("failed to seed global_event");
+
+    let p1_gp = sqlx::query_scalar!(
+        "SELECT id FROM global_players WHERE startgg_user_id = $1",
+        p1_id
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+    let p2_gp = sqlx::query_scalar!(
+        "SELECT id FROM global_players WHERE startgg_user_id = $1",
+        p2_id
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap();
+
+    sqlx::query!(
+        "INSERT INTO global_event_entries (event_id, player_id, seed, placement) VALUES ($1, $2, 1, 2), ($1, $3, 2, 1)
+         ON CONFLICT DO NOTHING",
+        event_id,
+        p1_gp,
+        p2_gp,
+    )
+    .execute(pool)
+    .await
+    .expect("failed to seed entries");
+
+    sqlx::query!(
+        r#"INSERT INTO global_sets (startgg_id, event_id, winner_player_id, loser_player_id, is_dq, completed_at)
+           VALUES (9999901, $1, $2, $3, false, NOW())
+           ON CONFLICT DO NOTHING"#,
+        event_id,
+        p2_gp,
+        p1_gp,
+    )
+    .execute(pool)
+    .await
+    .expect("failed to seed set");
+}
+
 // ── Test ─────────────────────────────────────────────────────────────────────
 
 /// Exercises the full job-queue path: api inserts job + sends NOTIFY → worker
@@ -99,16 +182,19 @@ async fn get_json(client: &Client, uri: &str, session_id: &str) -> Value {
 /// import runs → job marked done → data visible via API.
 ///
 /// Requires: running api (default http://localhost:3000), running worker,
-/// and STARTGG_API_KEY in the environment.
+/// DATABASE_URL in the environment, and the global mirror tables pre-seeded
+/// (this test seeds them itself via seed_topology_data).
 #[tokio::test]
 async fn smoke_import_roundtrip() {
-    let key = startgg_api_key();
     let client = Client::new();
-
-    // 1. Wait for API to be up
     wait_for_api(&client).await;
 
-    // 2. Register a user (unique email so repeated runs against the same DB succeed)
+    // Seed global mirror data so the import job can find events
+    let pool = PgPool::connect(&db_url())
+        .await
+        .expect("failed to connect to DB");
+    seed_topology_data(&pool).await;
+
     let unique_email = format!(
         "topology-{}@test.com",
         std::time::SystemTime::now()
@@ -118,38 +204,17 @@ async fn smoke_import_roundtrip() {
     );
     let session_id = register(&client, &unique_email, "password1234").await;
 
-    // 3. Set the start.gg API key (endpoint validates key against start.gg)
-    let resp = client
-        .put(format!("{}/account/startgg-key", api_url()))
-        .header("cookie", format!("session_id={session_id}"))
-        .json(&json!({ "api_key": key }))
-        .send()
-        .await
-        .expect("PUT /account/startgg-key failed");
-    assert_eq!(
-        resp.status().as_u16(),
-        204,
-        "PUT /account/startgg-key should return 204"
-    );
-
-    // 4. Create a Melee project
+    // No API key setup needed — project creation is now ungated
     let project = post_json(
         &client,
         "/projects",
         &session_id,
-        json!({
-            "name": "Topology Smoke Test",
-            "game_id": 1,
-            "game_name": "Super Smash Bros. Melee"
-        }),
+        json!({ "name": "Topology Smoke Test", "game_id": 1, "game_name": "Super Smash Bros. Melee" }),
     )
     .await;
-    let project_id = project["id"]
-        .as_str()
-        .expect("project.id missing")
-        .to_string();
+    let project_id = project["id"].as_str().unwrap().to_string();
 
-    // 5. Add two Hannover players with their start.gg accounts
+    // Add players and link their seeded global accounts
     let mut player_ids: Vec<String> = Vec::new();
     for (name, slug) in [("Player1", PLAYER1_SLUG), ("Player2", PLAYER2_SLUG)] {
         let player = post_json(
@@ -159,21 +224,18 @@ async fn smoke_import_roundtrip() {
             json!({ "name": name }),
         )
         .await;
-        let player_id = player["id"]
-            .as_str()
-            .expect("player.id missing")
-            .to_string();
+        let player_id = player["id"].as_str().unwrap().to_string();
         post_json(
             &client,
             &format!("/projects/{project_id}/players/{player_id}/accounts"),
             &session_id,
-            json!({ "handle": slug }),
+            json!({ "handle": slug.trim_start_matches("user/") }),
         )
         .await;
         player_ids.push(player_id);
     }
 
-    // 5b. Create a ranking and add both players to it
+    // Create ranking and add players
     let ranking = post_json(
         &client,
         &format!("/projects/{project_id}/rankings"),
@@ -181,12 +243,9 @@ async fn smoke_import_roundtrip() {
         json!({ "name": "Topology Smoke Ranking" }),
     )
     .await;
-    let ranking_id = ranking["id"]
-        .as_str()
-        .expect("ranking.id missing")
-        .to_string();
+    let ranking_id = ranking["id"].as_str().unwrap().to_string();
     for player_id in &player_ids {
-        post_no_body(
+        let _ = post_json(
             &client,
             &format!("/projects/{project_id}/rankings/{ranking_id}/players"),
             &session_id,
@@ -195,27 +254,21 @@ async fn smoke_import_roundtrip() {
         .await;
     }
 
-    // 6. Trigger import — api inserts job row and sends NOTIFY jobs.
-    // Scope to the window around Hannover Weekly #84 and #88 to avoid fetching
-    // the full tournament history (which would take far longer than the 120 s
-    // timeout).  This mirrors the date range used in import_live.rs.
+    // Trigger import
     let resp = client
         .post(format!("{}/projects/{project_id}/import", api_url()))
         .header("cookie", format!("session_id={session_id}"))
-        .json(&json!({
-            "after_date": "2025-10-27",
-            "before_date": "2025-12-10"
-        }))
+        .json(&json!({}))
         .send()
         .await
-        .expect("POST /projects/{project_id}/import failed");
+        .expect("POST import failed");
     assert!(
         resp.status().is_success(),
         "POST /import returned {}",
         resp.status()
     );
 
-    // 7. Poll for job completion — up to 600s (300 × 2s)
+    // Poll for completion
     let mut last_status = String::from("unknown");
     for _ in 0..300 {
         sleep(Duration::from_secs(2)).await;
@@ -229,18 +282,15 @@ async fn smoke_import_roundtrip() {
         match last_status.as_str() {
             "done" => break,
             "failed" => panic!(
-                "import job failed: {}",
-                import["error"].as_str().unwrap_or("(no error message)")
+                "import failed: {}",
+                import["error"].as_str().unwrap_or("(no error)")
             ),
-            _ => {} // "pending" or "running" — keep polling
+            _ => {}
         }
     }
-    assert_eq!(
-        last_status, "done",
-        "import did not complete within 600s (last observed status: {last_status})"
-    );
+    assert_eq!(last_status, "done", "import did not complete within 600s");
 
-    // 8. Assert at least one known Hannover Weekly is in the tournament list
+    // Assert tournament appears
     let tournaments = get_json(
         &client,
         &format!("/projects/{project_id}/rankings/{ranking_id}/tournaments"),
@@ -249,7 +299,7 @@ async fn smoke_import_roundtrip() {
     .await;
     let names: Vec<&str> = tournaments
         .as_array()
-        .expect("GET /tournaments should return an array")
+        .unwrap()
         .iter()
         .filter_map(|t| t["name"].as_str())
         .collect();
@@ -257,13 +307,11 @@ async fn smoke_import_roundtrip() {
         names
             .iter()
             .any(|n| *n == WEEKLY_100_NAME || *n == WEEKLY_88_NAME),
-        "expected '{}' or '{}' in tournaments; got: {:?}",
-        WEEKLY_100_NAME,
-        WEEKLY_88_NAME,
+        "expected a Hannover Weekly in tournaments; got: {:?}",
         names
     );
 
-    // 9. Assert at least one set is recorded in stats
+    // Assert at least one set in stats
     let stats = get_json(
         &client,
         &format!("/projects/{project_id}/rankings/{ranking_id}/stats"),
@@ -272,15 +320,12 @@ async fn smoke_import_roundtrip() {
     .await;
     let total_sets: usize = stats
         .as_array()
-        .expect("GET /stats should return an array")
+        .unwrap()
         .iter()
         .map(|p| {
             p["wins"].as_array().map(|a| a.len()).unwrap_or(0)
                 + p["losses"].as_array().map(|a| a.len()).unwrap_or(0)
         })
         .sum();
-    assert!(
-        total_sets > 0,
-        "expected at least one set in stats after import, got 0"
-    );
+    assert!(total_sets > 0, "expected at least one set in stats");
 }
