@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO startgg_accounts (player_id, startgg_user_id, handle)\n         VALUES ($1, 9001, 'alice')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f2480746698ad6802f4a54536db28b9e52cd9e19d89b609b3a9c697529e2cb66"
+}

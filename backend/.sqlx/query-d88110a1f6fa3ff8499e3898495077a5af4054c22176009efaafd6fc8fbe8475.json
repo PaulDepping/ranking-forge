@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO global_tournaments (startgg_id, name, slug, online) VALUES (101, 'Genesis', 'tournament/genesis', false)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "d88110a1f6fa3ff8499e3898495077a5af4054c22176009efaafd6fc8fbe8475"
+}

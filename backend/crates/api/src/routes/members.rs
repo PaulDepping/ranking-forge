@@ -259,16 +259,6 @@ mod tests {
         format!("session_id={}", body["session_id"].as_str().unwrap())
     }
 
-    async fn with_api_key(pool: &PgPool, email: &str) {
-        sqlx::query!(
-            "UPDATE users SET startgg_api_key = 'test-key' WHERE email = $1",
-            email
-        )
-        .execute(pool)
-        .await
-        .unwrap();
-    }
-
     async fn create_project(app: &Router, cookie: &str, name: &str) -> String {
         let resp = app
             .clone()
@@ -295,7 +285,6 @@ mod tests {
     async fn test_add_member_and_list(pool: PgPool) {
         let app = make_app(pool.clone());
         let owner_cookie = register(&app, "mem_owner").await;
-        with_api_key(&pool, "mem_owner@test.com").await;
         let _ = register(&app, "mem_user").await;
         let proj_id = create_project(&app, &owner_cookie, "Collab Project").await;
 
@@ -345,7 +334,6 @@ mod tests {
     async fn test_remove_member(pool: PgPool) {
         let app = make_app(pool.clone());
         let owner_cookie = register(&app, "rem_owner").await;
-        with_api_key(&pool, "rem_owner@test.com").await;
         let _ = register(&app, "rem_user").await;
         let proj_id = create_project(&app, &owner_cookie, "Remove Test").await;
 
@@ -395,7 +383,6 @@ mod tests {
     async fn test_transfer_ownership(pool: PgPool) {
         let app = make_app(pool.clone());
         let old_owner_cookie = register(&app, "old_owner").await;
-        with_api_key(&pool, "old_owner@test.com").await;
         let _ = register(&app, "new_owner").await;
         let proj_id = create_project(&app, &old_owner_cookie, "Transfer Project").await;
 

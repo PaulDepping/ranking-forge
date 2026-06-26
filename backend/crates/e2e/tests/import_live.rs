@@ -13,7 +13,6 @@
 
 use api::{routes, state::AppState};
 use axum::{Router, body::Body, http::Request, http::StatusCode};
-use common::startgg::StartggClient;
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use sqlx::PgPool;
@@ -40,11 +39,10 @@ const KEEP_EVENT_STARTGG_ID_84: i64 = 1495126; // Melee Singles at Smash Hannove
 
 // ── Helpers (mirrors full_flow.rs) ───────────────────────────────────────────
 
-fn make_app(pool: PgPool, startgg_base_url: &str) -> Router {
+fn make_app(pool: PgPool) -> Router {
     let state = AppState {
         db: pool,
         cors_origin: "http://localhost".to_string(),
-        startgg_base_url: startgg_base_url.to_string(),
     };
     routes::router().with_state(state)
 }
@@ -135,23 +133,9 @@ async fn patch_json(
         .unwrap()
 }
 
-async fn set_startgg_api_key(pool: &PgPool, cookie: &str, api_key: &str) {
-    let session_id: uuid::Uuid = cookie
-        .split('=')
-        .nth(1)
-        .unwrap()
-        .parse()
-        .expect("invalid session UUID in cookie");
-    sqlx::query!(
-        "UPDATE users SET startgg_api_key = $1
-         WHERE id = (SELECT user_id FROM sessions WHERE id = $2)",
-        api_key,
-        session_id,
-    )
-    .execute(pool)
-    .await
-    .expect("failed to set startgg_api_key");
-}
+// NOTE: set_startgg_api_key removed — startgg_api_key column was dropped when
+// the mirror-backed architecture was adopted (STARTGG_API_KEY is now a server
+// env var shared across all users rather than a per-user DB column).
 
 async fn create_ranking(app: &Router, cookie: &str, project_id: &str, name: &str) -> String {
     let resp = post_json(
@@ -190,22 +174,26 @@ fn live_api_key() -> String {
 
 /// Golden-dataset test: import Smash Hannover Weekly #100.
 ///
+/// NOTE: This test is ignored pending Task 10. In the mirror-backed architecture
+/// the import worker reads from global_event_entries rather than calling start.gg,
+/// so the global mirror must be pre-populated by the crawler before this test can
+/// pass. Re-enable once a crawler seeding fixture is in place.
+///
 /// Registers a user, creates a Melee project (game_id = 1), adds Player 1
 /// (slug user/06b4042d / gamerTag "King"), links their start.gg account, then
-/// runs the import worker against the real API.
+/// runs the import worker.
 ///
 /// Asserts:
 /// - "Smash Hannover Weekly #100" appears in the project's tournament list
 /// - at least one event with num_entrants > 0
+#[ignore = "requires crawler-populated global mirror (Task 10)"]
 #[sqlx::test(migrations = "../../migrations")]
 async fn import_hannover_weekly_100(pool: PgPool) {
-    let api_key = live_api_key();
+    let _api_key = live_api_key();
 
-    let startgg_client = StartggClient::new(api_key.clone());
-    let app = make_app(pool.clone(), "https://api.start.gg/gql/alpha");
+    let app = make_app(pool.clone());
 
     let cookie = register(&app, "liveuser1", "pass1234").await;
-    set_startgg_api_key(&pool, &cookie, &api_key).await;
 
     let resp = post_json(
         &app,
@@ -250,7 +238,6 @@ async fn import_hannover_weekly_100(pool: PgPool) {
     let project_uuid = Uuid::parse_str(&project_id).unwrap();
     worker::import::run(
         &pool,
-        &startgg_client,
         project_uuid,
         Uuid::nil(),
         common::jobs::ImportParams {
@@ -321,15 +308,14 @@ async fn import_hannover_weekly_100(pool: PgPool) {
 /// - Handles match golden constants
 /// - All events except Melee Singles at #88 (startgg_id 1514034) and #84
 ///   (startgg_id 1495126) are excluded
+#[ignore = "requires crawler-populated global mirror (Task 10)"]
 #[sqlx::test(migrations = "../../migrations")]
 async fn import_hannover_weekly_88_and_84(pool: PgPool) {
-    let api_key = live_api_key();
+    let _api_key = live_api_key();
 
-    let startgg_client = StartggClient::new(api_key.clone());
-    let app = make_app(pool.clone(), "https://api.start.gg/gql/alpha");
+    let app = make_app(pool.clone());
 
     let cookie = register(&app, "liveuser2", "pass1234").await;
-    set_startgg_api_key(&pool, &cookie, &api_key).await;
 
     let resp = post_json(
         &app,
@@ -395,7 +381,6 @@ async fn import_hannover_weekly_88_and_84(pool: PgPool) {
     let project_uuid = Uuid::parse_str(&project_id).unwrap();
     worker::import::run(
         &pool,
-        &startgg_client,
         project_uuid,
         Uuid::nil(),
         common::jobs::ImportParams {

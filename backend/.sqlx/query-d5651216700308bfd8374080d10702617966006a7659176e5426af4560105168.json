@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT gp.id AS global_player_id\n        FROM startgg_accounts sa\n        JOIN players p ON p.id = sa.player_id\n        JOIN global_players gp ON gp.startgg_user_id = sa.startgg_user_id\n        WHERE p.project_id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "global_player_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d5651216700308bfd8374080d10702617966006a7659176e5426af4560105168"
+}

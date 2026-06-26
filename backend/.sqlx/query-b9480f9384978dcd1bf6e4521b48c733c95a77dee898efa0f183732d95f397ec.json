@@ -1,0 +1,74 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.id, p.owner_id, p.name, p.game_id, p.game_name, p.created_at,\n                  (p.owner_id = $1) AS is_owner,\n                  CASE WHEN pm.user_id IS NOT NULL THEN pm.role END AS \"member_role: MemberRole\"\n           FROM projects p\n           LEFT JOIN project_members pm ON pm.project_id = p.id AND pm.user_id = $1\n           WHERE p.owner_id = $1 OR pm.user_id = $1\n           ORDER BY p.created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "game_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "game_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "is_owner",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "member_role: MemberRole",
+        "type_info": {
+          "Custom": {
+            "name": "project_member_role",
+            "kind": {
+              "Enum": [
+                "editor",
+                "viewer"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "b9480f9384978dcd1bf6e4521b48c733c95a77dee898efa0f183732d95f397ec"
+}

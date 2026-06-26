@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO global_event_entries (event_id, player_id, seed, placement)\n         VALUES ($1, $2, 7, 1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eada9f59bf741130a2c6adb5558f29d046885a8ac44474b0c475210d830fbd2a"
+}

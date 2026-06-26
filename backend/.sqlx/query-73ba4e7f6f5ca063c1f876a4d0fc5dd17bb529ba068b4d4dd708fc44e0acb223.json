@@ -1,0 +1,180 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            rsr.winner_player_id,\n            rsr.loser_player_id,\n            rsr.upset_factor,\n            rsr.completed_at,\n            gs.winner_score,\n            gs.loser_score,\n            gs.round_name,\n            gs.is_dq,\n            gs.vod_url,\n            gs.startgg_id   AS startgg_set_id,\n            ge.name         AS event_name,\n            gt.name         AS tournament_name,\n            gt.slug         AS tournament_handle,\n            wee.seed        AS winner_seed,\n            lee.seed        AS loser_seed,\n            wee.placement   AS winner_placement,\n            lee.placement   AS loser_placement,\n            gwp.handle      AS winner_handle,\n            glp.handle      AS loser_handle,\n            gph.name        AS phase_name,\n            gpg.display_identifier AS pool_identifier,\n            gt.city,\n            gt.addr_state,\n            gt.country_code,\n            gt.online AS \"online!: bool\",\n            ge.num_entrants,\n            ge.slug         AS event_handle\n        FROM ranking_set_results rsr\n        JOIN global_sets gs        ON gs.id  = rsr.global_set_id\n        JOIN global_events ge      ON ge.id  = rsr.global_event_id\n        JOIN global_tournaments gt ON gt.id  = ge.tournament_id\n        JOIN global_players gwp    ON gwp.id = gs.winner_player_id\n        JOIN global_players glp    ON glp.id = gs.loser_player_id\n        LEFT JOIN global_event_entries wee ON wee.event_id = ge.id AND wee.player_id = gwp.id\n        LEFT JOIN global_event_entries lee ON lee.event_id = ge.id AND lee.player_id = glp.id\n        LEFT JOIN global_phase_groups gpg ON gpg.id = gs.phase_group_id\n        LEFT JOIN global_phases gph       ON gph.id = gpg.phase_id\n        WHERE rsr.ranking_id = $1\n          AND (\n              (rsr.winner_player_id = $2 AND rsr.loser_player_id = $3)\n           OR (rsr.winner_player_id = $3 AND rsr.loser_player_id = $2)\n          )\n        ORDER BY rsr.completed_at DESC NULLS LAST\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "winner_player_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "loser_player_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "upset_factor",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 3,
+        "name": "completed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "winner_score",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 5,
+        "name": "loser_score",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 6,
+        "name": "round_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "is_dq",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "vod_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "startgg_set_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 10,
+        "name": "event_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "tournament_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "tournament_handle",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "winner_seed",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 14,
+        "name": "loser_seed",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 15,
+        "name": "winner_placement",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 16,
+        "name": "loser_placement",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 17,
+        "name": "winner_handle",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 18,
+        "name": "loser_handle",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 19,
+        "name": "phase_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 20,
+        "name": "pool_identifier",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 21,
+        "name": "city",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 22,
+        "name": "addr_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 23,
+        "name": "country_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 24,
+        "name": "online!: bool",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 25,
+        "name": "num_entrants",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 26,
+        "name": "event_handle",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "73ba4e7f6f5ca063c1f876a4d0fc5dd17bb529ba068b4d4dd708fc44e0acb223"
+}

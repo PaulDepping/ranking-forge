@@ -31,6 +31,7 @@ async fn test_crawl_single_tournament(pool: sqlx::PgPool) {
                         "lat": 47.6062,
                         "lng": -122.3321,
                         "timezone": "America/Los_Angeles",
+                        "images": null,
                         "events": [{
                             "id": "2001",
                             "name": "Singles",
@@ -273,6 +274,7 @@ async fn test_crawl_two_pass_fallback(pool: sqlx::PgPool) {
                         "lat": 47.6062,
                         "lng": -122.3321,
                         "timezone": "America/Los_Angeles",
+                        "images": null,
                         "events": [{
                             "id": "2001",
                             "name": "Singles",

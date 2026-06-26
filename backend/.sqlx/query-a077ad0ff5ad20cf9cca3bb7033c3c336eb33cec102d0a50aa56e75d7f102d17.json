@@ -1,0 +1,113 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT DISTINCT\n            gt.id           AS tournament_id,\n            gt.startgg_id   AS tournament_startgg_id,\n            gt.name         AS tournament_name,\n            gt.slug         AS tournament_handle,\n            gt.city,\n            gt.addr_state,\n            gt.country_code,\n            gt.online       AS \"online!: bool\",\n            gt.start_at,\n            gt.end_at,\n            gt.num_attendees,\n            ge.id           AS event_id,\n            ge.name         AS event_name,\n            ge.num_entrants,\n            gee.placement,\n            gee.seed\n        FROM global_event_entries gee\n        JOIN global_events ge          ON ge.id  = gee.event_id\n        JOIN global_tournaments gt     ON gt.id  = ge.tournament_id\n        JOIN global_players gp         ON gp.id  = gee.player_id\n        JOIN startgg_accounts sa       ON sa.startgg_user_id = gp.startgg_user_id\n        WHERE sa.player_id = $1\n          AND EXISTS (\n              SELECT 1 FROM project_events pe\n              JOIN projects pr ON pr.id = pe.project_id\n              WHERE pe.global_event_id = ge.id\n                AND pr.id = $2\n          )\n        ORDER BY gt.start_at DESC NULLS LAST\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tournament_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tournament_startgg_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "tournament_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "tournament_handle",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "city",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "addr_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "country_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "online!: bool",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "start_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "end_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "num_attendees",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "event_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "event_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "num_entrants",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 14,
+        "name": "placement",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 15,
+        "name": "seed",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "a077ad0ff5ad20cf9cca3bb7033c3c336eb33cec102d0a50aa56e75d7f102d17"
+}

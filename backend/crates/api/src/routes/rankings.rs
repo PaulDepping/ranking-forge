@@ -324,14 +324,13 @@ async fn create_ranking(
     .fetch_one(&state.db)
     .await?;
 
-    // Backfill ranking_events for all events already imported for this project.
+    // Backfill ranking_events for all global events already imported for this project.
     sqlx::query!(
         r#"
-        INSERT INTO ranking_events (ranking_id, event_id, included)
-        SELECT DISTINCT $1::uuid, e.id, true
-        FROM events e
-        JOIN entrants ent ON ent.event_id = e.id
-        JOIN players pl ON pl.id = ent.player_id AND pl.project_id = $2
+        INSERT INTO ranking_events (ranking_id, global_event_id, included)
+        SELECT DISTINCT $1::uuid, pe.global_event_id, true
+        FROM project_events pe
+        WHERE pe.project_id = $2
         ON CONFLICT DO NOTHING
         "#,
         ranking.id,
@@ -755,16 +754,6 @@ mod tests {
         format!("session_id={}", body["session_id"].as_str().unwrap())
     }
 
-    async fn with_api_key(pool: &PgPool, email: &str) {
-        sqlx::query!(
-            "UPDATE users SET startgg_api_key = 'test-key' WHERE email = $1",
-            email
-        )
-        .execute(pool)
-        .await
-        .unwrap();
-    }
-
     async fn create_project(app: &Router, cookie: &str) -> String {
         let resp = app
             .clone()
@@ -795,7 +784,6 @@ mod tests {
     async fn test_create_and_list_rankings(pool: PgPool) {
         let app = make_app(pool.clone());
         let cookie = register(&app, "owner_rank").await;
-        with_api_key(&pool, "owner_rank@test.com").await;
         let proj_id = create_project(&app, &cookie).await;
 
         let resp = app
@@ -840,7 +828,6 @@ mod tests {
     async fn test_published_ranking_accessible_without_auth(pool: PgPool) {
         let app = make_app(pool.clone());
         let cookie = register(&app, "pub_owner").await;
-        with_api_key(&pool, "pub_owner@test.com").await;
         let proj_id = create_project(&app, &cookie).await;
 
         let resp = app

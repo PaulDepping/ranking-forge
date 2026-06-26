@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO global_events (tournament_id, startgg_id, name, num_entrants)\n         VALUES ($1, 8101, 'Melee Singles', 486)\n         RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "60ffdf5eab5a867ce8ce642555d96dd5cd840f021bb173aa195b3b93697a4d44"
+}

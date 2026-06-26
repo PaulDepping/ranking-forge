@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            gp.startgg_user_id,\n            gp.handle,\n            gp.display_name,\n            ge.name AS event_name,\n            gee.placement,\n            gee.seed\n        FROM global_tournaments gt\n        JOIN global_events ge ON ge.tournament_id = gt.id\n        JOIN global_event_entries gee ON gee.event_id = ge.id\n        JOIN global_players gp ON gp.id = gee.player_id\n        WHERE gt.slug = $1\n          AND gp.startgg_user_id IS NOT NULL\n        ORDER BY ge.name, gee.placement NULLS LAST\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "startgg_user_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "handle",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "display_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "event_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "placement",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "seed",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      true,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "e40d75f84e53014e004282cd17fb84b53d7bc6031f6f99436f9281065f2997bf"
+}

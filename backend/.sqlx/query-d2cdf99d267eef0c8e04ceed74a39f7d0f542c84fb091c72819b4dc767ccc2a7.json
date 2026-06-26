@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO global_events (tournament_id, startgg_id, name) VALUES ($1, 8002, 'Singles')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d2cdf99d267eef0c8e04ceed74a39f7d0f542c84fb091c72819b4dc767ccc2a7"
+}

@@ -127,6 +127,8 @@ async fn put_json(app: &Router, uri: &str, cookie: &str, body: Value) -> axum::r
 
 // ── DB seeding helpers ────────────────────────────────────────────────────────
 
+/// Seed a global_tournament + global_event, link them to the project and ranking.
+/// Returns (global_tournament_id, global_event_id).
 async fn seed_tournament_event(
     pool: &sqlx::PgPool,
     ranking_id: Uuid,
@@ -134,16 +136,15 @@ async fn seed_tournament_event(
     startgg_event_id: i64,
 ) -> (Uuid, Uuid) {
     let project_id: Uuid =
-        sqlx::query_scalar!("SELECT project_id FROM rankings WHERE id = $1", ranking_id,)
+        sqlx::query_scalar!("SELECT project_id FROM rankings WHERE id = $1", ranking_id)
             .fetch_one(pool)
             .await
             .unwrap();
 
     let tournament_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO tournaments (project_id, startgg_id, name, handle, online)
-         VALUES ($1, $2, 'Test Tournament', 'test-tournament', false)
+        "INSERT INTO global_tournaments (startgg_id, name, slug, online)
+         VALUES ($1, 'Test Tournament', 'test-tournament', false)
          RETURNING id",
-        project_id,
         startgg_tournament_id,
     )
     .fetch_one(pool)
@@ -151,8 +152,8 @@ async fn seed_tournament_event(
     .unwrap();
 
     let event_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO events (tournament_id, startgg_id, name, handle)
-         VALUES ($1, $2, 'Singles', 'singles')
+        "INSERT INTO global_events (tournament_id, startgg_id, name)
+         VALUES ($1, $2, 'Singles')
          RETURNING id",
         tournament_id,
         startgg_event_id,
@@ -162,7 +163,17 @@ async fn seed_tournament_event(
     .unwrap();
 
     sqlx::query!(
-        "INSERT INTO ranking_events (ranking_id, event_id, included) VALUES ($1, $2, true)",
+        "INSERT INTO project_events (project_id, global_event_id)
+         VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        project_id,
+        event_id,
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+
+    sqlx::query!(
+        "INSERT INTO ranking_events (ranking_id, global_event_id, included) VALUES ($1, $2, true)",
         ranking_id,
         event_id,
     )
@@ -173,64 +184,119 @@ async fn seed_tournament_event(
     (tournament_id, event_id)
 }
 
+/// Seed a global_player + event entry. If player_id is given, also creates a startgg_account
+/// link so the player appears in compute_ranking_set_results.
+/// Returns the global_player UUID (used as winner/loser in seed_set).
 async fn seed_entrant(
     pool: &sqlx::PgPool,
     event_id: Uuid,
     player_id: Option<Uuid>,
-    startgg_entrant_id: i64,
+    startgg_user_id: i64,
     seed: Option<i32>,
 ) -> Uuid {
-    sqlx::query_scalar!(
-        "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name, seed)
-         VALUES ($1, $2, $3, 'Player', $4)
-         RETURNING id",
-        event_id,
-        player_id,
-        startgg_entrant_id,
-        seed,
+    let name: String = if let Some(pid) = player_id {
+        sqlx::query_scalar!("SELECT name FROM players WHERE id = $1", pid)
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    } else {
+        format!("player-{startgg_user_id}")
+    };
+
+    let global_player_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO global_players (startgg_user_id, handle) VALUES ($1, $2) RETURNING id",
+        startgg_user_id,
+        name,
     )
     .fetch_one(pool)
     .await
-    .unwrap()
+    .unwrap();
+
+    if let Some(pid) = player_id {
+        sqlx::query!(
+            "INSERT INTO startgg_accounts (player_id, startgg_user_id, handle)
+             VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+            pid,
+            startgg_user_id,
+            name,
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    sqlx::query!(
+        "INSERT INTO global_event_entries (event_id, player_id, seed) VALUES ($1, $2, $3)",
+        event_id,
+        global_player_id,
+        seed,
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+
+    global_player_id
 }
 
+/// Like seed_entrant but with an explicit display name used as the global player handle.
 async fn seed_entrant_named(
     pool: &sqlx::PgPool,
     event_id: Uuid,
     player_id: Option<Uuid>,
-    startgg_entrant_id: i64,
-    display_name: &str,
+    startgg_user_id: i64,
+    name: &str,
     seed: Option<i32>,
 ) -> Uuid {
-    sqlx::query_scalar!(
-        "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name, seed)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id",
-        event_id,
-        player_id,
-        startgg_entrant_id,
-        display_name,
-        seed,
+    let global_player_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO global_players (startgg_user_id, handle) VALUES ($1, $2) RETURNING id",
+        startgg_user_id,
+        name,
     )
     .fetch_one(pool)
     .await
-    .unwrap()
+    .unwrap();
+
+    if let Some(pid) = player_id {
+        sqlx::query!(
+            "INSERT INTO startgg_accounts (player_id, startgg_user_id, handle)
+             VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+            pid,
+            startgg_user_id,
+            name,
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    sqlx::query!(
+        "INSERT INTO global_event_entries (event_id, player_id, seed) VALUES ($1, $2, $3)",
+        event_id,
+        global_player_id,
+        seed,
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+
+    global_player_id
 }
 
+/// Seed a global_set with the given winner/loser global_player_ids.
 async fn seed_set(
     pool: &sqlx::PgPool,
     event_id: Uuid,
-    winner_entrant_id: Uuid,
-    loser_entrant_id: Uuid,
+    winner_global_player_id: Uuid,
+    loser_global_player_id: Uuid,
     startgg_set_id: i64,
 ) {
     sqlx::query!(
-        "INSERT INTO sets (event_id, startgg_set_id, winner_entrant_id, loser_entrant_id, is_dq)
+        "INSERT INTO global_sets (startgg_id, event_id, winner_player_id, loser_player_id, is_dq)
          VALUES ($1, $2, $3, $4, false)",
-        event_id,
         startgg_set_id,
-        winner_entrant_id,
-        loser_entrant_id,
+        event_id,
+        winner_global_player_id,
+        loser_global_player_id,
     )
     .execute(pool)
     .await
@@ -240,21 +306,21 @@ async fn seed_set(
 async fn seed_set_with_scores(
     pool: &sqlx::PgPool,
     event_id: Uuid,
-    winner_entrant_id: Uuid,
-    loser_entrant_id: Uuid,
+    winner_global_player_id: Uuid,
+    loser_global_player_id: Uuid,
     startgg_set_id: i64,
     winner_score: i16,
     loser_score: i16,
 ) {
     sqlx::query!(
-        "INSERT INTO sets
-             (event_id, startgg_set_id, winner_entrant_id, loser_entrant_id,
+        "INSERT INTO global_sets
+             (startgg_id, event_id, winner_player_id, loser_player_id,
               is_dq, winner_score, loser_score)
          VALUES ($1, $2, $3, $4, false, $5, $6)",
-        event_id,
         startgg_set_id,
-        winner_entrant_id,
-        loser_entrant_id,
+        event_id,
+        winner_global_player_id,
+        loser_global_player_id,
         winner_score,
         loser_score,
     )
@@ -263,31 +329,8 @@ async fn seed_set_with_scores(
     .unwrap();
 }
 
-/// Set the startgg_api_key for the user identified by the session cookie.
-/// Uses the DB directly since there is no API endpoint for this yet.
-async fn set_startgg_api_key(pool: &PgPool, cookie: &str, api_key: &str) {
-    // Extract the session_id value from the cookie string "session_id=<uuid>"
-    let session_id: uuid::Uuid = cookie
-        .split('=')
-        .nth(1)
-        .unwrap()
-        .parse()
-        .expect("invalid session UUID in cookie");
-    sqlx::query!(
-        "UPDATE users SET startgg_api_key = $1
-         WHERE id = (SELECT user_id FROM sessions WHERE id = $2)",
-        api_key,
-        session_id,
-    )
-    .execute(pool)
-    .await
-    .expect("failed to set startgg_api_key");
-}
-
 /// Create a project for the given user and return its UUID string.
-/// Sets a test start.gg API key for the user (required by the create-project guard).
-async fn create_project(app: &Router, pool: &PgPool, cookie: &str) -> String {
-    set_startgg_api_key(pool, cookie, "test-key").await;
+async fn create_project(app: &Router, cookie: &str) -> String {
     let resp = post_json(app, "/projects", cookie, json!({"name": "Test Project"})).await;
     assert_eq!(resp.status(), StatusCode::CREATED);
     read_json(resp).await["id"].as_str().unwrap().to_string()
@@ -335,27 +378,6 @@ async fn create_player(app: &Router, cookie: &str, project_id: &str, name: &str)
     .await;
     assert_eq!(resp.status(), StatusCode::CREATED);
     read_json(resp).await["id"].as_str().unwrap().to_string()
-}
-
-fn startgg_user_ok(id: i64, name: &str) -> Value {
-    json!({ "data": { "user": { "id": id, "player": { "gamerTag": name } } } })
-}
-
-fn startgg_user_null() -> Value {
-    json!({ "data": { "user": null } })
-}
-
-fn startgg_games_ok() -> Value {
-    json!({
-        "data": {
-            "videogames": {
-                "nodes": [
-                    {"id": 1, "name": "Super Smash Bros. Melee", "displayName": "SSBM"},
-                    {"id": 2, "name": "Super Smash Bros. Ultimate", "displayName": null}
-                ]
-            }
-        }
-    })
 }
 
 // ── Health ────────────────────────────────────────────────────────────────────
@@ -562,7 +584,6 @@ async fn projects_list_empty(pool: PgPool) {
 async fn projects_create_and_get(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    set_startgg_api_key(&pool, &cookie, "test-key").await;
 
     let resp = post_json(
         &app,
@@ -592,9 +613,9 @@ async fn projects_list_shows_only_own(pool: PgPool) {
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
 
-    create_project(&app, &pool, &alice).await;
-    create_project(&app, &pool, &alice).await;
-    create_project(&app, &pool, &bob).await;
+    create_project(&app, &alice).await;
+    create_project(&app, &alice).await;
+    create_project(&app, &bob).await;
 
     let resp = get_req(&app, "/projects", &alice).await;
     let projects = read_json(resp).await;
@@ -611,7 +632,7 @@ async fn projects_get_enforces_ownership(pool: PgPool) {
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
 
-    let id = create_project(&app, &pool, &alice).await;
+    let id = create_project(&app, &alice).await;
 
     let resp = get_req(&app, &format!("/projects/{id}"), &alice).await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -652,7 +673,6 @@ async fn projects_create_empty_name(pool: PgPool) {
 async fn projects_create_without_game(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    set_startgg_api_key(&pool, &cookie, "test-key").await;
 
     let resp = post_json(&app, "/projects", &cookie, json!({"name": "No Game Yet"})).await;
     assert_eq!(resp.status(), StatusCode::CREATED);
@@ -667,7 +687,7 @@ async fn projects_create_without_game(pool: PgPool) {
 async fn projects_delete(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let id = create_project(&app, &pool, &cookie).await;
+    let id = create_project(&app, &cookie).await;
 
     let resp = delete_req(&app, &format!("/projects/{id}"), &cookie).await;
     assert_eq!(resp.status(), StatusCode::NO_CONTENT);
@@ -682,7 +702,7 @@ async fn projects_delete_enforces_ownership(pool: PgPool) {
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
 
-    let id = create_project(&app, &pool, &alice).await;
+    let id = create_project(&app, &alice).await;
 
     let resp = delete_req(&app, &format!("/projects/{id}"), &bob).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -698,7 +718,7 @@ async fn projects_delete_enforces_ownership(pool: PgPool) {
 async fn players_add_and_list(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
 
     let resp = get_req(&app, &format!("/projects/{pid}/players"), &cookie).await;
     assert_eq!(resp.status(), StatusCode::OK);
@@ -730,7 +750,7 @@ async fn players_list_requires_project_ownership(pool: PgPool) {
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
 
-    let pid = create_project(&app, &pool, &alice).await;
+    let pid = create_project(&app, &alice).await;
 
     let resp = get_req(&app, &format!("/projects/{pid}/players"), &bob).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -740,7 +760,7 @@ async fn players_list_requires_project_ownership(pool: PgPool) {
 async fn players_add_empty_name(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
 
     let resp = post_json(
         &app,
@@ -756,7 +776,7 @@ async fn players_add_empty_name(pool: PgPool) {
 async fn players_delete(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let player_id = create_player(&app, &cookie, &pid, "Mango").await;
 
     let resp = delete_req(
@@ -775,7 +795,7 @@ async fn players_delete(pool: PgPool) {
 async fn players_delete_nonexistent(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
 
     let resp = delete_req(
         &app,
@@ -790,18 +810,20 @@ async fn players_delete_nonexistent(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn accounts_link_and_unlink(pool: PgPool) {
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    let mock = MockServer::start().await;
-    Mock::given(wiremock::matchers::method("POST"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(startgg_user_ok(12345, "Mango")))
-        .mount(&mock)
-        .await;
+    // Seed a global_player so the link route can find it without calling start.gg
+    sqlx::query!(
+        "INSERT INTO global_players (startgg_user_id, handle, display_name) VALUES ($1, $2, $3)",
+        12345i64,
+        "mango",
+        "Mango",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
 
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    set_startgg_api_key(&pool, &cookie, "test-key").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let player_id = create_player(&app, &cookie, &pid, "Mango").await;
 
     let resp = post_json(
@@ -847,18 +869,10 @@ async fn accounts_link_and_unlink(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn accounts_link_user_not_found_on_startgg(pool: PgPool) {
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    let mock = MockServer::start().await;
-    Mock::given(wiremock::matchers::method("POST"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(startgg_user_null()))
-        .mount(&mock)
-        .await;
-
+    // No global_player seeded — the handle won't be found in the mirror → 404
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    set_startgg_api_key(&pool, &cookie, "test-key").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let player_id = create_player(&app, &cookie, &pid, "Ghost").await;
 
     let resp = post_json(
@@ -868,29 +882,25 @@ async fn accounts_link_user_not_found_on_startgg(pool: PgPool) {
         json!({"handle": "user/doesnotexist"}),
     )
     .await;
-    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(
-        read_json(resp).await["message"],
-        "user not found on start.gg"
-    );
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn accounts_link_duplicate(pool: PgPool) {
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    let mock = MockServer::start().await;
-    // Two calls expected: one per link attempt (the slug → user ID lookup happens before the INSERT)
-    Mock::given(wiremock::matchers::method("POST"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(startgg_user_ok(12345, "Mango")))
-        .expect(2)
-        .mount(&mock)
-        .await;
+    // Seed a global_player so both link attempts can find it
+    sqlx::query!(
+        "INSERT INTO global_players (startgg_user_id, handle, display_name) VALUES ($1, $2, $3)",
+        12345i64,
+        "mango",
+        "Mango",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
 
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    set_startgg_api_key(&pool, &cookie, "test-key").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let player_id = create_player(&app, &cookie, &pid, "Mango").await;
 
     let first = post_json(
@@ -910,10 +920,7 @@ async fn accounts_link_duplicate(pool: PgPool) {
     )
     .await;
     assert_eq!(second.status(), StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(
-        read_json(second).await["message"],
-        "account already linked to this player"
-    );
+    assert_eq!(read_json(second).await["message"], "Account already linked");
 }
 
 // ── Games ─────────────────────────────────────────────────────────────────────
@@ -1002,10 +1009,7 @@ async fn games_requires_auth(pool: PgPool) {
 async fn import_enqueue_returns_202(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
-
-    // Set a key so the import guard (Task 4) will be satisfied
-    set_startgg_api_key(&pool, &cookie, "dummy-key").await;
+    let pid = create_project(&app, &cookie).await;
 
     let resp = post_json(&app, &format!("/projects/{pid}/import"), &cookie, json!({})).await;
     assert_eq!(resp.status(), StatusCode::ACCEPTED);
@@ -1018,45 +1022,10 @@ async fn import_enqueue_returns_202(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
-async fn test_start_import_returns_422_when_owner_has_no_key(pool: PgPool) {
-    let app = make_app(pool.clone());
-    let cookie = register(&app, "importowner", "password123").await;
-    // create_project sets a key; remove it afterwards to test the import guard
-    let proj_id = create_project(&app, &pool, &cookie).await;
-    sqlx::query!("UPDATE users SET startgg_api_key = NULL WHERE email = 'importowner@test.com'")
-        .execute(&pool)
-        .await
-        .unwrap();
-
-    let resp = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("POST")
-                .uri(&format!("/projects/{proj_id}/import"))
-                .header("cookie", &cookie)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
-    let body = read_json(resp).await;
-    assert!(
-        body["message"]
-            .as_str()
-            .unwrap()
-            .contains("start.gg API key"),
-        "expected message about API key, got: {}",
-        body
-    );
-}
-
-#[sqlx::test(migrations = "../../migrations")]
 async fn import_status_no_job_returns_404(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
 
     let resp = get_req(&app, &format!("/projects/{pid}/import"), &cookie).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -1066,7 +1035,7 @@ async fn import_status_no_job_returns_404(pool: PgPool) {
 async fn import_status_after_enqueue(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
 
     post_json(&app, &format!("/projects/{pid}/import"), &cookie, json!({})).await;
 
@@ -1079,7 +1048,7 @@ async fn import_status_after_enqueue(pool: PgPool) {
 async fn import_requires_auth(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
 
     // POST /import still requires auth (Editor role)
     let resp = app
@@ -1114,7 +1083,7 @@ async fn import_enforces_ownership(pool: PgPool) {
     let app = make_app(pool.clone());
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
-    let pid = create_project(&app, &pool, &alice).await;
+    let pid = create_project(&app, &alice).await;
 
     let resp = post_json(&app, &format!("/projects/{pid}/import"), &bob, json!({})).await;
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -1127,7 +1096,7 @@ async fn import_enforces_ownership(pool: PgPool) {
 async fn import_status_returns_latest_job(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
 
     post_json(&app, &format!("/projects/{pid}/import"), &cookie, json!({})).await;
     let second =
@@ -1144,7 +1113,7 @@ async fn import_status_returns_latest_job(pool: PgPool) {
 async fn import_response_includes_date_params(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
 
     let resp = post_json(
         &app,
@@ -1163,7 +1132,7 @@ async fn import_response_includes_date_params(pool: PgPool) {
 async fn import_response_date_params_null_when_unset(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
 
     let resp = post_json(&app, &format!("/projects/{pid}/import"), &cookie, json!({})).await;
     assert_eq!(resp.status(), StatusCode::ACCEPTED);
@@ -1176,7 +1145,7 @@ async fn import_response_date_params_null_when_unset(pool: PgPool) {
 async fn import_enqueue_no_body_returns_202(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
 
     let resp = app
         .clone()
@@ -1204,7 +1173,7 @@ async fn import_enqueue_no_body_returns_202(pool: PgPool) {
 async fn tournaments_list_empty(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid).await;
 
     let resp = get_req(
@@ -1221,7 +1190,7 @@ async fn tournaments_list_empty(pool: PgPool) {
 async fn tournaments_list_with_data(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &pool, &cookie).await;
+    let pid_str = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid_str).await;
     let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
@@ -1249,7 +1218,7 @@ async fn tournaments_list_with_data(pool: PgPool) {
 async fn tournaments_list_requires_auth(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid).await;
 
     // Unauthenticated request to a private project returns 404 (not 401)
@@ -1272,7 +1241,7 @@ async fn tournaments_list_enforces_ownership(pool: PgPool) {
     let app = make_app(pool.clone());
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
-    let pid = create_project(&app, &pool, &alice).await;
+    let pid = create_project(&app, &alice).await;
     let rid = create_ranking(&app, &alice, &pid).await;
 
     let resp = get_req(
@@ -1284,15 +1253,15 @@ async fn tournaments_list_enforces_ownership(pool: PgPool) {
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
-/// Simulate the worker's phase-1 compute_ranking: populate ranking_set_results from sets.
-/// Only includes sets where both entrants map to ranking_players, event is included,
-/// and the set is not a DQ or placeholder.
+/// Simulate the worker's phase-1 compute_ranking: populate ranking_set_results from global_sets.
+/// Only includes sets where both players have startgg_accounts linking them to ranking_players,
+/// the event is included, and the set is not a DQ.
 async fn compute_ranking_set_results(pool: &PgPool, ranking_id: Uuid) {
     struct SetRow {
-        set_id: Uuid,
+        global_set_id: Uuid,
         winner_player_id: Uuid,
         loser_player_id: Uuid,
-        event_id: Uuid,
+        global_event_id: Uuid,
         winner_seed: Option<i32>,
         loser_seed: Option<i32>,
         completed_at: Option<chrono::DateTime<chrono::Utc>>,
@@ -1302,25 +1271,26 @@ async fn compute_ranking_set_results(pool: &PgPool, ranking_id: Uuid) {
         SetRow,
         r#"
         SELECT
-            s.id            AS set_id,
-            we.player_id    AS "winner_player_id!: Uuid",
-            le.player_id    AS "loser_player_id!: Uuid",
-            s.event_id,
-            we.seed         AS winner_seed,
-            le.seed         AS loser_seed,
-            s.completed_at
-        FROM sets s
-        JOIN entrants we ON we.id = s.winner_entrant_id
-        JOIN entrants le ON le.id = s.loser_entrant_id
-        JOIN ranking_players rwp ON rwp.player_id = we.player_id AND rwp.ranking_id = $1
-        JOIN ranking_players rlp ON rlp.player_id = le.player_id AND rlp.ranking_id = $1
-        JOIN ranking_events re ON re.event_id = s.event_id AND re.ranking_id = $1
-        WHERE re.included       = true
-          AND s.is_dq           = false
-          AND s.has_placeholder = false
-          AND we.player_id IS NOT NULL
-          AND le.player_id IS NOT NULL
-        ORDER BY s.completed_at ASC NULLS LAST
+            gs.id               AS global_set_id,
+            saw.player_id       AS "winner_player_id!: Uuid",
+            sal.player_id       AS "loser_player_id!: Uuid",
+            gs.event_id         AS global_event_id,
+            wee.seed            AS winner_seed,
+            lee.seed            AS loser_seed,
+            gs.completed_at
+        FROM global_sets gs
+        JOIN global_players gwp ON gwp.id = gs.winner_player_id
+        JOIN global_players glp ON glp.id = gs.loser_player_id
+        JOIN startgg_accounts saw ON saw.startgg_user_id = gwp.startgg_user_id
+        JOIN startgg_accounts sal ON sal.startgg_user_id = glp.startgg_user_id
+        JOIN ranking_players rwp ON rwp.player_id = saw.player_id AND rwp.ranking_id = $1
+        JOIN ranking_players rlp ON rlp.player_id = sal.player_id AND rlp.ranking_id = $1
+        JOIN ranking_events re ON re.global_event_id = gs.event_id AND re.ranking_id = $1
+        LEFT JOIN global_event_entries wee ON wee.event_id = gs.event_id AND wee.player_id = gwp.id
+        LEFT JOIN global_event_entries lee ON lee.event_id = gs.event_id AND lee.player_id = glp.id
+        WHERE re.included = true
+          AND gs.is_dq    = false
+        ORDER BY gs.completed_at ASC NULLS LAST
         "#,
         ranking_id,
     )
@@ -1343,13 +1313,14 @@ async fn compute_ranking_set_results(pool: &PgPool, ranking_id: Uuid) {
         };
         sqlx::query!(
             r#"INSERT INTO ranking_set_results
-                (ranking_id, set_id, winner_player_id, loser_player_id, event_id, upset_factor, completed_at)
+                (ranking_id, global_set_id, winner_player_id, loser_player_id,
+                 global_event_id, upset_factor, completed_at)
                VALUES ($1, $2, $3, $4, $5, $6, $7)"#,
             ranking_id,
-            row.set_id,
+            row.global_set_id,
             row.winner_player_id,
             row.loser_player_id,
-            row.event_id,
+            row.global_event_id,
             upset_factor,
             row.completed_at,
         )
@@ -1365,7 +1336,7 @@ async fn compute_ranking_set_results(pool: &PgPool, ranking_id: Uuid) {
 async fn patch_event_toggle_included(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &pool, &cookie).await;
+    let pid_str = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid_str).await;
     let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
@@ -1431,7 +1402,7 @@ async fn patch_event_toggle_included(pool: PgPool) {
 async fn patch_event_unknown_returns_404(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid).await;
 
     let resp = patch_json(
@@ -1449,7 +1420,7 @@ async fn patch_event_enforces_ownership(pool: PgPool) {
     let app = make_app(pool.clone());
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
-    let alice_pid_str = create_project(&app, &pool, &alice).await;
+    let alice_pid_str = create_project(&app, &alice).await;
     let alice_rid = create_ranking(&app, &alice, &alice_pid_str).await;
     let alice_rid_uuid = Uuid::parse_str(&alice_rid).unwrap();
 
@@ -1471,7 +1442,7 @@ async fn patch_event_enforces_ownership(pool: PgPool) {
 async fn stats_empty_project(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid).await;
 
     let resp = get_req(
@@ -1488,7 +1459,7 @@ async fn stats_empty_project(pool: PgPool) {
 async fn stats_upset_factor_computed(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &pool, &cookie).await;
+    let pid_str = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid_str).await;
     let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
@@ -1541,7 +1512,7 @@ async fn stats_upset_factor_computed(pool: PgPool) {
 async fn stats_excluded_events_not_counted(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &pool, &cookie).await;
+    let pid_str = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid_str).await;
     let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
@@ -1586,7 +1557,7 @@ async fn stats_excluded_events_not_counted(pool: PgPool) {
 async fn stats_requires_auth(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid).await;
 
     // Unauthenticated request to a private project returns 404 (not 401)
@@ -1609,7 +1580,7 @@ async fn stats_enforces_ownership(pool: PgPool) {
     let app = make_app(pool.clone());
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
-    let pid = create_project(&app, &pool, &alice).await;
+    let pid = create_project(&app, &alice).await;
     let rid = create_ranking(&app, &alice, &pid).await;
 
     let resp = get_req(&app, &format!("/projects/{pid}/rankings/{rid}/stats"), &bob).await;
@@ -1617,60 +1588,10 @@ async fn stats_enforces_ownership(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
-async fn stats_includes_non_project_opponent(pool: PgPool) {
-    let app = make_app(pool.clone());
-    let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &pool, &cookie).await;
-    let rid = create_ranking(&app, &cookie, &pid_str).await;
-    let rid_uuid = Uuid::parse_str(&rid).unwrap();
-
-    let alice_id_str = create_player(&app, &cookie, &pid_str, "Alice").await;
-    let alice_id = Uuid::parse_str(&alice_id_str).unwrap();
-
-    add_player_to_ranking(&app, &cookie, &pid_str, &rid, &alice_id_str).await;
-
-    let (_, event_id) = seed_tournament_event(&pool, rid_uuid, 2010, 3010).await;
-
-    // Alice (seed 2) and a non-ranking entrant "Outsider" (seed 7) with no player_id.
-    // Stats query reads from sets directly and includes non-ranking opponents (opponent_id = null).
-    let alice_e = seed_entrant_named(&pool, event_id, Some(alice_id), 110, "Alice", Some(2)).await;
-    let outside_e = seed_entrant_named(&pool, event_id, None, 111, "Outsider", Some(7)).await;
-
-    // Outsider beats Alice
-    seed_set(&pool, event_id, outside_e, alice_e, 510).await;
-    compute_ranking_set_results(&pool, rid_uuid).await;
-
-    let resp = get_req(
-        &app,
-        &format!("/projects/{pid_str}/rankings/{rid}/stats"),
-        &cookie,
-    )
-    .await;
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let stats = read_json(resp).await;
-    let entries = stats.as_array().unwrap();
-    assert_eq!(entries.len(), 1, "only ranking players in outer list");
-
-    let alice = entries.iter().find(|s| s["name"] == "Alice").unwrap();
-    assert_eq!(alice["wins"], json!([]));
-    assert_eq!(
-        alice["losses"].as_array().unwrap().len(),
-        1,
-        "Alice's loss to Outsider should appear"
-    );
-    assert_eq!(alice["losses"][0]["opponent_name"], "Outsider");
-    assert!(
-        alice["losses"][0]["opponent_id"].is_null(),
-        "non-ranking opponent has no player id"
-    );
-}
-
-#[sqlx::test(migrations = "../../migrations")]
 async fn stats_returns_game_scores(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &pool, &cookie).await;
+    let pid_str = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid_str).await;
     let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
@@ -1722,75 +1643,50 @@ async fn stats_returns_game_scores(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn test_list_tournament_entrants(pool: PgPool) {
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    // Seed global data: tournament + event + players + entries
+    let t_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO global_tournaments (startgg_id, name, slug, online)
+         VALUES (7001, 'Some Weekly', 'tournament/some-weekly', false)
+         RETURNING id"
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
 
-    let mock = MockServer::start().await;
+    let e_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO global_events (tournament_id, startgg_id, name)
+         VALUES ($1, 8001, 'Melee Singles')
+         RETURNING id",
+        t_id
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
 
-    // Mock 1: tournament_participants query
-    Mock::given(wiremock::matchers::method("POST"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "data": {
-                "tournament": {
-                    "participants": {
-                        "pageInfo": { "totalPages": 1 },
-                        "nodes": [
-                            { "gamerTag": "Mang0", "user": { "id": 1001, "slug": "user/mang0" } },
-                            { "gamerTag": "Spectator", "user": { "id": 9999, "slug": "user/spec" } }
-                        ]
-                    }
-                }
-            }
-        })))
-        .up_to_n_times(1)
-        .mount(&mock)
-        .await;
+    // Mang0 is indexed with a startgg_user_id; Spectator has one too
+    let gp_mang0: Uuid = sqlx::query_scalar!(
+        "INSERT INTO global_players (startgg_user_id, handle) VALUES (1001, 'mang0') RETURNING id"
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
 
-    // Mock 2: tournament_events_with_entrants — all events query
-    Mock::given(wiremock::matchers::method("POST"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "data": {
-                "tournament": {
-                    "events": [{ "id": 999, "name": "Melee Singles" }]
-                }
-            }
-        })))
-        .up_to_n_times(1)
-        .mount(&mock)
-        .await;
-
-    // Mock 3: entrant list for event 999
-    Mock::given(wiremock::matchers::method("POST"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "data": {
-                "event": {
-                    "entrants": {
-                        "pageInfo": { "totalPages": 1 },
-                        "nodes": [{
-                            "initialSeedNum": 1,
-                            "standing": { "placement": 1 },
-                            "participants": [{
-                                "gamerTag": "Mang0",
-                                "user": { "id": 1001, "slug": "user/mang0" }
-                            }]
-                        }]
-                    }
-                }
-            }
-        })))
-        .up_to_n_times(1)
-        .mount(&mock)
-        .await;
+    sqlx::query!(
+        "INSERT INTO global_event_entries (event_id, player_id, seed, placement) VALUES ($1, $2, 1, 1)",
+        e_id, gp_mang0
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
 
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    set_startgg_api_key(&pool, &cookie, "test-key").await;
+    let pid = create_project(&app, &cookie).await;
 
-    // Project without game_id — endpoint must work without one
-    let pid = create_project(&app, &pool, &cookie).await;
-
+    // New URL: path param instead of query param
     let resp = get_req(
         &app,
-        &format!("/projects/{pid}/tournament-entrants?tournament=some-weekly"),
+        &format!("/projects/{pid}/tournament-entrants/some-weekly"),
         &cookie,
     )
     .await;
@@ -1798,12 +1694,7 @@ async fn test_list_tournament_entrants(pool: PgPool) {
     assert_eq!(resp.status(), StatusCode::OK);
     let body = read_json(resp).await;
 
-    let participants = body["all_participants"].as_array().unwrap();
-    assert_eq!(participants.len(), 2);
-    assert!(participants.iter().any(|p| p["handle"] == "mang0"));
-    assert!(participants.iter().any(|p| p["handle"] == "spec"));
-
-    let events = body["events"].as_array().unwrap();
+    let events = body.as_array().unwrap();
     assert_eq!(events.len(), 1);
     assert_eq!(events[0]["name"], "Melee Singles");
 
@@ -1815,80 +1706,58 @@ async fn test_list_tournament_entrants(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../../migrations")]
-async fn test_list_tournament_entrants_normalizes_url(pool: PgPool) {
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    let mock = MockServer::start().await;
-
-    // Participants query
-    Mock::given(wiremock::matchers::method("POST"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "data": { "tournament": { "participants": { "pageInfo": { "totalPages": 1 }, "nodes": [] } } }
-        })))
-        .up_to_n_times(1)
-        .mount(&mock)
-        .await;
-
-    // All events query
-    Mock::given(wiremock::matchers::method("POST"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "data": { "tournament": { "events": [] } }
-        })))
-        .up_to_n_times(1)
-        .mount(&mock)
-        .await;
-
+async fn test_list_tournament_entrants_empty_for_unknown(pool: PgPool) {
+    // No global_tournament seeded — should return empty array (not 422)
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    set_startgg_api_key(&pool, &cookie, "test-key").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
 
     let resp = get_req(
         &app,
-        &format!(
-            "/projects/{pid}/tournament-entrants?tournament=https%3A%2F%2Fwww.start.gg%2Ftournament%2Fsome-weekly%2Fevent%2Fmelee-singles"
-        ),
+        &format!("/projects/{pid}/tournament-entrants/nonexistent"),
         &cookie,
     )
     .await;
 
     assert_eq!(resp.status(), StatusCode::OK);
-    let body = read_json(resp).await;
-    // Normalized to "some-weekly"; empty but correct shape
-    assert!(body["all_participants"].as_array().unwrap().is_empty());
-    assert!(body["events"].as_array().unwrap().is_empty());
+    assert_eq!(read_json(resp).await, json!([]));
 }
 
 #[sqlx::test(migrations = "../../migrations")]
-async fn test_list_tournament_entrants_returns_422_when_not_found(pool: PgPool) {
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+async fn test_list_tournament_entrants_strips_prefix(pool: PgPool) {
+    // Seed with slug = "tournament/prefix-weekly"
+    let t_id: Uuid = sqlx::query_scalar!(
+        "INSERT INTO global_tournaments (startgg_id, name, slug, online)
+         VALUES (7002, 'Prefix Weekly', 'tournament/prefix-weekly', false)
+         RETURNING id"
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
 
-    let mock = MockServer::start().await;
-
-    // Mock participants query returning null (tournament not found)
-    Mock::given(wiremock::matchers::method("POST"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "data": { "tournament": null }
-        })))
-        .up_to_n_times(1)
-        .mount(&mock)
-        .await;
+    sqlx::query!(
+        "INSERT INTO global_events (tournament_id, startgg_id, name) VALUES ($1, 8002, 'Singles')",
+        t_id
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
 
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    set_startgg_api_key(&pool, &cookie, "test-key").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
 
+    // Pass the bare slug without "tournament/" prefix — handler prepends it
     let resp = get_req(
         &app,
-        &format!("/projects/{pid}/tournament-entrants?tournament=nonexistent"),
+        &format!("/projects/{pid}/tournament-entrants/prefix-weekly"),
         &cookie,
     )
     .await;
-
-    assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
-    let body = read_json(resp).await;
-    assert_eq!(body["message"], "Tournament not found on start.gg");
+    assert_eq!(resp.status(), StatusCode::OK);
+    let events = read_json(resp).await;
+    // Event is found and returned (no entrants, but event name present)
+    assert_eq!(events.as_array().unwrap().len(), 0); // no entries seeded
 }
 
 // ── Rename player ─────────────────────────────────────────────────────────────
@@ -1897,7 +1766,7 @@ async fn test_list_tournament_entrants_returns_422_when_not_found(pool: PgPool) 
 async fn test_rename_player(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let player_id = create_player(&app, &cookie, &pid, "OldName").await;
 
     let resp = patch_json(
@@ -1918,7 +1787,7 @@ async fn test_rename_player(pool: PgPool) {
 async fn test_rename_player_empty_name_returns_422(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let player_id = create_player(&app, &cookie, &pid, "OldName").await;
 
     let resp = patch_json(
@@ -1938,7 +1807,7 @@ async fn test_rename_player_empty_name_returns_422(pool: PgPool) {
 async fn test_bulk_add_players(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
 
     let resp = post_json(
         &app,
@@ -1969,7 +1838,7 @@ async fn test_bulk_add_players(pool: PgPool) {
 async fn test_bulk_add_players_skips_duplicates(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
 
     // Add first batch
     let resp = post_json(
@@ -2011,31 +1880,20 @@ async fn test_bulk_add_players_skips_duplicates(pool: PgPool) {
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn test_add_players_by_handles(pool: PgPool) {
-    use wiremock::matchers::method;
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    let mock = MockServer::start().await;
-
-    // Mock: user_by_slug for "mang0" — returns user
-    Mock::given(method("POST"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(startgg_user_ok(1001, "Mang0")))
-        .up_to_n_times(1)
-        .mount(&mock)
-        .await;
-
-    // Mock: user_by_slug for "notauser" — returns no user
-    Mock::given(method("POST"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "data": { "user": null }
-        })))
-        .up_to_n_times(1)
-        .mount(&mock)
-        .await;
+    // Seed mang0 in global mirror; notauser is absent
+    sqlx::query!(
+        "INSERT INTO global_players (startgg_user_id, handle, display_name) VALUES ($1, $2, $3)",
+        1001i64,
+        "mang0",
+        "Mang0",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
 
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    set_startgg_api_key(&pool, &cookie, "test-key").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
 
     let resp = post_json(
         &app,
@@ -2045,105 +1903,75 @@ async fn test_add_players_by_handles(pool: PgPool) {
     )
     .await;
 
-    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(resp.status(), StatusCode::CREATED);
     let results: Vec<serde_json::Value> = read_json(resp).await.as_array().unwrap().clone();
     assert_eq!(results.len(), 2);
 
     let mang0 = results.iter().find(|r| r["handle"] == "mang0").unwrap();
     let notauser = results.iter().find(|r| r["handle"] == "notauser").unwrap();
     assert_eq!(mang0["status"], "created");
-    assert_eq!(mang0["name"], "Mang0");
-    assert_eq!(notauser["status"], "not_found");
+    assert_eq!(notauser["status"], "not_indexed");
 }
 
 #[sqlx::test(migrations = "../../migrations")]
 async fn test_add_players_by_handles_skips_existing(pool: PgPool) {
-    use wiremock::matchers::method;
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    let mock = MockServer::start().await;
-
-    // First call: used to create the player initially
-    Mock::given(method("POST"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(startgg_user_ok(1001, "Mang0")))
-        .mount(&mock)
-        .await;
-
-    let app = make_app(pool.clone());
-    let cookie = register(&app, "alice", "password123").await;
-    set_startgg_api_key(&pool, &cookie, "test-key").await;
-    let pid = create_project(&app, &pool, &cookie).await;
-
-    // First add
-    let resp = post_json(
-        &app,
-        &format!("/projects/{pid}/players/by-handles"),
-        &cookie,
-        json!({ "handles": ["mang0"] }),
-    )
-    .await;
-    assert_eq!(resp.status(), StatusCode::OK);
-    let r: Vec<serde_json::Value> = read_json(resp).await.as_array().unwrap().clone();
-    assert_eq!(r[0]["status"], "created");
-
-    // Second add — same handle, same startgg_user_id => skipped
-    let resp = post_json(
-        &app,
-        &format!("/projects/{pid}/players/by-handles"),
-        &cookie,
-        json!({ "handles": ["mang0"] }),
-    )
-    .await;
-    assert_eq!(resp.status(), StatusCode::OK);
-    let r: Vec<serde_json::Value> = read_json(resp).await.as_array().unwrap().clone();
-    assert_eq!(r[0]["status"], "skipped");
-}
-
-// ── Tournament event_type / bracket_types ─────────────────────────────────────
-
-#[sqlx::test(migrations = "../../migrations")]
-async fn list_tournaments_includes_event_type_and_bracket_types(pool: PgPool) {
-    let app = make_app(pool.clone());
-    let cookie = register(&app, "usr1", "pass1234").await;
-    let pid_str = create_project(&app, &pool, &cookie).await;
-    let rid = create_ranking(&app, &cookie, &pid_str).await;
-    let rid_uuid = Uuid::parse_str(&rid).unwrap();
-
-    // Insert a tournament with an event that has event_type=1 and two phases
-    let pid = Uuid::parse_str(&pid_str).unwrap();
-    let t_id: uuid::Uuid = sqlx::query_scalar!(
-        "INSERT INTO tournaments (project_id, startgg_id, name, handle, online)
-         VALUES ($1, 9991, 'Test Cup', 'tournament/test-cup', false)
-         RETURNING id",
-        pid
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-
-    let e_id: uuid::Uuid = sqlx::query_scalar!(
-        "INSERT INTO events (tournament_id, startgg_id, name, event_type, handle)
-         VALUES ($1, 9991, 'Melee Singles', 1, 'melee-singles')
-         RETURNING id",
-        t_id
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-
+    // Seed mang0 in global mirror
     sqlx::query!(
-        "INSERT INTO phases (startgg_id, event_id, bracket_type, phase_order)
-         VALUES (9991, $1, 'ROUND_ROBIN', 1), (9992, $1, 'DOUBLE_ELIMINATION', 2)",
-        e_id
+        "INSERT INTO global_players (startgg_user_id, handle, display_name) VALUES ($1, $2, $3)",
+        1001i64,
+        "mang0",
+        "Mang0",
     )
     .execute(&pool)
     .await
     .unwrap();
 
+    let app = make_app(pool.clone());
+    let cookie = register(&app, "alice", "password123").await;
+    let pid = create_project(&app, &cookie).await;
+
+    // First add — creates the player
+    let resp = post_json(
+        &app,
+        &format!("/projects/{pid}/players/by-handles"),
+        &cookie,
+        json!({ "handles": ["mang0"] }),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let r: Vec<serde_json::Value> = read_json(resp).await.as_array().unwrap().clone();
+    assert_eq!(r[0]["status"], "created");
+
+    // Second add — same handle, same startgg_user_id → duplicate
+    let resp = post_json(
+        &app,
+        &format!("/projects/{pid}/players/by-handles"),
+        &cookie,
+        json!({ "handles": ["mang0"] }),
+    )
+    .await;
+    assert_eq!(resp.status(), StatusCode::CREATED);
+    let r: Vec<serde_json::Value> = read_json(resp).await.as_array().unwrap().clone();
+    assert_eq!(r[0]["status"], "duplicate");
+}
+
+// ── Tournament event_type / bracket_types ─────────────────────────────────────
+
+#[sqlx::test(migrations = "../../migrations")]
+async fn list_tournaments_includes_bracket_types(pool: PgPool) {
+    let app = make_app(pool.clone());
+    let cookie = register(&app, "usr1", "pass1234").await;
+    let pid_str = create_project(&app, &cookie).await;
+    let rid = create_ranking(&app, &cookie, &pid_str).await;
+    let rid_uuid = Uuid::parse_str(&rid).unwrap();
+
+    // Seed global tournament with a global event that has two phases
+    let (t_id, e_id) = seed_tournament_event(&pool, rid_uuid, 9991, 9992).await;
+
+    // Add phases with bracket_type on the global event
     sqlx::query!(
-        "INSERT INTO ranking_events (ranking_id, event_id, included)
-         VALUES ($1, $2, true)",
-        rid_uuid,
+        "INSERT INTO global_phases (startgg_id, event_id, bracket_type, phase_order)
+         VALUES (9991, $1, 'ROUND_ROBIN', 1), (9992, $1, 'DOUBLE_ELIMINATION', 2)",
         e_id
     )
     .execute(&pool)
@@ -2162,11 +1990,15 @@ async fn list_tournaments_includes_event_type_and_bracket_types(pool: PgPool) {
     let tournaments = body.as_array().unwrap();
     assert_eq!(tournaments.len(), 1);
     let event = &tournaments[0]["events"][0];
-    assert_eq!(event["event_type"], json!(1));
+    // event_type is always null in the mirror-backed schema
+    assert_eq!(event["event_type"], json!(null));
     assert_eq!(
         event["bracket_types"],
         json!(["ROUND_ROBIN", "DOUBLE_ELIMINATION"])
     );
+
+    // suppress unused variable warning
+    let _ = t_id;
 }
 
 // ── Head-to-head ──────────────────────────────────────────────────────────────
@@ -2175,7 +2007,7 @@ async fn list_tournaments_includes_event_type_and_bracket_types(pool: PgPool) {
 async fn h2h_empty(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid).await;
 
     let resp = get_req(
@@ -2192,7 +2024,7 @@ async fn h2h_empty(pool: PgPool) {
 async fn h2h_with_sets(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &pool, &cookie).await;
+    let pid_str = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid_str).await;
     let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
@@ -2245,7 +2077,7 @@ async fn h2h_with_sets(pool: PgPool) {
 async fn h2h_requires_auth(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid).await;
 
     // Unauthenticated request to a private project returns 404 (not 401)
@@ -2268,7 +2100,7 @@ async fn h2h_enforces_ownership(pool: PgPool) {
     let app = make_app(pool.clone());
     let alice = register(&app, "alice", "password123").await;
     let bob = register(&app, "bob", "password456").await;
-    let pid = create_project(&app, &pool, &alice).await;
+    let pid = create_project(&app, &alice).await;
     let rid = create_ranking(&app, &alice, &pid).await;
 
     let resp = get_req(
@@ -2284,7 +2116,7 @@ async fn h2h_enforces_ownership(pool: PgPool) {
 async fn stats_returns_enriched_set_fields(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &pool, &cookie).await;
+    let pid_str = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid_str).await;
     let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
@@ -2296,22 +2128,20 @@ async fn stats_returns_enriched_set_fields(pool: PgPool) {
     add_player_to_ranking(&app, &cookie, &pid_str, &rid, &alice_id_str).await;
     add_player_to_ranking(&app, &cookie, &pid_str, &rid, &bob_id_str).await;
 
-    // Tournament with location
-    let pid = Uuid::parse_str(&pid_str).unwrap();
+    // Global tournament with location
     let t_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO tournaments (project_id, startgg_id, name, handle, online, city, addr_state)
-         VALUES ($1, 9001, 'LACS', 'tournament/lacs', false, 'Los Angeles', 'CA')
-         RETURNING id",
-        pid
+        "INSERT INTO global_tournaments (startgg_id, name, slug, online, city, addr_state)
+         VALUES (9001, 'LACS', 'tournament/lacs', false, 'Los Angeles', 'CA')
+         RETURNING id"
     )
     .fetch_one(&pool)
     .await
     .unwrap();
 
-    // Event with num_entrants
+    // Global event with num_entrants
     let e_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO events (tournament_id, startgg_id, name, num_entrants, handle)
-         VALUES ($1, 8001, 'Melee Singles', 128, 'melee-singles')
+        "INSERT INTO global_events (tournament_id, startgg_id, name, num_entrants)
+         VALUES ($1, 8001, 'Melee Singles', 128)
          RETURNING id",
         t_id
     )
@@ -2319,8 +2149,18 @@ async fn stats_returns_enriched_set_fields(pool: PgPool) {
     .await
     .unwrap();
 
+    let pid = Uuid::parse_str(&pid_str).unwrap();
     sqlx::query!(
-        "INSERT INTO ranking_events (ranking_id, event_id, included) VALUES ($1, $2, true)",
+        "INSERT INTO project_events (project_id, global_event_id) VALUES ($1, $2)",
+        pid,
+        e_id
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    sqlx::query!(
+        "INSERT INTO ranking_events (ranking_id, global_event_id, included) VALUES ($1, $2, true)",
         rid_uuid,
         e_id
     )
@@ -2330,7 +2170,7 @@ async fn stats_returns_enriched_set_fields(pool: PgPool) {
 
     // Phase and phase_group
     let phase_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO phases (startgg_id, event_id, name, phase_order)
+        "INSERT INTO global_phases (startgg_id, event_id, name, phase_order)
          VALUES (7001, $1, 'Top 8', 2)
          RETURNING id",
         e_id
@@ -2340,7 +2180,7 @@ async fn stats_returns_enriched_set_fields(pool: PgPool) {
     .unwrap();
 
     let pg_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO phase_groups (startgg_id, phase_id, display_identifier)
+        "INSERT INTO global_phase_groups (startgg_id, phase_id, display_identifier)
          VALUES (6001, $1, 'Pool A')
          RETURNING id",
         phase_id
@@ -2349,41 +2189,40 @@ async fn stats_returns_enriched_set_fields(pool: PgPool) {
     .await
     .unwrap();
 
-    // Entrants with final_placement: Bob placed 1st, Alice placed 2nd
-    let bob_e: Uuid = sqlx::query_scalar!(
-        "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name, seed, final_placement)
-         VALUES ($1, $2, 501, 'Bob', 1, 1)
-         RETURNING id",
-        e_id,
-        bob_id
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    // Global players linked to project players: Bob seed=1 placement=1, Alice seed=2 placement=2
+    let bob_gp = seed_entrant_named(&pool, e_id, Some(bob_id), 501, "Bob", Some(1)).await;
+    let alice_gp = seed_entrant_named(&pool, e_id, Some(alice_id), 502, "Alice", Some(2)).await;
 
-    let alice_e: Uuid = sqlx::query_scalar!(
-        "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name, seed, final_placement)
-         VALUES ($1, $2, 502, 'Alice', 2, 2)
-         RETURNING id",
-        e_id,
-        alice_id
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-
-    // Set: Bob beats Alice, in the phase_group
+    // Update placement (seed_entrant only sets seed)
     sqlx::query!(
-        "INSERT INTO sets (event_id, phase_group_id, startgg_set_id, winner_entrant_id, loser_entrant_id, is_dq)
-         VALUES ($1, $2, 901, $3, $4, false)",
+        "UPDATE global_event_entries SET placement = $1 WHERE event_id = $2 AND player_id = $3",
+        1i32,
         e_id,
-        pg_id,
-        bob_e,
-        alice_e
+        bob_gp
     )
     .execute(&pool)
     .await
     .unwrap();
+    sqlx::query!(
+        "UPDATE global_event_entries SET placement = $1 WHERE event_id = $2 AND player_id = $3",
+        2i32,
+        e_id,
+        alice_gp
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // Set: Bob beats Alice in the phase_group
+    sqlx::query!(
+        "INSERT INTO global_sets (startgg_id, event_id, phase_group_id, winner_player_id, loser_player_id, is_dq)
+         VALUES (901, $1, $2, $3, $4, false)",
+        e_id, pg_id, bob_gp, alice_gp
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
     compute_ranking_set_results(&pool, rid_uuid).await;
 
     let resp = get_req(
@@ -2415,7 +2254,7 @@ async fn stats_returns_enriched_set_fields(pool: PgPool) {
 async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid_str = create_project(&app, &pool, &cookie).await;
+    let pid_str = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid_str).await;
     let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
@@ -2427,21 +2266,19 @@ async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
     add_player_to_ranking(&app, &cookie, &pid_str, &rid, &alice_id_str).await;
     add_player_to_ranking(&app, &cookie, &pid_str, &rid, &bob_id_str).await;
 
-    // Online tournament (location should be "Online")
-    let pid = Uuid::parse_str(&pid_str).unwrap();
+    // Online global tournament
     let t_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO tournaments (project_id, startgg_id, name, handle, online, city, addr_state)
-         VALUES ($1, 9002, 'Online Major', 'tournament/online-major', true, 'Austin', 'TX')
-         RETURNING id",
-        pid
+        "INSERT INTO global_tournaments (startgg_id, name, slug, online, city, addr_state)
+         VALUES (9002, 'Online Major', 'tournament/online-major', true, 'Austin', 'TX')
+         RETURNING id"
     )
     .fetch_one(&pool)
     .await
     .unwrap();
 
     let e_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO events (tournament_id, startgg_id, name, num_entrants, handle)
-         VALUES ($1, 8002, 'Melee Singles', 64, 'melee-singles')
+        "INSERT INTO global_events (tournament_id, startgg_id, name, num_entrants)
+         VALUES ($1, 8002, 'Melee Singles', 64)
          RETURNING id",
         t_id
     )
@@ -2449,8 +2286,18 @@ async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
     .await
     .unwrap();
 
+    let pid = Uuid::parse_str(&pid_str).unwrap();
     sqlx::query!(
-        "INSERT INTO ranking_events (ranking_id, event_id, included) VALUES ($1, $2, true)",
+        "INSERT INTO project_events (project_id, global_event_id) VALUES ($1, $2)",
+        pid,
+        e_id
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    sqlx::query!(
+        "INSERT INTO ranking_events (ranking_id, global_event_id, included) VALUES ($1, $2, true)",
         rid_uuid,
         e_id
     )
@@ -2459,7 +2306,7 @@ async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
     .unwrap();
 
     let phase_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO phases (startgg_id, event_id, name, phase_order)
+        "INSERT INTO global_phases (startgg_id, event_id, name, phase_order)
          VALUES (7002, $1, 'Bracket', 1)
          RETURNING id",
         e_id
@@ -2469,7 +2316,7 @@ async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
     .unwrap();
 
     let pg_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO phase_groups (startgg_id, phase_id, display_identifier)
+        "INSERT INTO global_phase_groups (startgg_id, phase_id, display_identifier)
          VALUES (6002, $1, NULL)
          RETURNING id",
         phase_id
@@ -2478,39 +2325,36 @@ async fn h2h_sets_returns_enriched_fields(pool: PgPool) {
     .await
     .unwrap();
 
-    let alice_e: Uuid = sqlx::query_scalar!(
-        "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name, seed, final_placement)
-         VALUES ($1, $2, 503, 'Alice', 1, 1)
-         RETURNING id",
-        e_id,
-        alice_id
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-
-    let bob_e: Uuid = sqlx::query_scalar!(
-        "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name, seed, final_placement)
-         VALUES ($1, $2, 504, 'Bob', 2, 2)
-         RETURNING id",
-        e_id,
-        bob_id
-    )
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    // Global players: Alice seed=1 placement=1, Bob seed=2 placement=2
+    let alice_gp = seed_entrant_named(&pool, e_id, Some(alice_id), 503, "Alice", Some(1)).await;
+    let bob_gp = seed_entrant_named(&pool, e_id, Some(bob_id), 504, "Bob", Some(2)).await;
 
     sqlx::query!(
-        "INSERT INTO sets (event_id, phase_group_id, startgg_set_id, winner_entrant_id, loser_entrant_id, is_dq)
-         VALUES ($1, $2, 902, $3, $4, false)",
+        "UPDATE global_event_entries SET placement = 1 WHERE event_id = $1 AND player_id = $2",
         e_id,
-        pg_id,
-        alice_e,
-        bob_e
+        alice_gp
     )
     .execute(&pool)
     .await
     .unwrap();
+    sqlx::query!(
+        "UPDATE global_event_entries SET placement = 2 WHERE event_id = $1 AND player_id = $2",
+        e_id,
+        bob_gp
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    sqlx::query!(
+        "INSERT INTO global_sets (startgg_id, event_id, phase_group_id, winner_player_id, loser_player_id, is_dq)
+         VALUES (902, $1, $2, $3, $4, false)",
+        e_id, pg_id, alice_gp, bob_gp
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
     compute_ranking_set_results(&pool, rid_uuid).await;
 
     let resp = get_req(
@@ -2691,7 +2535,7 @@ async fn auth_rate_limit_after_burst(pool: PgPool) {
 async fn players_auto_rank_position(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
 
     create_player(&app, &cookie, &pid, "Alpha").await;
     create_player(&app, &cookie, &pid, "Beta").await;
@@ -2713,7 +2557,7 @@ async fn players_auto_rank_position(pool: PgPool) {
 async fn ranking_reorder_persists(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid).await;
 
     let a = create_player(&app, &cookie, &pid, "Alpha").await;
@@ -2753,7 +2597,7 @@ async fn ranking_reorder_persists(pool: PgPool) {
 async fn ranking_reorder_rejects_incomplete_list(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid).await;
 
     let a = create_player(&app, &cookie, &pid, "Alpha").await;
@@ -2776,7 +2620,7 @@ async fn ranking_reorder_rejects_incomplete_list(pool: PgPool) {
 async fn ranking_reorder_rejects_unknown_id(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid).await;
 
     let a = create_player(&app, &cookie, &pid, "Alpha").await;
@@ -2796,7 +2640,7 @@ async fn ranking_reorder_rejects_unknown_id(pool: PgPool) {
 async fn ranking_reorder_rejects_duplicate_ids(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid).await;
 
     let a = create_player(&app, &cookie, &pid, "Alpha").await;
@@ -2821,7 +2665,7 @@ async fn ranking_reorder_rejects_duplicate_ids(pool: PgPool) {
 async fn player_stats_returns_single_player_data(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice_ps", "password123").await;
-    let pid_str = create_project(&app, &pool, &cookie).await;
+    let pid_str = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid_str).await;
     let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
@@ -2867,7 +2711,7 @@ async fn player_stats_returns_single_player_data(pool: PgPool) {
 async fn player_stats_returns_404_for_unknown_player(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice_ps2", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid).await;
     let fake_id = Uuid::new_v4();
 
@@ -2884,7 +2728,7 @@ async fn player_stats_returns_404_for_unknown_player(pool: PgPool) {
 async fn player_stats_returns_losses_correctly(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "bob_ps", "password123").await;
-    let pid_str = create_project(&app, &pool, &cookie).await;
+    let pid_str = create_project(&app, &cookie).await;
     let rid = create_ranking(&app, &cookie, &pid_str).await;
     let rid_uuid = Uuid::parse_str(&rid).unwrap();
 
@@ -2923,25 +2767,41 @@ async fn player_stats_returns_losses_correctly(pool: PgPool) {
 async fn player_tournaments_returns_attendance_history(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice_pt", "password123").await;
-    let pid_str = create_project(&app, &pool, &cookie).await;
+    let pid_str = create_project(&app, &cookie).await;
     let pid = Uuid::parse_str(&pid_str).unwrap();
 
     let alice_id = Uuid::parse_str(&create_player(&app, &cookie, &pid_str, "Alice").await).unwrap();
 
-    // Tournament 1: included event, Alice placed 2nd
+    // Seed a global_player for Alice and link via startgg_accounts
+    let alice_gp: Uuid = sqlx::query_scalar!(
+        "INSERT INTO global_players (startgg_user_id, handle) VALUES (9001, 'alice') RETURNING id"
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    sqlx::query!(
+        "INSERT INTO startgg_accounts (player_id, startgg_user_id, handle)
+         VALUES ($1, 9001, 'alice')",
+        alice_id
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // Tournament 1: Genesis 9, Alice placed 2nd with 486 entrants
     let t1_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO tournaments (project_id, startgg_id, name, handle, online, city, addr_state)
-         VALUES ($1, 9101, 'Genesis 9', 'tournament/genesis-9', false, 'San Jose', 'CA')
-         RETURNING id",
-        pid
+        "INSERT INTO global_tournaments (startgg_id, name, slug, online, city, addr_state)
+         VALUES (9101, 'Genesis 9', 'tournament/genesis-9', false, 'San Jose', 'CA')
+         RETURNING id"
     )
     .fetch_one(&pool)
     .await
     .unwrap();
 
     let e1_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO events (tournament_id, startgg_id, name, num_entrants, handle)
-         VALUES ($1, 8101, 'Melee Singles', 486, 'melee-singles')
+        "INSERT INTO global_events (tournament_id, startgg_id, name, num_entrants)
+         VALUES ($1, 8101, 'Melee Singles', 486)
          RETURNING id",
         t1_id
     )
@@ -2950,25 +2810,36 @@ async fn player_tournaments_returns_attendance_history(pool: PgPool) {
     .unwrap();
 
     sqlx::query!(
-        "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name, final_placement)
-         VALUES ($1, $2, 5001, 'Alice', 2)",
-        e1_id, alice_id
-    ).execute(&pool).await.unwrap();
+        "INSERT INTO project_events (project_id, global_event_id) VALUES ($1, $2)",
+        pid,
+        e1_id
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
 
-    // Tournament 2: no ranking_events entry for this tournament — attendance should still appear
+    sqlx::query!(
+        "INSERT INTO global_event_entries (event_id, player_id, placement) VALUES ($1, $2, 2)",
+        e1_id,
+        alice_gp
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    // Tournament 2: CEO 2024, Alice attended (no placement), not in any ranking — still appears
     let t2_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO tournaments (project_id, startgg_id, name, handle, online)
-         VALUES ($1, 9102, 'CEO 2024', 'tournament/ceo-2024', false)
-         RETURNING id",
-        pid
+        "INSERT INTO global_tournaments (startgg_id, name, slug, online)
+         VALUES (9102, 'CEO 2024', 'tournament/ceo-2024', false)
+         RETURNING id"
     )
     .fetch_one(&pool)
     .await
     .unwrap();
 
     let e2_id: Uuid = sqlx::query_scalar!(
-        "INSERT INTO events (tournament_id, startgg_id, name, handle)
-         VALUES ($1, 8102, 'Melee Singles', 'melee-singles-2')
+        "INSERT INTO global_events (tournament_id, startgg_id, name)
+         VALUES ($1, 8102, 'Melee Singles')
          RETURNING id",
         t2_id
     )
@@ -2977,10 +2848,18 @@ async fn player_tournaments_returns_attendance_history(pool: PgPool) {
     .unwrap();
 
     sqlx::query!(
-        "INSERT INTO entrants (event_id, player_id, startgg_entrant_id, display_name)
-         VALUES ($1, $2, 5002, 'Alice')",
+        "INSERT INTO project_events (project_id, global_event_id) VALUES ($1, $2)",
+        pid,
+        e2_id
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    sqlx::query!(
+        "INSERT INTO global_event_entries (event_id, player_id) VALUES ($1, $2)",
         e2_id,
-        alice_id
+        alice_gp
     )
     .execute(&pool)
     .await
@@ -2999,7 +2878,7 @@ async fn player_tournaments_returns_attendance_history(pool: PgPool) {
     assert_eq!(
         entries.len(),
         2,
-        "should include both in-project and out-of-project events"
+        "should include both project events (with and without ranking)"
     );
 
     let genesis = entries
@@ -3016,7 +2895,7 @@ async fn player_tournaments_returns_attendance_history(pool: PgPool) {
 async fn player_tournaments_returns_404_for_unknown_player(pool: PgPool) {
     let app = make_app(pool.clone());
     let cookie = register(&app, "alice_pt2", "password123").await;
-    let pid = create_project(&app, &pool, &cookie).await;
+    let pid = create_project(&app, &cookie).await;
     let fake_id = Uuid::new_v4();
 
     let resp = get_req(

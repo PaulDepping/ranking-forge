@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO global_tournaments\n            (startgg_id, name, slug, short_slug, start_at, end_at, country_code, city,\n             addr_state, online, num_attendees, lat, lng, timezone,\n             hashtag, venue_name, venue_address, profile_image_url, banner_url)\n        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)\n        ON CONFLICT (startgg_id) DO UPDATE SET\n            name              = EXCLUDED.name,\n            slug              = EXCLUDED.slug,\n            short_slug        = COALESCE(EXCLUDED.short_slug,        global_tournaments.short_slug),\n            start_at          = EXCLUDED.start_at,\n            end_at            = EXCLUDED.end_at,\n            country_code      = EXCLUDED.country_code,\n            city              = EXCLUDED.city,\n            addr_state        = EXCLUDED.addr_state,\n            online            = EXCLUDED.online,\n            num_attendees     = EXCLUDED.num_attendees,\n            lat               = EXCLUDED.lat,\n            lng               = EXCLUDED.lng,\n            timezone          = EXCLUDED.timezone,\n            hashtag           = COALESCE(EXCLUDED.hashtag,           global_tournaments.hashtag),\n            venue_name        = COALESCE(EXCLUDED.venue_name,        global_tournaments.venue_name),\n            venue_address     = COALESCE(EXCLUDED.venue_address,     global_tournaments.venue_address),\n            profile_image_url = COALESCE(EXCLUDED.profile_image_url, global_tournaments.profile_image_url),\n            banner_url        = COALESCE(EXCLUDED.banner_url,        global_tournaments.banner_url)\n        RETURNING id\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Timestamptz",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Int4",
+        "Float8",
+        "Float8",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2978a93b63cb3fa570e538f5e091c63838cd44fbc40ca982a9c10d9545aeff3b"
+}

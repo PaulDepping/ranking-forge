@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO global_events (startgg_id, tournament_id, game_id, name, slug, num_entrants) VALUES (201, $1, $2, 'Melee Singles', 'tournament/genesis/event/melee', 64)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "321e11216a4e325b2d509521a512b9fa32bc216ca5b0facd403d06d4d0bcc7b1"
+}

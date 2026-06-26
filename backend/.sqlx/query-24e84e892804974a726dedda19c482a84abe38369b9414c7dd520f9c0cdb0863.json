@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO global_games (startgg_id, name)\n         VALUES (1, 'Super Smash Bros. Melee')\n         RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "24e84e892804974a726dedda19c482a84abe38369b9414c7dd520f9c0cdb0863"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO global_games (startgg_id, name) VALUES (1, 'SSBM')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "c3e11b9a483c6cc386ea87f00019b21a80b9b5d8b221f34fbab21532bdeb37ee"
+}

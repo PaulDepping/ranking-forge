@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO global_players (startgg_user_id, handle) VALUES (9001, 'alice') RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "eba06a0a4eef4d88d8b3e1147dfa309ead1a5a10feae6a5f74ef48a8d4c6b02d"
+}

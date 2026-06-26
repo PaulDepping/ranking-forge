@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO global_tournaments (startgg_id, name, slug, online, city, addr_state)\n         VALUES (9002, 'Online Major', 'tournament/online-major', true, 'Austin', 'TX')\n         RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e34683b23a061f3c377b8f4285262ea17b5c5835ffee46f1a08b8593c4898db3"
+}

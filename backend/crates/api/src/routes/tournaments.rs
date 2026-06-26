@@ -185,7 +185,7 @@ pub async fn list_tournaments(
             ge.id            AS event_id,
             ge.startgg_id    AS event_startgg_id,
             ge.name          AS event_name,
-            gg.name          AS game_name,
+            CASE WHEN ge.game_id IS NOT NULL THEN gg.name END AS game_name,
             ge.num_entrants,
             ge.start_at      AS event_start_at,
             re.included,

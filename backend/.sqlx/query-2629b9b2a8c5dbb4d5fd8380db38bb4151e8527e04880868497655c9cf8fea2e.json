@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            saw.player_id AS \"winner_player_id!: Uuid\",\n            sal.player_id AS \"loser_player_id!: Uuid\",\n            gs.completed_at\n        FROM global_sets gs\n        JOIN global_players gwp ON gwp.id = gs.winner_player_id\n        JOIN global_players glp ON glp.id = gs.loser_player_id\n        JOIN startgg_accounts saw ON saw.startgg_user_id = gwp.startgg_user_id\n        JOIN startgg_accounts sal ON sal.startgg_user_id = glp.startgg_user_id\n        JOIN ranking_players rwp ON rwp.player_id = saw.player_id AND rwp.ranking_id = $1\n        JOIN ranking_players rlp ON rlp.player_id = sal.player_id AND rlp.ranking_id = $1\n        JOIN ranking_events re ON re.global_event_id = gs.event_id AND re.ranking_id = $1\n        WHERE re.included = true\n          AND gs.is_dq    = false\n        ORDER BY gs.completed_at ASC NULLS LAST\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "winner_player_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "loser_player_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "completed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "2629b9b2a8c5dbb4d5fd8380db38bb4151e8527e04880868497655c9cf8fea2e"
+}

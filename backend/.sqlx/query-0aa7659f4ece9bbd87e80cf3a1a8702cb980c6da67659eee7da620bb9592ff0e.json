@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            gs.id               AS global_set_id,\n            saw.player_id       AS \"winner_player_id!: Uuid\",\n            sal.player_id       AS \"loser_player_id!: Uuid\",\n            gs.event_id         AS global_event_id,\n            wee.seed            AS winner_seed,\n            lee.seed            AS loser_seed,\n            gs.completed_at\n        FROM global_sets gs\n        JOIN global_players gwp ON gwp.id = gs.winner_player_id\n        JOIN global_players glp ON glp.id = gs.loser_player_id\n        JOIN startgg_accounts saw ON saw.startgg_user_id = gwp.startgg_user_id\n        JOIN startgg_accounts sal ON sal.startgg_user_id = glp.startgg_user_id\n        JOIN ranking_players rwp ON rwp.player_id = saw.player_id AND rwp.ranking_id = $1\n        JOIN ranking_players rlp ON rlp.player_id = sal.player_id AND rlp.ranking_id = $1\n        JOIN ranking_events re ON re.global_event_id = gs.event_id AND re.ranking_id = $1\n        LEFT JOIN global_event_entries wee ON wee.event_id = gs.event_id AND wee.player_id = gwp.id\n        LEFT JOIN global_event_entries lee ON lee.event_id = gs.event_id AND lee.player_id = glp.id\n        WHERE re.included = true\n          AND gs.is_dq    = false\n        ORDER BY gs.completed_at ASC NULLS LAST\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "global_set_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "winner_player_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "loser_player_id!: Uuid",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "global_event_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "winner_seed",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "loser_seed",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "completed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "0aa7659f4ece9bbd87e80cf3a1a8702cb980c6da67659eee7da620bb9592ff0e"
+}

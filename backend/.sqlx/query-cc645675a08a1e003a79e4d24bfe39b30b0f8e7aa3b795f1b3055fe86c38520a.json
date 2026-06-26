@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO ranking_events (ranking_id, global_event_id, included) VALUES ($1, $2, true)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cc645675a08a1e003a79e4d24bfe39b30b0f8e7aa3b795f1b3055fe86c38520a"
+}

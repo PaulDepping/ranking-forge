@@ -1,0 +1,136 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT\n            gt.id            AS tournament_id,\n            gt.startgg_id    AS tournament_startgg_id,\n            gt.name          AS tournament_name,\n            gt.slug          AS tournament_handle,\n            gt.city,\n            gt.addr_state,\n            gt.country_code,\n            gt.venue_name,\n            gt.online        AS \"online!: bool\",\n            gt.start_at      AS tournament_start_at,\n            gt.end_at,\n            ge.id            AS event_id,\n            ge.startgg_id    AS event_startgg_id,\n            ge.name          AS event_name,\n            CASE WHEN ge.game_id IS NOT NULL THEN gg.name END AS game_name,\n            ge.num_entrants,\n            ge.start_at      AS event_start_at,\n            re.included,\n            NULL::INTEGER    AS event_type,\n            ARRAY(\n                SELECT gp.bracket_type\n                FROM global_phases gp\n                WHERE gp.event_id = ge.id\n                  AND gp.bracket_type IS NOT NULL\n                ORDER BY gp.phase_order ASC NULLS LAST\n            ) AS \"bracket_types!: Vec<String>\"\n        FROM ranking_events re\n        JOIN global_events ge      ON ge.id = re.global_event_id\n        JOIN global_tournaments gt ON gt.id = ge.tournament_id\n        LEFT JOIN global_games gg  ON gg.id = ge.game_id\n        WHERE re.ranking_id = $1\n        ORDER BY gt.start_at DESC NULLS LAST, gt.name ASC, ge.name ASC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "tournament_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "tournament_startgg_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "tournament_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "tournament_handle",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "city",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "addr_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "country_code",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "venue_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "online!: bool",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 9,
+        "name": "tournament_start_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "end_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "event_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "event_startgg_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 13,
+        "name": "event_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 14,
+        "name": "game_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 15,
+        "name": "num_entrants",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 16,
+        "name": "event_start_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 17,
+        "name": "included",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 18,
+        "name": "event_type",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 19,
+        "name": "bracket_types!: Vec<String>",
+        "type_info": "TextArray"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      null,
+      true,
+      true,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "a72d42b910484bd9f0f548ae0ebb757c1d889b81622e98e6aa88802c5b85f491"
+}

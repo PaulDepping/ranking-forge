@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO project_events (project_id, global_event_id)\n             VALUES ($1, $2)\n             ON CONFLICT DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4fe3ab57894c125040eb8fd76977c83f8dc8cfcef55d9fc5921de78327d23bfa"
+}

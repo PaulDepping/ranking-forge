@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO ranking_set_results\n                 (ranking_id, global_set_id, winner_player_id, loser_player_id, global_event_id, upset_factor, completed_at)\n             VALUES ($1, $2, $3, $4, $5, $6, $7)\n             ON CONFLICT (ranking_id, global_set_id) DO UPDATE SET\n                 winner_player_id = EXCLUDED.winner_player_id,\n                 loser_player_id  = EXCLUDED.loser_player_id,\n                 global_event_id  = EXCLUDED.global_event_id,\n                 upset_factor     = EXCLUDED.upset_factor,\n                 completed_at     = EXCLUDED.completed_at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Float8",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2091163b632ca9472b31f2b4fc942ba594627333528ee5d20b51d03b90bb0437"
+}

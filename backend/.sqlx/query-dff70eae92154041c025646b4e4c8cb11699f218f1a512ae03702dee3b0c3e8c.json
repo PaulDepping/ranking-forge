@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE global_event_entries SET placement = $1 WHERE event_id = $2 AND player_id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "dff70eae92154041c025646b4e4c8cb11699f218f1a512ae03702dee3b0c3e8c"
+}

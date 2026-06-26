@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM project_events\n         WHERE project_id = $1\n           AND global_event_id IN (SELECT id FROM global_events WHERE tournament_id = $2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "640f83ff5254ba548f9bec2ff8e5283146e71b5c03f68e69f4a38409e18cf48f"
+}

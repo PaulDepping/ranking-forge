@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO global_sets\n             (startgg_id, event_id, winner_player_id, loser_player_id,\n              round, round_name, winner_score, loser_score, completed_at)\n         VALUES (4001, $1, $2, $3, 1, 'Round 1', 3, 1,\n                 '2023-11-15 12:00:00+00'::timestamptz)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "8d45cd64edcd5392c27f5b5596055539295584eeea7e9b85c02ca6926396d332"
+}

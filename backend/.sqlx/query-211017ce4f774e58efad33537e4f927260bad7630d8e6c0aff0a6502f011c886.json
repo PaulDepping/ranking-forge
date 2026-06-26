@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO global_sets\n             (startgg_id, event_id, winner_player_id, loser_player_id,\n              is_dq, winner_score, loser_score)\n         VALUES ($1, $2, $3, $4, false, $5, $6)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Int2",
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "211017ce4f774e58efad33537e4f927260bad7630d8e6c0aff0a6502f011c886"
+}

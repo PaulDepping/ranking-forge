@@ -201,16 +201,6 @@ mod tests {
         format!("session_id={}", body["session_id"].as_str().unwrap())
     }
 
-    async fn with_api_key(pool: &PgPool, email: &str) {
-        sqlx::query!(
-            "UPDATE users SET startgg_api_key = 'test-key' WHERE email = $1",
-            email
-        )
-        .execute(pool)
-        .await
-        .unwrap();
-    }
-
     async fn create_project(app: &Router, cookie: &str) -> String {
         let resp = app
             .clone()
@@ -237,7 +227,6 @@ mod tests {
     async fn test_invite_link_lifecycle(pool: PgPool) {
         let app = make_app(pool.clone());
         let owner_cookie = register(&app, "inv_owner").await;
-        with_api_key(&pool, "inv_owner@test.com").await;
         let user_cookie = register(&app, "inv_user").await;
         let proj_id = create_project(&app, &owner_cookie).await;
 
@@ -291,7 +280,6 @@ mod tests {
     async fn test_revoked_link_cannot_be_accepted(pool: PgPool) {
         let app = make_app(pool.clone());
         let owner_cookie = register(&app, "rev_owner").await;
-        with_api_key(&pool, "rev_owner@test.com").await;
         let user_cookie = register(&app, "rev_user").await;
         let proj_id = create_project(&app, &owner_cookie).await;
 

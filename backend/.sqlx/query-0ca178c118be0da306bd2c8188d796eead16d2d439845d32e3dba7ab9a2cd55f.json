@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO global_players (startgg_user_id, handle, display_name) VALUES (99999, 'Mango', 'Juan')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "0ca178c118be0da306bd2c8188d796eead16d2d439845d32e3dba7ab9a2cd55f"
+}

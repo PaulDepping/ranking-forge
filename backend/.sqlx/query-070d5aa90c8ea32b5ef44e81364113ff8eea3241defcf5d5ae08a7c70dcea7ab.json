@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT startgg_user_id, handle, display_name FROM global_players WHERE handle ILIKE $1 AND startgg_user_id IS NOT NULL LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "startgg_user_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "handle",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "display_name",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "070d5aa90c8ea32b5ef44e81364113ff8eea3241defcf5d5ae08a7c70dcea7ab"
+}

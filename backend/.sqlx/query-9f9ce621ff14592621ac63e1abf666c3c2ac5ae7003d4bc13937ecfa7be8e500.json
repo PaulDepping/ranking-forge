@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO ranking_events (ranking_id, global_event_id, included)\n        SELECT DISTINCT $1::uuid, pe.global_event_id, true\n        FROM project_events pe\n        WHERE pe.project_id = $2\n        ON CONFLICT DO NOTHING\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9f9ce621ff14592621ac63e1abf666c3c2ac5ae7003d4bc13937ecfa7be8e500"
+}

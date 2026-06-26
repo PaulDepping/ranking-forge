@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO global_tournaments (startgg_id, name, slug, online)\n         VALUES (7001, 'Some Weekly', 'tournament/some-weekly', false)\n         RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "05e66ccee10a4881d330f68db08e73ddb713353c5d6567b89c63673b77b511bc"
+}

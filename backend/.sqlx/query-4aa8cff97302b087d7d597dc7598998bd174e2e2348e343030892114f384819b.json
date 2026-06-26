@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COUNT(*) FROM global_events ge\n         JOIN global_tournaments gt ON gt.id = ge.tournament_id\n         WHERE gt.startgg_id = 1001",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "4aa8cff97302b087d7d597dc7598998bd174e2e2348e343030892114f384819b"
+}
