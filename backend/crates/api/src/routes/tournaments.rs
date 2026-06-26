@@ -171,37 +171,38 @@ pub async fn list_tournaments(
         Row,
         r#"
         SELECT
-            t.id            AS tournament_id,
-            t.startgg_id    AS tournament_startgg_id,
-            t.name          AS tournament_name,
-            t.handle        AS tournament_handle,
-            t.city,
-            t.addr_state,
-            t.country_code,
-            t.venue_name,
-            t.online,
-            t.start_at      AS tournament_start_at,
-            t.end_at,
-            e.id            AS event_id,
-            e.startgg_id    AS event_startgg_id,
-            e.name          AS event_name,
-            e.game_name,
-            e.num_entrants,
-            e.start_at      AS event_start_at,
+            gt.id            AS tournament_id,
+            gt.startgg_id    AS tournament_startgg_id,
+            gt.name          AS tournament_name,
+            gt.slug          AS tournament_handle,
+            gt.city,
+            gt.addr_state,
+            gt.country_code,
+            gt.venue_name,
+            gt.online        AS "online!: bool",
+            gt.start_at      AS tournament_start_at,
+            gt.end_at,
+            ge.id            AS event_id,
+            ge.startgg_id    AS event_startgg_id,
+            ge.name          AS event_name,
+            gg.name          AS game_name,
+            ge.num_entrants,
+            ge.start_at      AS event_start_at,
             re.included,
-            e.event_type,
+            NULL::INTEGER    AS event_type,
             ARRAY(
-                SELECT p.bracket_type
-                FROM phases p
-                WHERE p.event_id = e.id
-                  AND p.bracket_type IS NOT NULL
-                ORDER BY p.phase_order ASC NULLS LAST
-            )               AS "bracket_types!: Vec<String>"
+                SELECT gp.bracket_type
+                FROM global_phases gp
+                WHERE gp.event_id = ge.id
+                  AND gp.bracket_type IS NOT NULL
+                ORDER BY gp.phase_order ASC NULLS LAST
+            ) AS "bracket_types!: Vec<String>"
         FROM ranking_events re
-        JOIN events      e ON e.id = re.event_id
-        JOIN tournaments t ON t.id = e.tournament_id
+        JOIN global_events ge      ON ge.id = re.global_event_id
+        JOIN global_tournaments gt ON gt.id = ge.tournament_id
+        LEFT JOIN global_games gg  ON gg.id = ge.game_id
         WHERE re.ranking_id = $1
-        ORDER BY t.start_at DESC NULLS LAST, t.name ASC, e.name ASC
+        ORDER BY gt.start_at DESC NULLS LAST, gt.name ASC, ge.name ASC
         "#,
         path.rid,
     )
@@ -271,7 +272,7 @@ pub async fn put_events(
     for item in &body {
         sqlx::query!(
             "UPDATE ranking_events SET included = $1
-             WHERE ranking_id = $2 AND event_id = $3",
+             WHERE ranking_id = $2 AND global_event_id = $3",
             item.included,
             path.rid,
             item.event_id,
@@ -312,80 +313,78 @@ pub async fn get_stats(
     .await?;
 
     struct SetRow {
-        winner_player_id: Option<Uuid>,
-        winner_name: String,
-        winner_seed: Option<i32>,
-        loser_player_id: Option<Uuid>,
-        loser_name: String,
-        loser_seed: Option<i32>,
+        winner_player_id: Uuid,
+        loser_player_id: Uuid,
+        upset_factor: Option<f64>,
+        completed_at: Option<DateTime<Utc>>,
         winner_score: Option<i16>,
         loser_score: Option<i16>,
         round_name: Option<String>,
         is_dq: bool,
         vod_url: Option<String>,
         startgg_set_id: i64,
-        winner_placement: Option<i32>,
-        loser_placement: Option<i32>,
         event_name: String,
-        event_handle: Option<String>,
-        num_entrants: Option<i32>,
         tournament_name: String,
         tournament_handle: String,
-        online: bool,
+        winner_seed: Option<i32>,
+        loser_seed: Option<i32>,
+        winner_placement: Option<i32>,
+        loser_placement: Option<i32>,
+        winner_handle: String,
+        loser_handle: String,
+        phase_name: Option<String>,
+        pool_identifier: Option<String>,
         city: Option<String>,
         addr_state: Option<String>,
         country_code: Option<String>,
-        phase_name: Option<String>,
-        pool_identifier: Option<String>,
-        completed_at: Option<DateTime<Utc>>,
+        online: bool,
+        num_entrants: Option<i32>,
+        event_handle: Option<String>,
     }
 
     let rows = sqlx::query_as!(
         SetRow,
         r#"
         SELECT
-            we.player_id                        AS "winner_player_id?: Uuid",
-            COALESCE(wp.name, we.display_name)  AS "winner_name!",
-            we.seed                             AS winner_seed,
-            le.player_id                        AS "loser_player_id?: Uuid",
-            COALESCE(lp.name, le.display_name)  AS "loser_name!",
-            le.seed                             AS loser_seed,
-            s.winner_score,
-            s.loser_score,
-            s.round_name,
-            s.is_dq,
-            s.vod_url,
-            s.startgg_set_id,
-            we.final_placement                  AS winner_placement,
-            le.final_placement                  AS loser_placement,
-            e.name                              AS event_name,
-            e.handle                            AS "event_handle?: String",
-            e.num_entrants,
-            t.name                              AS tournament_name,
-            t.handle                            AS tournament_handle,
-            t.online,
-            t.city,
-            t.addr_state,
-            t.country_code,
-            ph.name                             AS "phase_name?: String",
-            pg.display_identifier               AS "pool_identifier?: String",
-            s.completed_at
-        FROM sets s
-        JOIN entrants we ON we.id = s.winner_entrant_id
-        JOIN entrants le ON le.id = s.loser_entrant_id
-        JOIN ranking_events re ON re.event_id = s.event_id AND re.ranking_id = $1
-        JOIN events e ON e.id = s.event_id
-        JOIN tournaments t ON t.id = e.tournament_id
-        LEFT JOIN ranking_players rwp ON rwp.player_id = we.player_id AND rwp.ranking_id = $1
-        LEFT JOIN players wp ON wp.id = rwp.player_id
-        LEFT JOIN ranking_players rlp ON rlp.player_id = le.player_id AND rlp.ranking_id = $1
-        LEFT JOIN players lp ON lp.id = rlp.player_id
-        LEFT JOIN phase_groups pg ON pg.id = s.phase_group_id
-        LEFT JOIN phases ph ON ph.id = pg.phase_id
-        WHERE re.included = true
-          AND s.is_dq = false
-          AND s.has_placeholder = false
-          AND (rwp.player_id IS NOT NULL OR rlp.player_id IS NOT NULL)
+            rsr.winner_player_id,
+            rsr.loser_player_id,
+            rsr.upset_factor,
+            rsr.completed_at,
+            gs.winner_score,
+            gs.loser_score,
+            gs.round_name,
+            gs.is_dq,
+            gs.vod_url,
+            gs.startgg_id   AS startgg_set_id,
+            ge.name         AS event_name,
+            gt.name         AS tournament_name,
+            gt.slug         AS tournament_handle,
+            wee.seed        AS winner_seed,
+            lee.seed        AS loser_seed,
+            wee.placement   AS winner_placement,
+            lee.placement   AS loser_placement,
+            gwp.handle      AS winner_handle,
+            glp.handle      AS loser_handle,
+            gph.name        AS phase_name,
+            gpg.display_identifier AS pool_identifier,
+            gt.city,
+            gt.addr_state,
+            gt.country_code,
+            gt.online AS "online!: bool",
+            ge.num_entrants,
+            ge.slug         AS event_handle
+        FROM ranking_set_results rsr
+        JOIN global_sets gs        ON gs.id  = rsr.global_set_id
+        JOIN global_events ge      ON ge.id  = rsr.global_event_id
+        JOIN global_tournaments gt ON gt.id  = ge.tournament_id
+        JOIN global_players gwp    ON gwp.id = gs.winner_player_id
+        JOIN global_players glp    ON glp.id = gs.loser_player_id
+        LEFT JOIN global_event_entries wee ON wee.event_id = ge.id AND wee.player_id = gwp.id
+        LEFT JOIN global_event_entries lee ON lee.event_id = ge.id AND lee.player_id = glp.id
+        LEFT JOIN global_phase_groups gpg ON gpg.id = gs.phase_group_id
+        LEFT JOIN global_phases gph       ON gph.id = gpg.phase_id
+        WHERE rsr.ranking_id = $1
+        ORDER BY rsr.completed_at DESC NULLS LAST
         "#,
         path.rid,
     )
@@ -433,19 +432,19 @@ pub async fn get_stats(
             num_entrants: row.num_entrants,
             event_handle: row.event_handle.clone(),
         };
-        if let Some(winner_id) = row.winner_player_id {
-            if let Some(entry) = stats.get_mut(&winner_id) {
-                entry
-                    .1
-                    .push(make_record(row.loser_player_id, row.loser_name.clone()));
-            }
+        let winner_id = row.winner_player_id;
+        if let Some(entry) = stats.get_mut(&winner_id) {
+            entry.1.push(make_record(
+                Some(row.loser_player_id),
+                row.loser_handle.clone(),
+            ));
         }
-        if let Some(loser_id) = row.loser_player_id {
-            if let Some(entry) = stats.get_mut(&loser_id) {
-                entry
-                    .2
-                    .push(make_record(row.winner_player_id, row.winner_name.clone()));
-            }
+        let loser_id = row.loser_player_id;
+        if let Some(entry) = stats.get_mut(&loser_id) {
+            entry.2.push(make_record(
+                Some(row.winner_player_id),
+                row.winner_handle.clone(),
+            ));
         }
     }
 
@@ -490,81 +489,79 @@ pub async fn get_player_stats(
     let name = name.ok_or(AppError::NotFound)?;
 
     struct SetRow {
-        winner_player_id: Option<Uuid>,
-        winner_name: String,
-        winner_seed: Option<i32>,
-        loser_player_id: Option<Uuid>,
-        loser_name: String,
-        loser_seed: Option<i32>,
+        winner_player_id: Uuid,
+        loser_player_id: Uuid,
+        upset_factor: Option<f64>,
+        completed_at: Option<DateTime<Utc>>,
         winner_score: Option<i16>,
         loser_score: Option<i16>,
         round_name: Option<String>,
         is_dq: bool,
         vod_url: Option<String>,
         startgg_set_id: i64,
-        winner_placement: Option<i32>,
-        loser_placement: Option<i32>,
         event_name: String,
-        event_handle: Option<String>,
-        num_entrants: Option<i32>,
         tournament_name: String,
         tournament_handle: String,
-        online: bool,
+        winner_seed: Option<i32>,
+        loser_seed: Option<i32>,
+        winner_placement: Option<i32>,
+        loser_placement: Option<i32>,
+        winner_handle: String,
+        loser_handle: String,
+        phase_name: Option<String>,
+        pool_identifier: Option<String>,
         city: Option<String>,
         addr_state: Option<String>,
         country_code: Option<String>,
-        phase_name: Option<String>,
-        pool_identifier: Option<String>,
-        completed_at: Option<DateTime<Utc>>,
+        online: bool,
+        num_entrants: Option<i32>,
+        event_handle: Option<String>,
     }
 
     let rows = sqlx::query_as!(
         SetRow,
         r#"
         SELECT
-            we.player_id                        AS "winner_player_id?: Uuid",
-            COALESCE(wp.name, we.display_name)  AS "winner_name!",
-            we.seed                             AS winner_seed,
-            le.player_id                        AS "loser_player_id?: Uuid",
-            COALESCE(lp.name, le.display_name)  AS "loser_name!",
-            le.seed                             AS loser_seed,
-            s.winner_score,
-            s.loser_score,
-            s.round_name,
-            s.is_dq,
-            s.vod_url,
-            s.startgg_set_id,
-            we.final_placement                  AS winner_placement,
-            le.final_placement                  AS loser_placement,
-            e.name                              AS event_name,
-            e.handle                            AS "event_handle?: String",
-            e.num_entrants,
-            t.name                              AS tournament_name,
-            t.handle                            AS tournament_handle,
-            t.online,
-            t.city,
-            t.addr_state,
-            t.country_code,
-            ph.name                             AS "phase_name?: String",
-            pg.display_identifier               AS "pool_identifier?: String",
-            s.completed_at
-        FROM sets s
-        JOIN entrants we ON we.id = s.winner_entrant_id
-        JOIN entrants le ON le.id = s.loser_entrant_id
-        JOIN ranking_events re ON re.event_id = s.event_id AND re.ranking_id = $1
-        JOIN events e ON e.id = s.event_id
-        JOIN tournaments t ON t.id = e.tournament_id
-        LEFT JOIN ranking_players rwp ON rwp.player_id = we.player_id AND rwp.ranking_id = $1
-        LEFT JOIN players wp ON wp.id = rwp.player_id
-        LEFT JOIN ranking_players rlp ON rlp.player_id = le.player_id AND rlp.ranking_id = $1
-        LEFT JOIN players lp ON lp.id = rlp.player_id
-        LEFT JOIN phase_groups pg ON pg.id = s.phase_group_id
-        LEFT JOIN phases ph ON ph.id = pg.phase_id
-        WHERE re.included = true
-          AND s.is_dq = false
-          AND s.has_placeholder = false
-          AND (rwp.player_id IS NOT NULL OR rlp.player_id IS NOT NULL)
-          AND (we.player_id = $2 OR le.player_id = $2)
+            rsr.winner_player_id,
+            rsr.loser_player_id,
+            rsr.upset_factor,
+            rsr.completed_at,
+            gs.winner_score,
+            gs.loser_score,
+            gs.round_name,
+            gs.is_dq,
+            gs.vod_url,
+            gs.startgg_id   AS startgg_set_id,
+            ge.name         AS event_name,
+            gt.name         AS tournament_name,
+            gt.slug         AS tournament_handle,
+            wee.seed        AS winner_seed,
+            lee.seed        AS loser_seed,
+            wee.placement   AS winner_placement,
+            lee.placement   AS loser_placement,
+            gwp.handle      AS winner_handle,
+            glp.handle      AS loser_handle,
+            gph.name        AS phase_name,
+            gpg.display_identifier AS pool_identifier,
+            gt.city,
+            gt.addr_state,
+            gt.country_code,
+            gt.online AS "online!: bool",
+            ge.num_entrants,
+            ge.slug         AS event_handle
+        FROM ranking_set_results rsr
+        JOIN global_sets gs        ON gs.id  = rsr.global_set_id
+        JOIN global_events ge      ON ge.id  = rsr.global_event_id
+        JOIN global_tournaments gt ON gt.id  = ge.tournament_id
+        JOIN global_players gwp    ON gwp.id = gs.winner_player_id
+        JOIN global_players glp    ON glp.id = gs.loser_player_id
+        LEFT JOIN global_event_entries wee ON wee.event_id = ge.id AND wee.player_id = gwp.id
+        LEFT JOIN global_event_entries lee ON lee.event_id = ge.id AND lee.player_id = glp.id
+        LEFT JOIN global_phase_groups gpg ON gpg.id = gs.phase_group_id
+        LEFT JOIN global_phases gph       ON gph.id = gpg.phase_id
+        WHERE rsr.ranking_id = $1
+          AND (rsr.winner_player_id = $2 OR rsr.loser_player_id = $2)
+        ORDER BY rsr.completed_at DESC NULLS LAST
         "#,
         path.rid,
         path.player_id,
@@ -610,10 +607,10 @@ pub async fn get_player_stats(
             num_entrants: row.num_entrants,
             event_handle: row.event_handle.clone(),
         };
-        if row.winner_player_id == Some(path.player_id) {
-            wins.push(rec(row.loser_player_id, row.loser_name));
+        if row.winner_player_id == path.player_id {
+            wins.push(rec(Some(row.loser_player_id), row.loser_handle));
         } else {
-            losses.push(rec(row.winner_player_id, row.winner_name));
+            losses.push(rec(Some(row.winner_player_id), row.winner_handle));
         }
     }
 
@@ -659,41 +656,60 @@ pub async fn get_player_tournaments(
     }
 
     struct Row {
+        tournament_id: Uuid,
+        tournament_startgg_id: i64,
         tournament_name: String,
-        tournament_slug: String,
-        event_name: String,
-        placement: Option<i32>,
-        num_entrants: Option<i32>,
-        start_at: Option<DateTime<Utc>>,
-        online: bool,
+        tournament_handle: String,
         city: Option<String>,
         addr_state: Option<String>,
         country_code: Option<String>,
+        online: bool,
+        start_at: Option<DateTime<Utc>>,
+        end_at: Option<DateTime<Utc>>,
+        num_attendees: Option<i32>,
+        event_id: Uuid,
+        event_name: String,
+        num_entrants: Option<i32>,
+        placement: Option<i32>,
+        seed: Option<i32>,
     }
 
     let rows = sqlx::query_as!(
         Row,
         r#"
-        SELECT
-            t.name              AS tournament_name,
-            t.handle            AS tournament_slug,
-            e.name              AS event_name,
-            ent.final_placement AS "placement?: i32",
-            e.num_entrants      AS "num_entrants?: i32",
-            t.start_at,
-            t.online,
-            t.city,
-            t.addr_state,
-            t.country_code
-        FROM entrants ent
-        JOIN players pl ON pl.id = ent.player_id AND pl.project_id = $1
-        JOIN events e ON e.id = ent.event_id
-        JOIN tournaments t ON t.id = e.tournament_id
-        WHERE ent.player_id = $2
-        ORDER BY t.start_at DESC NULLS LAST
+        SELECT DISTINCT
+            gt.id           AS tournament_id,
+            gt.startgg_id   AS tournament_startgg_id,
+            gt.name         AS tournament_name,
+            gt.slug         AS tournament_handle,
+            gt.city,
+            gt.addr_state,
+            gt.country_code,
+            gt.online       AS "online!: bool",
+            gt.start_at,
+            gt.end_at,
+            gt.num_attendees,
+            ge.id           AS event_id,
+            ge.name         AS event_name,
+            ge.num_entrants,
+            gee.placement,
+            gee.seed
+        FROM global_event_entries gee
+        JOIN global_events ge          ON ge.id  = gee.event_id
+        JOIN global_tournaments gt     ON gt.id  = ge.tournament_id
+        JOIN global_players gp         ON gp.id  = gee.player_id
+        JOIN startgg_accounts sa       ON sa.startgg_user_id = gp.startgg_user_id
+        WHERE sa.player_id = $1
+          AND EXISTS (
+              SELECT 1 FROM project_events pe
+              JOIN projects pr ON pr.id = pe.project_id
+              WHERE pe.global_event_id = ge.id
+                AND pr.id = $2
+          )
+        ORDER BY gt.start_at DESC NULLS LAST
         "#,
-        project_id,
         player_id,
+        project_id,
     )
     .fetch_all(&state.db)
     .await?;
@@ -702,7 +718,7 @@ pub async fn get_player_tournaments(
         .into_iter()
         .map(|r| TournamentAttendance {
             tournament_name: r.tournament_name,
-            tournament_slug: r.tournament_slug,
+            tournament_slug: r.tournament_handle,
             event_name: r.event_name,
             placement: r.placement,
             num_entrants: r.num_entrants,
@@ -800,30 +816,31 @@ pub async fn get_h2h_sets(
 
     struct H2HSetRow {
         winner_player_id: Uuid,
-        winner_name: String,
-        winner_seed: Option<i32>,
         loser_player_id: Uuid,
-        loser_name: String,
-        loser_seed: Option<i32>,
+        upset_factor: Option<f64>,
+        completed_at: Option<DateTime<Utc>>,
         winner_score: Option<i16>,
         loser_score: Option<i16>,
-        event_name: String,
-        tournament_name: String,
-        tournament_handle: String,
         round_name: Option<String>,
-        completed_at: Option<DateTime<Utc>>,
         is_dq: bool,
         vod_url: Option<String>,
         startgg_set_id: i64,
-        phase_name: Option<String>,
-        pool_identifier: Option<String>,
+        event_name: String,
+        tournament_name: String,
+        tournament_handle: String,
+        winner_seed: Option<i32>,
+        loser_seed: Option<i32>,
         winner_placement: Option<i32>,
         loser_placement: Option<i32>,
-        num_entrants: Option<i32>,
-        online: bool,
+        winner_handle: String,
+        loser_handle: String,
+        phase_name: Option<String>,
+        pool_identifier: Option<String>,
         city: Option<String>,
         addr_state: Option<String>,
         country_code: Option<String>,
+        online: bool,
+        num_entrants: Option<i32>,
         event_handle: Option<String>,
     }
 
@@ -831,42 +848,43 @@ pub async fn get_h2h_sets(
         H2HSetRow,
         r#"
         SELECT
-            rsr.winner_player_id                AS "winner_player_id!: Uuid",
-            wp.name                             AS "winner_name!",
-            we.seed                             AS winner_seed,
-            rsr.loser_player_id                 AS "loser_player_id!: Uuid",
-            lp.name                             AS "loser_name!",
-            le.seed                             AS loser_seed,
-            s.winner_score,
-            s.loser_score,
-            e.name                              AS event_name,
-            t.name                              AS tournament_name,
-            t.handle                            AS tournament_handle,
-            s.round_name,
+            rsr.winner_player_id,
+            rsr.loser_player_id,
+            rsr.upset_factor,
             rsr.completed_at,
-            s.is_dq,
-            s.vod_url,
-            s.startgg_set_id,
-            ph.name                             AS "phase_name?: String",
-            pg.display_identifier               AS "pool_identifier?: String",
-            we.final_placement                  AS winner_placement,
-            le.final_placement                  AS loser_placement,
-            e.num_entrants,
-            t.online,
-            t.city,
-            t.addr_state,
-            t.country_code,
-            e.handle                            AS "event_handle?: String"
+            gs.winner_score,
+            gs.loser_score,
+            gs.round_name,
+            gs.is_dq,
+            gs.vod_url,
+            gs.startgg_id   AS startgg_set_id,
+            ge.name         AS event_name,
+            gt.name         AS tournament_name,
+            gt.slug         AS tournament_handle,
+            wee.seed        AS winner_seed,
+            lee.seed        AS loser_seed,
+            wee.placement   AS winner_placement,
+            lee.placement   AS loser_placement,
+            gwp.handle      AS winner_handle,
+            glp.handle      AS loser_handle,
+            gph.name        AS phase_name,
+            gpg.display_identifier AS pool_identifier,
+            gt.city,
+            gt.addr_state,
+            gt.country_code,
+            gt.online AS "online!: bool",
+            ge.num_entrants,
+            ge.slug         AS event_handle
         FROM ranking_set_results rsr
-        JOIN sets s ON s.id = rsr.set_id
-        JOIN players wp ON wp.id = rsr.winner_player_id
-        JOIN players lp ON lp.id = rsr.loser_player_id
-        JOIN entrants we ON we.id = s.winner_entrant_id
-        JOIN entrants le ON le.id = s.loser_entrant_id
-        JOIN events e ON e.id = rsr.event_id
-        JOIN tournaments t ON t.id = e.tournament_id
-        LEFT JOIN phase_groups pg ON pg.id = s.phase_group_id
-        LEFT JOIN phases ph ON ph.id = pg.phase_id
+        JOIN global_sets gs        ON gs.id  = rsr.global_set_id
+        JOIN global_events ge      ON ge.id  = rsr.global_event_id
+        JOIN global_tournaments gt ON gt.id  = ge.tournament_id
+        JOIN global_players gwp    ON gwp.id = gs.winner_player_id
+        JOIN global_players glp    ON glp.id = gs.loser_player_id
+        LEFT JOIN global_event_entries wee ON wee.event_id = ge.id AND wee.player_id = gwp.id
+        LEFT JOIN global_event_entries lee ON lee.event_id = ge.id AND lee.player_id = glp.id
+        LEFT JOIN global_phase_groups gpg ON gpg.id = gs.phase_group_id
+        LEFT JOIN global_phases gph       ON gph.id = gpg.phase_id
         WHERE rsr.ranking_id = $1
           AND (
               (rsr.winner_player_id = $2 AND rsr.loser_player_id = $3)
@@ -890,9 +908,9 @@ pub async fn get_h2h_sets(
             };
             let is_win = row.winner_player_id == path.pid_a;
             let (opponent_id, opponent_name) = if is_win {
-                (Some(row.loser_player_id), row.loser_name)
+                (Some(row.loser_player_id), row.loser_handle)
             } else {
-                (Some(row.winner_player_id), row.winner_name)
+                (Some(row.winner_player_id), row.winner_handle)
             };
             let location = compute_location(
                 row.online,
@@ -936,23 +954,39 @@ pub async fn get_h2h_sets(
 pub async fn delete_tournament(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
-    Path((project_id, tournament_id)): Path<(Uuid, Uuid)>,
+    Path((project_id, tournament_startgg_id)): Path<(Uuid, i64)>,
 ) -> Result<impl IntoResponse> {
     use crate::routes::projects::require_project_access;
     require_project_access(&state.db, project_id, user.id, UserRole::Editor).await?;
 
+    let gt = sqlx::query!(
+        "SELECT id FROM global_tournaments WHERE startgg_id = $1",
+        tournament_startgg_id,
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    sqlx::query!(
+        "DELETE FROM project_events
+         WHERE project_id = $1
+           AND global_event_id IN (SELECT id FROM global_events WHERE tournament_id = $2)",
+        project_id,
+        gt.id,
+    )
+    .execute(&state.db)
+    .await?;
+
     sqlx::query!(
         r#"
-        DELETE FROM ranking_events
-        WHERE event_id IN (
-            SELECT id FROM events WHERE tournament_id = $1
-        )
-        AND ranking_id IN (
-            SELECT id FROM rankings WHERE project_id = $2
-        )
+        DELETE FROM ranking_events re
+        USING rankings r
+        WHERE re.ranking_id = r.id
+          AND r.project_id = $1
+          AND re.global_event_id IN (SELECT id FROM global_events WHERE tournament_id = $2)
         "#,
-        tournament_id,
         project_id,
+        gt.id,
     )
     .execute(&state.db)
     .await?;
@@ -979,45 +1013,60 @@ pub async fn get_ranking_player_tournaments(
     }
 
     struct Row {
+        tournament_id: Uuid,
+        tournament_startgg_id: i64,
         tournament_name: String,
-        tournament_slug: String,
-        event_name: String,
-        placement: Option<i32>,
-        num_entrants: Option<i32>,
-        start_at: Option<DateTime<Utc>>,
-        online: bool,
+        tournament_handle: String,
         city: Option<String>,
         addr_state: Option<String>,
         country_code: Option<String>,
+        online: bool,
+        start_at: Option<DateTime<Utc>>,
+        end_at: Option<DateTime<Utc>>,
+        num_attendees: Option<i32>,
+        event_id: Uuid,
+        event_name: String,
+        num_entrants: Option<i32>,
+        placement: Option<i32>,
+        seed: Option<i32>,
     }
 
     let rows = sqlx::query_as!(
         Row,
         r#"
-        SELECT
-            t.name              AS tournament_name,
-            t.handle            AS tournament_slug,
-            e.name              AS event_name,
-            ent.final_placement AS "placement?: i32",
-            e.num_entrants      AS "num_entrants?: i32",
-            t.start_at,
-            t.online,
-            t.city,
-            t.addr_state,
-            t.country_code
-        FROM entrants ent
-        JOIN players pl ON pl.id = ent.player_id AND pl.project_id = $1
-        JOIN events e ON e.id = ent.event_id
-        JOIN ranking_events re ON re.event_id = e.id
-                               AND re.ranking_id = $2
-                               AND re.included = true
-        JOIN tournaments t ON t.id = e.tournament_id
-        WHERE ent.player_id = $3
-        ORDER BY t.start_at DESC NULLS LAST
+        SELECT DISTINCT
+            gt.id           AS tournament_id,
+            gt.startgg_id   AS tournament_startgg_id,
+            gt.name         AS tournament_name,
+            gt.slug         AS tournament_handle,
+            gt.city,
+            gt.addr_state,
+            gt.country_code,
+            gt.online       AS "online!: bool",
+            gt.start_at,
+            gt.end_at,
+            gt.num_attendees,
+            ge.id           AS event_id,
+            ge.name         AS event_name,
+            ge.num_entrants,
+            gee.placement,
+            gee.seed
+        FROM global_event_entries gee
+        JOIN global_events ge          ON ge.id  = gee.event_id
+        JOIN global_tournaments gt     ON gt.id  = ge.tournament_id
+        JOIN global_players gp         ON gp.id  = gee.player_id
+        JOIN startgg_accounts sa       ON sa.startgg_user_id = gp.startgg_user_id
+        WHERE sa.player_id = $1
+          AND EXISTS (
+              SELECT 1 FROM ranking_events re
+              WHERE re.global_event_id = ge.id
+                AND re.ranking_id = $2
+                AND re.included = true
+          )
+        ORDER BY gt.start_at DESC NULLS LAST
         "#,
-        path.id,
-        path.rid,
         path.player_id,
+        path.rid,
     )
     .fetch_all(&state.db)
     .await?;
@@ -1026,7 +1075,7 @@ pub async fn get_ranking_player_tournaments(
         .into_iter()
         .map(|r| TournamentAttendance {
             tournament_name: r.tournament_name,
-            tournament_slug: r.tournament_slug,
+            tournament_slug: r.tournament_handle,
             event_name: r.event_name,
             placement: r.placement,
             num_entrants: r.num_entrants,
