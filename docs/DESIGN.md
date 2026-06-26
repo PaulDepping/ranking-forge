@@ -10,8 +10,7 @@ RankingForge is a multi-user platform for smash-scene power rankings. Features:
 
 - Project ownership and collaboration (members, invite links)
 - Public ranking sharing — guests can view published rankings without an account
-- Per-user start.gg API keys
-- Tournament import from start.gg with per-event filtering
+- Tournament import from the global start.gg mirror with per-event filtering
 - Upset-factor statistics, head-to-head set records, and ranking views
 
 Out of scope:
@@ -47,7 +46,7 @@ The system runs as three separate processes / Docker containers:
 |----------|----------------------------------------------------------------------|
 | `db`     | PostgreSQL — single source of truth                                  |
 | `api`    | HTTP API server (Axum) — serves the browser, manages sessions        |
-| `worker` | Background worker — queries start.gg, imports tournament data        |
+| `worker` | Background worker — copies tournament data from global mirror to project scope |
 
 ### Worker Communication
 
@@ -57,6 +56,8 @@ The `api` and `worker` communicate via a Postgres job queue:
 2. The `worker` listens with `LISTEN jobs` (via sqlx `PgListener`) and wakes up immediately.
 3. The worker claims a job with `SELECT ... FOR UPDATE SKIP LOCKED` — safe for multiple concurrent workers.
 4. The worker updates job `status` (pending → running → done/failed) and writes results to the database.
+
+Import is **pure Postgres-to-Postgres**: the worker copies from `global_*` mirror tables into the project's `project_events` and `ranking_events` tables. No start.gg API calls are made during import.
 
 This scales horizontally: running N worker containers automatically distributes jobs without any coordination layer beyond Postgres.
 
@@ -77,13 +78,13 @@ REST over HTTP with JSON bodies. Session authentication via HttpOnly cookies (se
 
 | Suite | Command | What it covers |
 |---|---|---|
-| `cargo test -p common` | No DB needed | Unit tests for pure logic; wiremock-based tests for `StartggClient` operations |
-| `cargo test -p api` | Needs `DATABASE_URL` | Integration tests: real isolated DB per test (`#[sqlx::test]`), wiremock for start.gg calls |
-| `cargo test -p e2e` | Needs `DATABASE_URL` | End-to-end: full register→import→stats pipeline through the real Axum router and `worker::import::run` |
+| `cargo test -p common` | No DB needed | Unit tests for pure logic; wiremock-based tests for `StartggClient` operations (crawler only) |
+| `cargo test -p api` | Needs `DATABASE_URL` | Integration tests: real isolated DB per test (`#[sqlx::test]`) |
+| `cargo test -p e2e` | Needs `DATABASE_URL` | End-to-end: full register→import→stats pipeline through the real Axum router and `worker::import::run`; seeds `global_*` tables directly in the test |
 
 Key design decisions:
 
-- **`StartggClient::new_with_base_url`** — any code that calls start.gg goes through `StartggClient`, never inline `reqwest`. Tests construct the client with a wiremock URL, so no real network calls are made.
+- **`StartggClient`** is used exclusively by the `crawler` binary. The `api` and `worker` make no start.gg API calls — the worker reads from `global_*` tables populated by the crawler.
 - **No DB mocks** — `#[sqlx::test]` spins up a fresh schema per test. Mocking sqlx would add complexity and miss schema mismatches that compile-time query checking doesn't catch (e.g. constraint violations, NULL handling).
 - **Self-contained tests** — each test registers its own users, creates its own data. No shared fixtures, no ordering dependencies.
 
@@ -113,31 +114,35 @@ Route protection lives in `src/hooks.server.ts`: calls `GET /auth/me` on every r
 
 ```
 users
-  └── projects (renamed from ranking_projects)
+  └── projects
         ├── project_members
         ├── project_invite_links
         ├── players (pool)
-        │     └── startgg_accounts       (0..n per player)
-        ├── jobs                          (import queue)
-        └── rankings (NEW)
-              ├── ranking_players        (ranking_id, player_id, rank_position, notes)
-              └── ranking_events         (ranking_id, event_id, included)
-                    └── events
-                          └── tournament
-                          └── entrants   (player + seed per event)
-                                └── sets (winner / loser entrant pairs)
+        │     └── startgg_accounts         (0..n per player)
+        ├── jobs                            (import queue)
+        ├── project_events                  (project → global_event link)
+        └── rankings
+              ├── ranking_players          (ranking_id, player_id, rank_position, notes)
+              └── ranking_events           (ranking_id, global_event_id, included)
+
+global_tournaments ──── global_events ──── global_phases ──── global_phase_groups
+                              │                                       │
+                              └── global_event_entries                └── global_sets ── global_set_games
+                              └── global_players (deduplicated player identities)
+                              └── global_games
 ```
 
 ### Key Relationships
 
 - A **player** belongs to exactly one **project** (the project-level player pool).
 - A player has zero or more **startgg_accounts** (identified by start.gg user ID and slug).
-- **tournaments** and **events** are imported from start.gg and shared across projects.
+- **global_tournaments** and **global_events** are populated by the standalone `crawler` binary and shared across all projects. Projects do not import directly from start.gg.
+- **project_events** is a project-scoped join table linking a project to the `global_events` it has imported. It is populated by the `worker` import job.
 - A **ranking** belongs to exactly one **project**. Rankings independently select a subset of the project's player pool via **ranking_players** (which also stores per-player `rank_position` and `notes`) and control event inclusion via **ranking_events**.
-- **ranking_events** is a join table with an `included` flag (default `true`) for per-ranking event deselection. It replaces the old `project_events` table.
+- **ranking_events** is a join table with `global_event_id` and an `included` flag (default `true`) for per-ranking event deselection.
 - The `published` flag lives on each **ranking** (not the project). A guest can read a project if any of its rankings is published.
-- **entrants** represent one player's participation in one event. `player_id` is nullable — entrants whose start.gg user ID doesn't match any known startgg_account are stored but not linked.
-- **sets** record the winner and loser entrant for each match. Scores are not stored (not needed for upset factor).
+- **global_event_entries** store final placements and seeds per player per event, populated from start.gg standings by the crawler.
+- **global_sets** record the winner and loser for each match, with optional game-by-game data in **global_set_games**.
 
 ### ranking_set_results
 Pre-computed per-ranking set list, populated by the `compute_ranking` worker job. Contains only sets where both players are ranking members and the event is included (non-DQ, non-placeholder). The stats and H2H endpoints read from this table instead of computing at runtime via complex JOINs.
@@ -164,11 +169,11 @@ See `backend/openapi.yaml` for the full contract.
 | Group             | Endpoints |
 |-------------------|-----------|
 | Auth              | POST /auth/register, /auth/login, /auth/logout; GET /auth/me |
-| Account           | PATCH /account/profile; PATCH /account/password; PUT/DELETE /account/startgg-key; DELETE /account |
+| Account           | PATCH /account/profile; PATCH /account/password; DELETE /account |
 | Projects          | GET/POST /projects; GET/PATCH/DELETE /projects/:id |
 | Players           | CRUD on /projects/:id/players; POST /projects/:id/players/bulk; POST /projects/:id/players/by-handles |
 | start.gg accounts | POST/DELETE /projects/:id/players/:pid/accounts |
-| Import            | POST/GET /projects/:id/import |
+| Import            | POST/GET /projects/:id/import; POST /projects/:id/import/:jobId/retrigger |
 | Tournament entrants | GET /projects/:id/tournament-entrants |
 | Tournaments       | GET /projects/:id/tournaments (project-scope list); DELETE /projects/:id/tournaments/:tid |
 | Rankings CRUD     | GET/POST /projects/:id/rankings; GET/PATCH/DELETE /projects/:id/rankings/:rid |
@@ -243,9 +248,9 @@ Entrant records from start.gg carry two identifiers: `startgg_user_id` (account-
 - **Slim pass:** resolves identity via `startgg_player_id` — used when the full query is too complex and no user data is fetched.
 - `global_players` rows are upserted with `COALESCE` so that a later full pass can upgrade a slim-only row with a `startgg_user_id` without losing existing data.
 
-### Future Direction
+### Worker Integration
 
-Once the mirror has sufficient coverage, the `worker` import path can shift to querying `global_*` tables directly instead of calling the start.gg API per-import. This eliminates the requirement for per-user API keys and reduces rate-limit pressure.
+The `worker` import path queries `global_*` tables directly rather than calling the start.gg API. This eliminates per-user API keys and avoids rate-limit pressure during import. The `crawler` binary (running independently) keeps the global mirror up to date.
 
 ## Infrastructure
 

@@ -20,7 +20,7 @@ components:
 
     User:
       type: object
-      required: [id, email, display_name, has_startgg_key, created_at]
+      required: [id, email, display_name, created_at]
       properties:
         id:
           type: string
@@ -30,16 +30,13 @@ components:
           format: email
         display_name:
           type: string
-        has_startgg_key:
-          type: boolean
-          description: True if the user has a start.gg API key configured
         created_at:
           type: string
           format: date-time
 
     Project:
       type: object
-      required: [id, name, created_at, owner_has_startgg_key]
+      required: [id, name, created_at]
       properties:
         id:
           type: string
@@ -55,9 +52,6 @@ components:
         created_at:
           type: string
           format: date-time
-        owner_has_startgg_key:
-          type: boolean
-          description: True if the project owner has a start.gg API key configured
 
     Ranking:
       type: object
@@ -1080,9 +1074,9 @@ paths:
     post:
       summary: Enqueue a tournament import job for this project
       description: >
-        Creates a job that the background worker will pick up. The worker queries
-        start.gg for all tournaments any of the project's players have entered,
-        then stores them in the database.
+        Creates a job that the background worker will pick up. The worker copies
+        tournament data from the global mirror tables into the project's view,
+        filtered to the project's players and optional date range.
       tags: [Import]
       requestBody:
         required: false
@@ -1112,12 +1106,6 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-        '422':
-          description: Project owner has not configured a start.gg API key
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
 
     get:
       summary: Get the status of the most recent import job for this project
@@ -1125,6 +1113,40 @@ paths:
       responses:
         '200':
           description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /projects/{project_id}/import/{job_id}/retrigger:
+    parameters:
+      - name: project_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    post:
+      summary: Re-enqueue a previously created import job
+      description: >
+        Creates a new import job using the same parameters (after_date, before_date)
+        as the referenced job. Returns the new job record. Returns 404 if the
+        original job does not exist or does not belong to this project.
+      tags: [Import]
+      responses:
+        '202':
+          description: New job enqueued
           content:
             application/json:
               schema:
@@ -1803,9 +1825,7 @@ paths:
     get:
       summary: Search start.gg video games by name
       description: |
-        Proxies a game name search to start.gg using the authenticated user's API key.
-        Requires the user to have a start.gg API key configured.
-        Returns 422 if no key is set.
+        Proxies a game name search to start.gg using the server-configured API key.
       tags: [Games]
       security:
         - cookieAuth: []
@@ -1886,44 +1906,6 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '422':
           $ref: '#/components/responses/UnprocessableEntity'
-
-  /account/startgg-key:
-    put:
-      summary: Save or replace the user's start.gg API key
-      description: |
-        Validates the key against start.gg before storing it.
-        Returns 422 if the key is rejected by start.gg, or 502 if start.gg is unreachable.
-      tags: [Account]
-      security:
-        - cookieAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [api_key]
-              properties:
-                api_key:
-                  type: string
-                  description: Bearer token from https://start.gg/admin/profile/developer
-      responses:
-        '204':
-          description: Key saved
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '422':
-          $ref: '#/components/responses/UnprocessableEntity'
-    delete:
-      summary: Remove the user's start.gg API key
-      tags: [Account]
-      security:
-        - cookieAuth: []
-      responses:
-        '204':
-          description: Key removed
-        '401':
-          $ref: '#/components/responses/Unauthorized'
 
   /account:
     delete:

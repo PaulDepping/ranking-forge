@@ -36,11 +36,11 @@ Axum HTTP server. Listens for browser requests, manages sessions, enqueues impor
 
 | File | Owns |
 |---|---|
-| `src/state.rs` | `AppState` — holds `PgPool`, `cors_origin`, `startgg_base_url` |
+| `src/state.rs` | `AppState` — holds `PgPool`, `cors_origin` |
 | `src/extractors.rs` | `ClientIpExtractor` — reads `X-Forwarded-For` for rate-limiting via `tower_governor` |
 | `src/routes/mod.rs` | Top-level router wiring all route groups together |
 | `src/routes/auth.rs` | Register, login, logout, `/auth/me`; also defines `AuthUser` and `OptionalAuthUser` extractors |
-| `src/routes/account.rs` | Profile update, password change, start.gg API key, account deletion |
+| `src/routes/account.rs` | Profile update, password change, account deletion |
 | `src/routes/projects.rs` | Project CRUD; also mounts players, import, rankings, members, invite-links sub-routers; tournament delete (`DELETE /{id}/tournaments/{tid}`) |
 | `src/routes/players.rs` | Player CRUD, start.gg account linking, tournament entrant listing; `published` is no longer on the project |
 | `src/routes/import.rs` | Import trigger (rate-limited POST) and status GET |
@@ -59,14 +59,14 @@ Axum HTTP server. Listens for browser requests, manages sessions, enqueues impor
 
 ## `worker`
 
-Background process. Listens on the Postgres job queue and runs imports.
+Background process. Listens on the Postgres job queue and runs imports. Import is pure Postgres-to-Postgres: no start.gg API calls are made; data is copied from `global_*` mirror tables into the project scope.
 
 | File | Owns |
 |---|---|
-| `src/import.rs` | Core import logic: fetch from start.gg, write tournaments/events/entrants/sets to DB |
+| `src/import.rs` | Core import logic: copy tournaments/events/entries/sets from `global_*` tables into project scope (`project_events`, `ranking_events`) |
 | `src/lib.rs` | Re-exports `pub mod import` |
 | `src/main.rs` | Binary entry point: connects DB, runs migrations, starts `PgListener`, event loop that drains pending jobs via `jobs::claim` → `import::run` → mark done/failed, handles SIGTERM/SIGINT with in-flight job cleanup, and runs hourly expired-session pruning |
-| `src/config.rs` | Worker env config (DATABASE_URL, STARTGG_API_KEY) |
+| `src/config.rs` | Worker env config (DATABASE_URL) |
 
 ---
 
@@ -91,8 +91,7 @@ Test-only crate. Full-pipeline integration tests through the real Axum router an
 
 | File | Covers |
 |---|---|
-| `tests/full_flow.rs` | Complete register → create project → import → stats pipeline |
-| `tests/import_live.rs` | Live start.gg import tests (skipped unless `STARTGG_API_KEY` is set) |
+| `tests/full_flow.rs` | Complete register → create project → import → stats pipeline; seeds `global_*` tables directly |
 
 ---
 
