@@ -719,7 +719,6 @@ dependencies = [
  "tokio",
  "tower",
  "uuid",
- "wiremock",
  "worker",
 ]
 

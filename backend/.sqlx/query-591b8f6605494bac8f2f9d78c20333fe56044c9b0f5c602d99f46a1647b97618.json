@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id FROM global_players WHERE startgg_user_id = 12345",
+  "query": "INSERT INTO global_players (startgg_user_id, handle) VALUES ($1, 'Armada') RETURNING id",
   "describe": {
     "columns": [
       {
@@ -10,11 +10,13 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Int8"
+      ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "d0149ceb3020b917a8e3a05d128a5ac2a737dc8fe49b3fd771eb89e4293e7201"
+  "hash": "591b8f6605494bac8f2f9d78c20333fe56044c9b0f5c602d99f46a1647b97618"
 }

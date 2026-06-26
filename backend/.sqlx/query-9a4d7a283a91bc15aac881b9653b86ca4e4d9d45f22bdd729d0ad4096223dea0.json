@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO global_phase_groups (startgg_id, phase_id, display_identifier, bracket_type)\n         VALUES (6001, $1, '1', 'DOUBLE_ELIMINATION') RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9a4d7a283a91bc15aac881b9653b86ca4e4d9d45f22bdd729d0ad4096223dea0"
+}

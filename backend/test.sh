@@ -49,29 +49,5 @@ else
     fi
 fi
 
-# ── Live start.gg API tests (optional) ───────────────────────────────────────
-# Load STARTGG_API_KEY from the root .env if not already set in the environment.
-if [ -z "${STARTGG_API_KEY:-}" ] && [ -f "../.env" ]; then
-    # shellcheck disable=SC1091
-    STARTGG_API_KEY=$(grep -E '^STARTGG_API_KEY=' "../.env" | head -1 | cut -d'=' -f2-)
-    export STARTGG_API_KEY
-fi
-
-if [ -n "${STARTGG_API_KEY:-}" ]; then
-    echo "Running live start.gg API tests..."
-    if $VERBOSE; then
-        cargo test -p e2e --features live-tests "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}"
-    else
-        tmpfile=$(mktemp)
-        if cargo test -p e2e --features live-tests "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}" >"$tmpfile" 2>&1; then
-            rm -f "$tmpfile"
-            echo "PASS (live)"
-        else
-            cat "$tmpfile"
-            rm -f "$tmpfile"
-            exit 1
-        fi
-    fi
-else
-    echo "STARTGG_API_KEY not set — skipping live start.gg API tests"
-fi
+# Live start.gg API tests were removed in Task 10 (mirror-backed architecture).
+# The live-tests feature and import_live.rs have been deleted.

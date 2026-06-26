@@ -3,9 +3,6 @@ name = "e2e"
 version = "0.2.0"
 edition = "2024"
 
-[features]
-live-tests = []
-
 [dev-dependencies]
 api    = { path = "../api" }
 worker = { path = "../worker" }
@@ -16,5 +13,4 @@ sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "uui
 tokio = { version = "1.52.3", features = ["full"] }
 tower = { version = "0.5", features = ["util"] }
 uuid  = { version = "1.23.1", features = ["v4", "serde"] }
-wiremock = "0.6"
 common = { path = "../common" }

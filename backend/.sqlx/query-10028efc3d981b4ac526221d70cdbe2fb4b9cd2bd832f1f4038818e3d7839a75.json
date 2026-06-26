@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO global_tournaments (startgg_id, name, slug, city, addr_state, country_code,\n               online, num_attendees, start_at, end_at)\n           VALUES (1001, 'Test Tournament', 'tournament/test-2024', 'San Jose', 'CA', 'US',\n                   false, 8, to_timestamp(1700000000), to_timestamp(1700086400))\n           RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "10028efc3d981b4ac526221d70cdbe2fb4b9cd2bd832f1f4038818e3d7839a75"
+}
