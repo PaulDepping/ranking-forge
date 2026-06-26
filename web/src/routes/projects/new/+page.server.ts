@@ -1,9 +1,5 @@
 import { fail, redirect } from "@sveltejs/kit";
-import type { Actions, PageServerLoad } from "./$types";
-
-export const load: PageServerLoad = ({ locals }) => {
-  return { hasStartggKey: locals.user?.has_startgg_key ?? false };
-};
+import type { Actions } from "./$types";
 
 export const actions: Actions = {
   default: async ({ request, locals }) => {

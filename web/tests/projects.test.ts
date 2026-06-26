@@ -280,19 +280,6 @@ test('tournaments page shows checkboxes and bulk actions for owner role', async 
 	await expect(page.getByRole('button', { name: /Exclude all visible/ })).toBeVisible();
 });
 
-base('new project page shows callout when user has no start.gg API key', async ({ page }) => {
-	await page.context().addCookies([{
-		name: 'session_id',
-		value: 'nokey-session',
-		domain: 'localhost',
-		path: '/'
-	}]);
-	await page.goto('/projects/new');
-	await expect(page.getByText('A start.gg API key is required to create projects.')).toBeVisible();
-	await expect(page.getByRole('link', { name: 'account settings' })).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Create' })).not.toBeVisible();
-});
-
 test('h2h page uses full-width layout', async ({ page }) => {
 	await page.goto('/projects/proj-1/rankings/rank-1/h2h');
 	await expect(page.locator('main')).not.toHaveClass(/max-w-5xl/);

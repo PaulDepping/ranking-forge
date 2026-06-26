@@ -6,7 +6,6 @@
   import { Alert } from "$lib/components/ui/alert";
   import * as Popover from "$lib/components/ui/popover";
   import * as Command from "$lib/components/ui/command";
-  import * as Card from "$lib/components/ui/card";
   import { makeApi } from "$lib/api";
   import type { Game } from "$lib/types";
 
@@ -47,97 +46,81 @@
 <div class="max-w-md space-y-6">
   <h1 class="text-2xl font-bold">New project</h1>
 
-  {#if data.hasStartggKey}
-    {#if form?.error}
-      <Alert variant="destructive">{form.error}</Alert>
-    {/if}
-
-    <form method="POST" use:enhance class="space-y-4">
-      <div class="space-y-2">
-        <Label for="name">Project name</Label>
-        <Input
-          id="name"
-          name="name"
-          required
-          placeholder="e.g. NY Smash PR 2025"
-        />
-      </div>
-
-      <div class="space-y-2">
-        <Label for="game-search">Game (optional)</Label>
-        <Popover.Root bind:open={gameSearchOpen}>
-          <Popover.Trigger>
-            {#snippet child({ props })}
-              <Button
-                variant="outline"
-                class="w-full justify-start font-normal"
-                {...props}
-              >
-                {#if selectedGame}
-                  {selectedGame.display_name ?? selectedGame.name}
-                {:else}
-                  <span class="text-muted-foreground"
-                    >Search start.gg games…</span
-                  >
-                {/if}
-              </Button>
-            {/snippet}
-          </Popover.Trigger>
-          <Popover.Content class="p-0 w-80" align="start">
-            <Command.Root shouldFilter={false}>
-              <Command.Input
-                placeholder="Search start.gg games…"
-                value={gameQuery}
-                oninput={(e) =>
-                  onCommandInput((e.target as HTMLInputElement).value)}
-              />
-              <Command.List>
-                {#if searching}
-                  <Command.Loading>Searching…</Command.Loading>
-                {:else if gameQuery.length >= 2 && gameResults.length === 0}
-                  <Command.Empty>No games found.</Command.Empty>
-                {:else}
-                  {#each gameResults as g (g.id)}
-                    <Command.Item
-                      value={g.id.toString()}
-                      onSelect={() => selectGame(g)}
-                    >
-                      {g.display_name ?? g.name}
-                    </Command.Item>
-                  {/each}
-                {/if}
-              </Command.List>
-            </Command.Root>
-          </Popover.Content>
-        </Popover.Root>
-      </div>
-
-      <input type="hidden" name="game_id" value={selectedGame?.id ?? ""} />
-      <input
-        type="hidden"
-        name="game_name"
-        value={selectedGame
-          ? (selectedGame.display_name ?? selectedGame.name)
-          : ""}
-      />
-
-      <div class="flex gap-2">
-        <Button type="submit">Create</Button>
-        <Button variant="ghost" href="/projects">Cancel</Button>
-      </div>
-    </form>
-  {:else}
-    <Card.Root>
-      <Card.Content class="p-4 space-y-2">
-        <p class="text-sm font-medium">
-          A start.gg API key is required to create projects.
-        </p>
-        <p class="text-sm text-muted-foreground">
-          Add your key in <a href="/account" class="underline"
-            >account settings</a
-          >.
-        </p>
-      </Card.Content>
-    </Card.Root>
+  {#if form?.error}
+    <Alert variant="destructive">{form.error}</Alert>
   {/if}
+
+  <form method="POST" use:enhance class="space-y-4">
+    <div class="space-y-2">
+      <Label for="name">Project name</Label>
+      <Input
+        id="name"
+        name="name"
+        required
+        placeholder="e.g. NY Smash PR 2025"
+      />
+    </div>
+
+    <div class="space-y-2">
+      <Label for="game-search">Game (optional)</Label>
+      <Popover.Root bind:open={gameSearchOpen}>
+        <Popover.Trigger>
+          {#snippet child({ props })}
+            <Button
+              variant="outline"
+              class="w-full justify-start font-normal"
+              {...props}
+            >
+              {#if selectedGame}
+                {selectedGame.display_name ?? selectedGame.name}
+              {:else}
+                <span class="text-muted-foreground">Search start.gg games…</span
+                >
+              {/if}
+            </Button>
+          {/snippet}
+        </Popover.Trigger>
+        <Popover.Content class="p-0 w-80" align="start">
+          <Command.Root shouldFilter={false}>
+            <Command.Input
+              placeholder="Search start.gg games…"
+              value={gameQuery}
+              oninput={(e) =>
+                onCommandInput((e.target as HTMLInputElement).value)}
+            />
+            <Command.List>
+              {#if searching}
+                <Command.Loading>Searching…</Command.Loading>
+              {:else if gameQuery.length >= 2 && gameResults.length === 0}
+                <Command.Empty>No games found.</Command.Empty>
+              {:else}
+                {#each gameResults as g (g.id)}
+                  <Command.Item
+                    value={g.id.toString()}
+                    onSelect={() => selectGame(g)}
+                  >
+                    {g.display_name ?? g.name}
+                  </Command.Item>
+                {/each}
+              {/if}
+            </Command.List>
+          </Command.Root>
+        </Popover.Content>
+      </Popover.Root>
+    </div>
+
+    <input type="hidden" name="game_id" value={selectedGame?.id ?? ""} />
+    <input
+      type="hidden"
+      name="game_name"
+      value={selectedGame
+        ? (selectedGame.display_name ?? selectedGame.name)
+        : ""}
+    />
+
+    <div class="flex gap-2">
+      <Button type="submit">Create</Button>
+      <Button variant="ghost" href="/projects">Cancel</Button>
+    </div>
+  </form>
 </div>

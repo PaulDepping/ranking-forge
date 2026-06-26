@@ -1,8 +1,6 @@
 import http from 'http';
 
-const MOCK_USER = { id: 'user-1', email: 'testuser@test.com', display_name: 'testuser', has_startgg_key: true, created_at: '2026-01-01T00:00:00Z' };
-
-const MOCK_USER_NO_KEY = { id: 'user-2', email: 'nokey@test.com', display_name: 'nokey', has_startgg_key: false, created_at: '2026-01-01T00:00:00Z' };
+const MOCK_USER = { id: 'user-1', email: 'testuser@test.com', display_name: 'testuser', created_at: '2026-01-01T00:00:00Z' };
 
 const MOCK_PROJECTS = [
 	{
@@ -11,8 +9,7 @@ const MOCK_PROJECTS = [
 		game_id: 1,
 		game_name: 'Super Smash Bros. Melee',
 		created_at: '2026-01-01T00:00:00Z',
-		user_role: 'owner',
-		owner_has_startgg_key: true
+		user_role: 'owner'
 	}
 ];
 
@@ -22,8 +19,7 @@ const MOCK_VIEWER_PROJECT = {
 	game_id: 1,
 	game_name: 'Super Smash Bros. Melee',
 	created_at: '2026-01-01T00:00:00Z',
-	user_role: 'viewer',
-	owner_has_startgg_key: true
+	user_role: 'viewer'
 };
 
 const MOCK_GUEST_PROJECT = {
@@ -32,8 +28,7 @@ const MOCK_GUEST_PROJECT = {
 	game_id: 1,
 	game_name: 'Super Smash Bros. Melee',
 	created_at: '2026-01-01T00:00:00Z',
-	user_role: null,
-	owner_has_startgg_key: true
+	user_role: null
 };
 
 const MOCK_PUBLISHED_OWNER_PROJECT = {
@@ -42,8 +37,7 @@ const MOCK_PUBLISHED_OWNER_PROJECT = {
 	game_id: 1,
 	game_name: 'Super Smash Bros. Melee',
 	created_at: '2026-01-01T00:00:00Z',
-	user_role: 'owner',
-	owner_has_startgg_key: true
+	user_role: 'owner'
 };
 
 /** @type {Record<string, any[]>} */
@@ -263,9 +257,7 @@ function createMockServer() {
 		const isAuthenticated = hasCookie(req, 'session_id', 'test-session');
 
 		if (path === '/auth/me') {
-			if (hasCookie(req, 'session_id', 'nokey-session')) {
-				respond(res, 200, MOCK_USER_NO_KEY);
-			} else if (isAuthenticated) {
+			if (isAuthenticated) {
 				respond(res, 200, MOCK_USER);
 			} else {
 				respond(res, 401, { message: 'Unauthorized' });
@@ -525,6 +517,12 @@ function createMockServer() {
 				respond(res, 202, MOCK_PENDING_JOB);
 				return;
 			}
+		}
+
+		const retriggerMatch = path.match(/^\/projects\/([^/]+)\/import\/([^/]+)\/retrigger$/);
+		if (retriggerMatch && req.method === 'POST') {
+			respond(res, 202, MOCK_PENDING_JOB);
+			return;
 		}
 
 		// Project-scoped player stats (used by player detail page)

@@ -7,7 +7,6 @@ const user = {
   id: "u1",
   email: "testuser@test.com",
   display_name: "testuser",
-  has_startgg_key: false,
   created_at: "2026-01-01T00:00:00Z",
 };
 const ranking: Ranking = {
@@ -32,7 +31,6 @@ const project: Project = {
   game_name: null,
   created_at: "2026-01-01T00:00:00Z",
   user_role: "owner",
-  owner_has_startgg_key: true,
 };
 
 function makeSet(opponentName: string, uf: number): SetRecord {
