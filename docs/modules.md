@@ -23,7 +23,7 @@ specific to either binary.
 | `src/jobs.rs` | Job queue helpers: `enqueue`, `claim`, `mark_running`, `mark_done`, `mark_failed` |
 | `src/db.rs` | `PgPool` construction and migration runner (called at binary startup) |
 | `src/upset.rs` | Pure upset-factor calculation: `seed_to_projected_round`, `set_upset_factor` |
-| `src/startgg/mod.rs` | `StartggClient` — the only permitted way to call start.gg |
+| `src/startgg/mod.rs` | `StartggClient` — the only permitted way to call start.gg (used exclusively by the crawler binary; api and worker make no start.gg calls) |
 | `src/startgg/operations/` | Typed GraphQL operation structs and response deserialization |
 | `src/startgg/queries.rs` | Raw GraphQL query strings and serde-annotated variable/response structs for each operation |
 | `src/error.rs` | Shared `Error` and `Result` types |
