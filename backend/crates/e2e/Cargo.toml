@@ -3,9 +3,13 @@ name = "e2e"
 version = "0.2.0"
 edition = "2024"
 
+[features]
+live-tests = []
+
 [dev-dependencies]
 api    = { path = "../api" }
 worker = { path = "../worker" }
+crawler = { path = "../crawler" }
 axum           = { version = "0.8.9" }
 http-body-util = "0.1"
 serde_json     = "1.0.149"

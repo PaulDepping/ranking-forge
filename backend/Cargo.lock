@@ -712,6 +712,7 @@ dependencies = [
  "api",
  "axum",
  "common",
+ "crawler",
  "http-body-util",
  "serde_json",
  "sqlx",
