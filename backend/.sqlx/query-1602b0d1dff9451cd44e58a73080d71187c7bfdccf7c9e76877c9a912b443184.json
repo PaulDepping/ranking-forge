@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO global_players (startgg_user_id, handle) VALUES ($1, '06b4042d'), ($2, '54b7bbf3')\n         ON CONFLICT (startgg_user_id) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1602b0d1dff9451cd44e58a73080d71187c7bfdccf7c9e76877c9a912b443184"
+}
