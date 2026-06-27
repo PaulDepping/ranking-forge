@@ -190,7 +190,7 @@ async fn crawl_and_import_hannover_weekly(pool: PgPool) {
             database_url: "unused".into(),
             startgg_api_key: api_key.clone(),
             from_date: date,
-            to_date: date,
+            to_date: date + chrono::Duration::days(1),
             window_days: 1,
             delay_ms: 250,
             sets_per_page: 20,
@@ -198,6 +198,10 @@ async fn crawl_and_import_hannover_weekly(pool: PgPool) {
             rust_log: "off".into(),
             startgg_base_url: None,
         };
+        sqlx::query("DELETE FROM crawler_checkpoints WHERE key = 'window_start'")
+            .execute(&pool)
+            .await
+            .unwrap();
         crawler::scraper::run(&config, &pool, &shutdown)
             .await
             .unwrap_or_else(|e| panic!("crawler failed for {year}-{month:02}-{day:02}: {e}"));
@@ -212,8 +216,23 @@ async fn crawl_and_import_hannover_weekly(pool: PgPool) {
     let king_pid = create_player(&app, &cookie, &project_id, "King").await;
     let player2_pid = create_player(&app, &cookie, &project_id, "Player2").await;
 
-    link_account(&app, &cookie, &project_id, &king_pid, PLAYER1_SLUG).await;
-    link_account(&app, &cookie, &project_id, &player2_pid, PLAYER2_SLUG).await;
+    // Look up actual handles from the crawler-populated global_players table.
+    // global_players.handle stores gamer tags (e.g. "King"), not slugs.
+    let king_handle: String =
+        sqlx::query_scalar("SELECT handle FROM global_players WHERE startgg_slug = $1")
+            .bind(PLAYER1_SLUG)
+            .fetch_one(&pool)
+            .await
+            .expect("King (user/06b4042d) not found in global_players — did the crawler run?");
+    let player2_handle: String =
+        sqlx::query_scalar("SELECT handle FROM global_players WHERE startgg_slug = $1")
+            .bind(PLAYER2_SLUG)
+            .fetch_one(&pool)
+            .await
+            .expect("Player2 (user/54b7bbf3) not found in global_players — did the crawler run?");
+
+    link_account(&app, &cookie, &project_id, &king_pid, &king_handle).await;
+    link_account(&app, &cookie, &project_id, &player2_pid, &player2_handle).await;
 
     let ranking_id = create_ranking(&app, &cookie, &project_id, "Main").await;
     add_player_to_ranking(&app, &cookie, &project_id, &ranking_id, &king_pid).await;
