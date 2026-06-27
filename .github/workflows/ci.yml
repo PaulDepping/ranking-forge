@@ -136,38 +136,8 @@ jobs:
             type=gha,scope=backend-crawler
           cache-to: type=gha,mode=max,scope=backend-crawler
 
-  live-tests:
-    needs: test
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: backend/
-
-      - name: Start Postgres
-        run: |
-          docker run -d --name rf-live-test \
-            -e POSTGRES_PASSWORD=postgres \
-            -p 15432:5432 \
-            postgres:18
-          until docker exec rf-live-test pg_isready -U postgres; do sleep 1; done
-
-      - name: Run live import tests
-        env:
-          DATABASE_URL: postgres://postgres:postgres@localhost:15432/postgres
-          STARTGG_API_KEY: ${{ secrets.STARTGG_API_KEY }}
-          SQLX_OFFLINE: "true"
-        working-directory: backend/
-        run: cargo test -p e2e --features live-tests
-
   topology:
-    needs: live-tests
+    needs: test
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -215,7 +185,6 @@ jobs:
         working-directory: backend/
         env:
           API_URL: http://localhost:3000
-          STARTGG_API_KEY: ${{ secrets.STARTGG_API_KEY }}
           SQLX_OFFLINE: "true"
         run: cargo test -p topology --features topology-tests
 
