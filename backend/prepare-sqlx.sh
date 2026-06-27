@@ -27,5 +27,6 @@ sleep 0.5
 
 cargo sqlx migrate run
 cargo sqlx prepare --workspace -- --all-targets
+cargo sqlx prepare --workspace -- --all-targets --features topology-tests
 
 echo "Done. Offline cache updated in .sqlx/"
