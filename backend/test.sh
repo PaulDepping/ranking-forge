@@ -49,5 +49,19 @@ else
     fi
 fi
 
-# Live start.gg API tests were removed in Task 10 (mirror-backed architecture).
-# The live-tests feature and import_live.rs have been deleted.
+if [[ -n "${STARTGG_API_KEY:-}" ]]; then
+    echo "STARTGG_API_KEY set — running live start.gg tests..."
+    if $VERBOSE; then
+        cargo test -p e2e --features live-tests "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}"
+    else
+        tmpfile=$(mktemp)
+        if cargo test -p e2e --features live-tests "${PASSTHROUGH[@]+"${PASSTHROUGH[@]}"}" >"$tmpfile" 2>&1; then
+            rm -f "$tmpfile"
+            echo "PASS (live)"
+        else
+            cat "$tmpfile"
+            rm -f "$tmpfile"
+            exit 1
+        fi
+    fi
+fi
