@@ -198,7 +198,7 @@ async fn crawl_and_import_hannover_weekly(pool: PgPool) {
             rust_log: "off".into(),
             startgg_base_url: None,
         };
-        sqlx::query("DELETE FROM crawler_checkpoints WHERE key = 'window_start'")
+        sqlx::query!("DELETE FROM crawler_checkpoints WHERE key = 'window_start'")
             .execute(&pool)
             .await
             .unwrap();
@@ -219,14 +219,12 @@ async fn crawl_and_import_hannover_weekly(pool: PgPool) {
     // Look up actual handles from the crawler-populated global_players table.
     // global_players.handle stores gamer tags (e.g. "King"), not slugs.
     let king_handle: String =
-        sqlx::query_scalar("SELECT handle FROM global_players WHERE startgg_slug = $1")
-            .bind(PLAYER1_SLUG)
+        sqlx::query_scalar!("SELECT handle FROM global_players WHERE startgg_slug = $1", PLAYER1_SLUG)
             .fetch_one(&pool)
             .await
             .expect("King (user/06b4042d) not found in global_players — did the crawler run?");
     let player2_handle: String =
-        sqlx::query_scalar("SELECT handle FROM global_players WHERE startgg_slug = $1")
-            .bind(PLAYER2_SLUG)
+        sqlx::query_scalar!("SELECT handle FROM global_players WHERE startgg_slug = $1", PLAYER2_SLUG)
             .fetch_one(&pool)
             .await
             .expect("Player2 (user/54b7bbf3) not found in global_players — did the crawler run?");

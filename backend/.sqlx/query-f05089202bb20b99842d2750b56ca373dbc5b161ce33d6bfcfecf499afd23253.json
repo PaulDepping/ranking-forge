@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM crawler_checkpoints WHERE key = 'window_start'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "f05089202bb20b99842d2750b56ca373dbc5b161ce33d6bfcfecf499afd23253"
+}
