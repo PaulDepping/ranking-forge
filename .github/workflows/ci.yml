@@ -194,6 +194,41 @@ jobs:
           echo "=== api.log ===" && cat /tmp/api.log || true
           echo "=== worker.log ===" && cat /tmp/worker.log || true
 
+  live-tests:
+    needs: test
+    if: ${{ github.event_name == 'push' && secrets.STARTGG_API_KEY != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      STARTGG_API_KEY: ${{ secrets.STARTGG_API_KEY }}
+      SQLX_OFFLINE: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend/
+
+      - name: Run live integration tests
+        working-directory: backend/
+        run: cargo test -p e2e --features live-tests -- --nocapture
+
   build-web:
     needs: [test, topology]
     if: ${{ !failure() && !cancelled() }}
