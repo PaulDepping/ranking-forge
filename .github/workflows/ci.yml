@@ -196,7 +196,7 @@ jobs:
 
   live-tests:
     needs: test
-    if: ${{ github.event_name == 'push' && secrets.STARTGG_API_KEY != '' }}
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     continue-on-error: true
