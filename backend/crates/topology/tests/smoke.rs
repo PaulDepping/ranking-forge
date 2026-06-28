@@ -115,6 +115,15 @@ async fn seed_topology_data(pool: &PgPool) {
     .expect("failed to seed global_players");
 
     // Insert the tournament + event + entries + a set for at least one of the Hannover Weeklies
+    let game_id = sqlx::query_scalar!(
+        "INSERT INTO global_games (startgg_id, name) VALUES (1, 'Super Smash Bros. Melee')
+         ON CONFLICT (startgg_id) DO UPDATE SET name = EXCLUDED.name
+         RETURNING id"
+    )
+    .fetch_one(pool)
+    .await
+    .expect("failed to seed global_game");
+
     let tournament_id = sqlx::query_scalar!(
         r#"INSERT INTO global_tournaments (startgg_id, name, slug, online, start_at)
            VALUES (612663, 'Smash Hannover Weekly #100', 'tournament/smash-hannover-weekly-100', false, '2025-11-10')
@@ -126,11 +135,12 @@ async fn seed_topology_data(pool: &PgPool) {
     .expect("failed to seed global_tournament");
 
     let event_id = sqlx::query_scalar!(
-        r#"INSERT INTO global_events (startgg_id, tournament_id, name, state)
-           VALUES (1534512, $1, 'Melee Singles', 'COMPLETED')
+        r#"INSERT INTO global_events (startgg_id, tournament_id, game_id, name, state)
+           VALUES (1534512, $1, $2, 'Melee Singles', 'COMPLETED')
            ON CONFLICT (startgg_id) DO UPDATE SET name = EXCLUDED.name
            RETURNING id"#,
         tournament_id,
+        game_id,
     )
     .fetch_one(pool)
     .await
