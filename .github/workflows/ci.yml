@@ -137,7 +137,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=backend-crawler
 
   topology:
-    needs: test
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 25
