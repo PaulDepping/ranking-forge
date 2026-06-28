@@ -184,6 +184,7 @@ jobs:
       - name: Run topology tests
         working-directory: backend/
         env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:15432/postgres
           API_URL: http://localhost:3000
           SQLX_OFFLINE: "true"
         run: cargo test -p topology --features topology-tests
