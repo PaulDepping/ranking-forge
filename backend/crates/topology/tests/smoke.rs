@@ -245,7 +245,7 @@ async fn smoke_import_roundtrip() {
     .await;
     let ranking_id = ranking["id"].as_str().unwrap().to_string();
     for player_id in &player_ids {
-        let _ = post_json(
+        post_no_body(
             &client,
             &format!("/projects/{project_id}/rankings/{ranking_id}/players"),
             &session_id,
