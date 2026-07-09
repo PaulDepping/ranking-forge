@@ -1262,8 +1262,6 @@ async fn compute_ranking_set_results(pool: &PgPool, ranking_id: Uuid) {
         winner_player_id: Uuid,
         loser_player_id: Uuid,
         global_event_id: Uuid,
-        winner_seed: Option<i32>,
-        loser_seed: Option<i32>,
         completed_at: Option<chrono::DateTime<chrono::Utc>>,
     }
 
@@ -1275,8 +1273,6 @@ async fn compute_ranking_set_results(pool: &PgPool, ranking_id: Uuid) {
             saw.player_id       AS "winner_player_id!: Uuid",
             sal.player_id       AS "loser_player_id!: Uuid",
             gs.event_id         AS global_event_id,
-            wee.seed            AS winner_seed,
-            lee.seed            AS loser_seed,
             gs.completed_at
         FROM global_sets gs
         JOIN global_players gwp ON gwp.id = gs.winner_player_id
@@ -1286,8 +1282,6 @@ async fn compute_ranking_set_results(pool: &PgPool, ranking_id: Uuid) {
         JOIN ranking_players rwp ON rwp.player_id = saw.player_id AND rwp.ranking_id = $1
         JOIN ranking_players rlp ON rlp.player_id = sal.player_id AND rlp.ranking_id = $1
         JOIN ranking_events re ON re.global_event_id = gs.event_id AND re.ranking_id = $1
-        LEFT JOIN global_event_entries wee ON wee.event_id = gs.event_id AND wee.player_id = gwp.id
-        LEFT JOIN global_event_entries lee ON lee.event_id = gs.event_id AND lee.player_id = glp.id
         WHERE re.included = true
           AND gs.is_dq    = false
         ORDER BY gs.completed_at ASC NULLS LAST
