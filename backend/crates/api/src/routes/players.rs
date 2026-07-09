@@ -619,11 +619,6 @@ fn normalize_handle(input: &str) -> String {
         .to_string()
 }
 
-fn normalize_tournament_handle(input: &str) -> String {
-    let stripped = strip_startgg_url_prefix(input.trim()).trim_start_matches("tournament/");
-    stripped.split('/').next().unwrap_or(stripped).to_string()
-}
-
 // ── Router ────────────────────────────────────────────────────────────────────
 
 pub fn router() -> Router<AppState> {
@@ -664,37 +659,6 @@ mod tests {
     #[test]
     fn normalize_handle_trims_whitespace() {
         assert_eq!(normalize_handle("  mang0  "), "mang0");
-    }
-
-    #[test]
-    fn normalize_tournament_handle_bare() {
-        assert_eq!(normalize_tournament_handle("some-weekly"), "some-weekly");
-    }
-
-    #[test]
-    fn normalize_tournament_handle_full_url() {
-        assert_eq!(
-            normalize_tournament_handle(
-                "https://www.start.gg/tournament/some-weekly/event/melee-singles"
-            ),
-            "some-weekly"
-        );
-    }
-
-    #[test]
-    fn normalize_tournament_handle_with_tournament_prefix() {
-        assert_eq!(
-            normalize_tournament_handle("tournament/some-weekly"),
-            "some-weekly"
-        );
-    }
-
-    #[test]
-    fn normalize_tournament_handle_trims_whitespace() {
-        assert_eq!(
-            normalize_tournament_handle("  some-weekly  "),
-            "some-weekly"
-        );
     }
 
     // ── Integration tests ─────────────────────────────────────────────────────
