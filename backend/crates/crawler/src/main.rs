@@ -3,13 +3,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::signal::unix::{SignalKind, signal};
 
-use cli::Config;
-
-mod api;
-mod api_types;
-mod cli;
-mod db;
-mod scraper;
+use crawler::{cli, scraper};
 
 fn init_tracing(rust_log: &str) {
     tracing_subscriber::fmt()
@@ -20,7 +14,7 @@ fn init_tracing(rust_log: &str) {
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
-    let config = Config::parse();
+    let config = cli::Config::parse();
 
     init_tracing(&config.rust_log);
 
