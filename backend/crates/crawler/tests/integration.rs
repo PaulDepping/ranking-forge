@@ -203,7 +203,7 @@ async fn test_crawl_single_tournament(pool: sqlx::PgPool) {
         sets_per_page: 20,
         game_id: None,
         rust_log: "off".into(),
-        startgg_base_url: Some(mock_server.uri()),
+        startgg_base_url: mock_server.uri(),
     };
 
     let shutdown = AtomicBool::new(false);
@@ -464,7 +464,7 @@ async fn test_crawl_two_pass_fallback(pool: sqlx::PgPool) {
         sets_per_page: 20,
         game_id: None,
         rust_log: "off".into(),
-        startgg_base_url: Some(mock_server.uri()),
+        startgg_base_url: mock_server.uri(),
     };
 
     let shutdown = AtomicBool::new(false);

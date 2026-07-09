@@ -196,7 +196,7 @@ async fn crawl_and_import_hannover_weekly(pool: PgPool) {
             sets_per_page: 20,
             game_id: Some(MELEE_GAME_ID),
             rust_log: "off".into(),
-            startgg_base_url: None,
+            startgg_base_url: crawler::api::STARTGG_API_URL.to_string(),
         };
         sqlx::query!("DELETE FROM crawler_checkpoints WHERE key = 'window_start'")
             .execute(&pool)

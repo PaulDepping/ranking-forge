@@ -85,11 +85,7 @@ macro_rules! with_complexity_retry {
 
 pub async fn run(config: &Config, pool: &PgPool, shutdown: &AtomicBool) -> Result<()> {
     let client = Client::builder().timeout(Duration::from_secs(30)).build()?;
-    let base_url = config
-        .startgg_base_url
-        .as_deref()
-        .unwrap_or(crate::api::STARTGG_API_URL)
-        .to_string();
+    let base_url = config.startgg_base_url.clone();
     let delay = Duration::from_millis(config.delay_ms);
 
     let range_start = config
