@@ -315,7 +315,6 @@ pub async fn get_stats(
     struct SetRow {
         winner_player_id: Uuid,
         loser_player_id: Uuid,
-        upset_factor: Option<f64>,
         completed_at: Option<DateTime<Utc>>,
         winner_score: Option<i16>,
         loser_score: Option<i16>,
@@ -348,7 +347,6 @@ pub async fn get_stats(
         SELECT
             rsr.winner_player_id,
             rsr.loser_player_id,
-            rsr.upset_factor,
             rsr.completed_at,
             gs.winner_score,
             gs.loser_score,
@@ -491,7 +489,6 @@ pub async fn get_player_stats(
     struct SetRow {
         winner_player_id: Uuid,
         loser_player_id: Uuid,
-        upset_factor: Option<f64>,
         completed_at: Option<DateTime<Utc>>,
         winner_score: Option<i16>,
         loser_score: Option<i16>,
@@ -524,7 +521,6 @@ pub async fn get_player_stats(
         SELECT
             rsr.winner_player_id,
             rsr.loser_player_id,
-            rsr.upset_factor,
             rsr.completed_at,
             gs.winner_score,
             gs.loser_score,
@@ -817,7 +813,6 @@ pub async fn get_h2h_sets(
     struct H2HSetRow {
         winner_player_id: Uuid,
         loser_player_id: Uuid,
-        upset_factor: Option<f64>,
         completed_at: Option<DateTime<Utc>>,
         winner_score: Option<i16>,
         loser_score: Option<i16>,
@@ -850,7 +845,6 @@ pub async fn get_h2h_sets(
         SELECT
             rsr.winner_player_id,
             rsr.loser_player_id,
-            rsr.upset_factor,
             rsr.completed_at,
             gs.winner_score,
             gs.loser_score,
