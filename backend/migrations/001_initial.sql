@@ -329,7 +329,6 @@ CREATE TABLE ranking_set_results (
     winner_player_id UUID        NOT NULL REFERENCES players(id),
     loser_player_id  UUID        NOT NULL REFERENCES players(id),
     global_event_id  UUID        NOT NULL REFERENCES global_events(id),
-    upset_factor     FLOAT,
     completed_at     TIMESTAMPTZ,
     PRIMARY KEY (ranking_id, global_set_id)
 );

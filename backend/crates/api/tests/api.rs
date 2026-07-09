@@ -1307,21 +1307,16 @@ async fn compute_ranking_set_results(pool: &PgPool, ranking_id: Uuid) {
     .unwrap();
 
     for row in &sets {
-        let upset_factor = match (row.winner_seed, row.loser_seed) {
-            (Some(ws), Some(ls)) => Some(common::upset::set_upset_factor(ws, ls) as f64),
-            _ => None,
-        };
         sqlx::query!(
             r#"INSERT INTO ranking_set_results
                 (ranking_id, global_set_id, winner_player_id, loser_player_id,
-                 global_event_id, upset_factor, completed_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7)"#,
+                 global_event_id, completed_at)
+               VALUES ($1, $2, $3, $4, $5, $6)"#,
             ranking_id,
             row.global_set_id,
             row.winner_player_id,
             row.loser_player_id,
             row.global_event_id,
-            upset_factor,
             row.completed_at,
         )
         .execute(pool)

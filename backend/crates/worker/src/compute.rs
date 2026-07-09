@@ -2,7 +2,6 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use common::algorithms::{AlgorithmRegistry, ScoredSet};
-use common::upset::set_upset_factor;
 
 pub async fn run(pool: &PgPool, ranking_id: Uuid) -> anyhow::Result<()> {
     let ranking = sqlx::query!(
@@ -79,27 +78,20 @@ async fn phase1_set_results(pool: &PgPool, ranking_id: Uuid) -> anyhow::Result<(
     .await?;
 
     for row in &sets {
-        let upset_factor: Option<f64> = match (row.winner_seed, row.loser_seed) {
-            (Some(ws), Some(ls)) => Some(set_upset_factor(ws, ls) as f64),
-            _ => None,
-        };
-
         sqlx::query!(
             "INSERT INTO ranking_set_results
-                 (ranking_id, global_set_id, winner_player_id, loser_player_id, global_event_id, upset_factor, completed_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
+                 (ranking_id, global_set_id, winner_player_id, loser_player_id, global_event_id, completed_at)
+             VALUES ($1, $2, $3, $4, $5, $6)
              ON CONFLICT (ranking_id, global_set_id) DO UPDATE SET
                  winner_player_id = EXCLUDED.winner_player_id,
                  loser_player_id  = EXCLUDED.loser_player_id,
                  global_event_id  = EXCLUDED.global_event_id,
-                 upset_factor     = EXCLUDED.upset_factor,
                  completed_at     = EXCLUDED.completed_at",
             ranking_id,
             row.global_set_id,
             row.winner_player_id,
             row.loser_player_id,
             row.global_event_id,
-            upset_factor,
             row.completed_at,
         )
         .execute(&mut *tx)
